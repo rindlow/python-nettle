@@ -4,8 +4,9 @@ setup(name="nettle",
       description='Python bindings to the nettle cryptographic library',
       author='Henrik Rindlöw',
       author_email='henrik@rindlow.se',
-      packages=['nettle'],
       ext_modules=[
-          Extension("nettle.hash", libraries=['nettle'],
-                    sources=['nettle_hash.c'])])
+          Extension("nettle", libraries=['nettle'],
+                    sources=['src/nettle_hash.c',
+                             'src/nettle.c'])])
+
 

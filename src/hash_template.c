@@ -71,7 +71,7 @@ static PyMemberDef pynettle_{hash_lower}_members[] = {{
   {{NULL}}
 }};
 
-static PyTypeObject pynettle_{hash_lower}_Type = {{
+PyTypeObject pynettle_{hash_lower}_Type = {{
     PyVarObject_HEAD_INIT(NULL, 0)
     "nettle.hash.{hash_lower}",             /* tp_name */
     sizeof(pynettle_{hash_lower}),     /* tp_basicsize */
