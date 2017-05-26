@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from CClass import CClass
 
 class Cipher(CClass):
