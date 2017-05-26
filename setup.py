@@ -6,7 +6,8 @@ setup(name="nettle",
       author_email='henrik@rindlow.se',
       ext_modules=[
           Extension("nettle", libraries=['nettle'],
-                    sources=['src/nettle_hash.c',
+                    sources=['src/nettle_hashes.c',
+                             'src/nettle_ciphers.c',
                              'src/nettle.c'])])
 
 
