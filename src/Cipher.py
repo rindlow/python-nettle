@@ -1,16 +1,17 @@
 from CClass import CClass
 
+
 class Cipher(CClass):
 
     def __init__(self, name, family, mode, docs):
         CClass.__init__(self, name, docs)
         self.name = '{}_{}'.format(name, mode)
-        
+
         self.add_member(
             name='ctx',
             decl='struct {}_ctx *ctx'.format(name),
             alloc='if ((self->ctx = PyMem_Malloc(sizeof(struct {}_ctx)))'
-            ' == NULL) {{\n    return PyErr_NoMemory();\n  }}'\
+            ' == NULL) {{\n    return PyErr_NoMemory();\n  }}'
             .format(name),
             dealloc='PyMem_Free(self->ctx);\n  self->ctx = NULL;')
         if mode == 'cbc':
@@ -88,26 +89,31 @@ class Cipher(CClass):
             type='T_INT',
             public=True)
 
-        if mode ==  'ecb':
-            crypt = '{}_encrypt(self->ctx, buffer.len, dst, buffer.buf);'\
+        if mode == 'ecb':
+            crypt = '{}_{{func}}(self->ctx, buffer.len, dst, buffer.buf);'\
                     .format(name)
         elif mode == 'cbc':
             crypt = 'cbc_encrypt(self->ctx,' \
                     ' (nettle_cipher_func *)&{name}_{{func}},'\
                     ' {FAMILY}_BLOCK_SIZE,' \
-                    ' self->iv, buffer.len, dst, buffer.buf);'\
-                .format(name=name, FAMILY=family.upper())
+                    ' self->iv, buffer.len, dst, buffer.buf);\n'\
+                    .format(name=name, FAMILY=family.upper())
         elif mode == 'ctr':
             crypt = 'ctr_crypt(self->ctx,' \
                     ' (nettle_cipher_func *)&{name}_{{func}},' \
                     ' {FAMILY}_BLOCK_SIZE,'\
-            ' self->ctr, buffer.len, dst, buffer.buf);'\
-                .format(name=name, FAMILY=family.upper())
-            
+                    ' self->ctr, buffer.len, dst, buffer.buf);'\
+                    .format(name=name, FAMILY=family.upper())
+
+        if name[:8] == 'camellia':
+            func = 'crypt'
+        else:
+            func = 'encrypt'
         self.add_method(
             name='encrypt',
             args='METH_VARARGS',
-            docs='Encrypt data, the length of which must be an integral multiple of the block size',
+            docs='Encrypt data, the length of which must be an integral'
+            ' multiple of the block size',
             body='''
   Py_buffer buffer;
   uint8_t *dst;
@@ -120,12 +126,17 @@ class Cipher(CClass):
   }}
   {}
   return PyBytes_FromStringAndSize((const char *)dst, buffer.len);
-'''.format(crypt.format(func='encrypt')))
+'''.format(crypt.format(func=func)))
 
+        if name[:8] == 'camellia':
+            func = 'crypt'
+        else:
+            func = 'decrypt'
         self.add_method(
             name='decrypt',
             args='METH_VARARGS',
-            docs='Encrypt data, the length of which must be an integral multiple of the block size',
+            docs='Encrypt data, the length of which must be an integral'
+            ' multiple of the block size',
             body='''
   Py_buffer buffer;
   uint8_t *dst;
@@ -138,14 +149,14 @@ class Cipher(CClass):
   }}
   {}
   return PyBytes_FromStringAndSize((const char *)dst, buffer.len);
-'''.format(crypt.format(func='decrypt')))
+'''.format(crypt.format(func=func)))
 
         self.add_method(
             name='invert_key',
             args='METH_NOARGS',
-            docs='On an instance initialized for encryption, initializes the context for decryption using the same key',
+            docs='On an instance initialized for encryption, initializes'
+            ' the context for decryption using the same key',
             body='''
   {name}_invert_key(self->ctx, self->ctx);
   Py_RETURN_NONE;
     '''.format(name=name))
-

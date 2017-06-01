@@ -24,9 +24,9 @@ aesdocs = 'AES is a block cipher, specified by NIST as a replacement' \
      ' 128 bits, or 16 octets, and three possible key-size, 128, 192 and 256' \
      ' bits (16, 24 and 32 octets) being the allowed key sizes. It does not' \
      ' have any weak keys.'
-     
-camelliadocs = 'Camellia is a block cipher developed by Mitsubishi and Nippon' \
-     ' Telegraph and Telephone Corporation, described in RFC3713. It' \
+
+camelliadocs = 'Camellia is a block cipher developed by Mitsubishi and' \
+     ' Nippon Telegraph and Telephone Corporation, described in RFC3713. It' \
      ' is recommended by some Japanese and European authorities as an' \
      ' alternative to AES, and it is one of the selected algorithms in' \
      ' the New European Schemes for Signatures, Integrity and' \
@@ -54,25 +54,25 @@ ciphers = [
      'modes': ['ecb', 'cbc', 'ctr'],
      'docstring': aesdocs},
     {'name': 'camellia128', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
      'modes': ['ecb', 'cbc', 'ctr'],
      'docstring': camelliadocs},
     {'name': 'camellia192', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
      'modes': ['ecb', 'cbc', 'ctr'],
      'docstring': camelliadocs},
     {'name': 'camellia256', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
      'modes': ['ecb', 'cbc', 'ctr'],
      'docstring': camelliadocs},
-    
 ]
+
 
 class Generator:
     hash_file = 'nettle_hashes.c'
     cipher_file = 'nettle_ciphers.c'
     mod_file = 'nettle.c'
-    
+
     def __init__(self):
         self.objects = []
 
@@ -83,7 +83,7 @@ class Generator:
             headers = set()
             for h in hashdata:
                 headers.update(set(h['headers']))
-            for header in sorted(headers):   
+            for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             f.write('\n')
 
@@ -99,7 +99,7 @@ class Generator:
             headers = set()
             for c in cipherdata:
                 headers.update(set(c['headers']))
-            for header in sorted(headers):   
+            for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             f.write('\n')
 
@@ -110,12 +110,13 @@ class Generator:
                                          c['docstring'])
                     cipherclass.write_to_file(f)
                     self.objects.append(objname)
-                
+
     def gen_mod_file(self):
         with open(self.mod_file, 'w') as f:
             f.write('#include <Python.h>\n')
             for object in sorted(self.objects):
-                f.write('extern PyTypeObject pynettle_{}_Type;\n'.format(object))
+                f.write('extern PyTypeObject pynettle_{}_Type;\n'
+                        .format(object))
 
             module = CModule(name='nettle', objects=self.objects)
             module.write_to_file(f)

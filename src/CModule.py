@@ -28,6 +28,6 @@ class CModule:
                       '  }}\n'
                       '  Py_INCREF(&pynettle_{object}_Type);\n'
                       '  PyModule_AddObject(m, "{object}",'
-                      ' (PyObject *)&pynettle_{object}_Type);\n'\
+                      ' (PyObject *)&pynettle_{object}_Type);\n'
                       .format(object=object))
         out.write('  return m;\n}\n')
