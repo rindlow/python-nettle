@@ -76,6 +76,14 @@ class Generator:
     def __init__(self):
         self.objects = []
 
+    def write_python2_buffer_struct(self, f):
+        f.write('#if PY_MAJOR_VERSION < 3\n'
+                'typedef struct py2buf_struct {\n'
+                '  const uint8_t *buf;\n'
+                '  int len;\n'
+                '} nettle_py2buf;\n'
+                '#endif\n')
+
     def gen_hash_file(self, hashdata):
         with open(self.hash_file, 'w') as f:
             f.write('#include <Python.h>\n')
@@ -85,6 +93,7 @@ class Generator:
                 headers.update(set(h['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
+            self.write_python2_buffer_struct(f)
             f.write('\n')
 
             for h in hashes:
@@ -101,6 +110,7 @@ class Generator:
                 headers.update(set(c['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
+            self.write_python2_buffer_struct(f)
             f.write('\n')
 
             for c in ciphers:
@@ -118,7 +128,9 @@ class Generator:
                 f.write('extern PyTypeObject pynettle_{}_Type;\n'
                         .format(object))
 
-            module = CModule(name='nettle', objects=self.objects)
+            module = CModule(name='nettle', objects=self.objects,
+                             doc='An interface to the Nettle'
+                             ' low level cryptographic library')
             module.write_to_file(f)
 
 gen = Generator()

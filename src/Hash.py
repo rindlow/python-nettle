@@ -35,9 +35,14 @@ class Hash(CClass):
             args='METH_VARARGS',
             docs='Hash some more data',
             body='''
+#if PY_MAJOR_VERSION >= 3
   Py_buffer buffer;
 
   if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
+#else
+  nettle_py2buf buffer;
+  if (! PyArg_ParseTuple(args, "t#", &buffer.buf, &buffer.len)) {{
+#endif
     return NULL;
   }}
   {name}_update(self->ctx, buffer.len, buffer.buf);

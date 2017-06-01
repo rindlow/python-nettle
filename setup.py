@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from distutils.core import setup, Extension
 setup(name="nettle",
       version="3.3",
