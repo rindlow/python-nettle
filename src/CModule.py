@@ -20,16 +20,16 @@ class CModule:
                   'PyInit_{name}(void)\n'
                   '{{\n'
                   '  PyObject *m = PyModule_Create(&{name});\n'
-                  '  if (m == NULL) {{\n'
-                  '    return MOD_ERR_VAL;\n'
-                  '  }}\n'
                   '#else\n'
                   '#define MOD_ERR_VAL\n'
                   'PyMODINIT_FUNC\n'
                   'init{name}(void)\n'
                   '{{\n'
                   '  PyObject *m = Py_InitModule3("{name}", NULL, "{doc}");\n'
-                  '#endif\n'.format(name=self.name, doc=self.doc))
+                  '#endif\n'
+                  '  if (m == NULL) {{\n'
+                  '    return MOD_ERR_VAL;\n'
+                  '  }}\n'.format(name=self.name, doc=self.doc))
 
         for object in sorted(self.objects):
             out.write('  if (PyType_Ready(&pynettle_{object}_Type) < 0) {{\n'
