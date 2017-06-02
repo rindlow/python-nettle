@@ -50,3 +50,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+src/__pycache__/
+src/nettle.c
+src/nettle_ciphers.c
+src/nettle_hashes.c
