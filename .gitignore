@@ -10,3 +10,6 @@
 
 # All c files are auto generated
 *.c
+
+# setuptools metadata
+nettle.egg-info/*
