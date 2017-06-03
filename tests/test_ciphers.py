@@ -159,6 +159,67 @@ class AES_CBC(TestCase):
                    SHEX("000102030405060708090a0b0c0d0e0f"))
 
 
+class AES_GCM(TestCase):
+
+    def _test(self, cipher, key, authtext, cleartext, ciphertext,
+              iv, digest):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher(encrypt_key=key, iv=iv)
+        c.update(authtext)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.digest(), digest)
+
+    def test_aes128_gcm(self):
+        self._test(nettle.aes128_gcm,
+                   SHEX("feffe9928665731c6d6a8f9467308308"),
+                   SHEX("feedfacedeadbeeffeedfacedeadbeef"
+                        "abaddad2"),
+                   SHEX("d9313225f88406e5a55909c5aff5269a"
+                        "86a7a9531534f7da2e4c303d8a318a72"
+                        "1c3c0c95956809532fcf0e2449a6b525"
+                        "b16aedf5aa0de657ba637b39"),
+                   SHEX("42831ec2217774244b7221b784d0d49c"
+                        "e3aa212f2c02a4e035c17e2329aca12e"
+                        "21d514b25466931c7d8f6a5aac84aa05"
+                        "1ba30b396a0aac973d58e091"),
+                   SHEX("cafebabefacedbaddecaf888"),
+                   SHEX("5bc94fbc3221a5db94fae95ae7121a47"))
+
+    def test_aes192_gcm(self):
+        self._test(nettle.aes192_gcm,
+                   SHEX("feffe9928665731c6d6a8f9467308308"
+                        "feffe9928665731c"),
+                   SHEX("feedfacedeadbeeffeedfacedeadbeef"
+                        "abaddad2"),
+                   SHEX("d9313225f88406e5a55909c5aff5269a"
+                        "86a7a9531534f7da2e4c303d8a318a72"
+                        "1c3c0c95956809532fcf0e2449a6b525"
+                        "b16aedf5aa0de657ba637b39"),
+                   SHEX("3980ca0b3c00e841eb06fac4872a2757"
+                        "859e1ceaa6efd984628593b40ca1e19c"
+                        "7d773d00c144c525ac619d18c84a3f47"
+                        "18e2448b2fe324d9ccda2710"),
+                   SHEX("cafebabefacedbaddecaf888"),
+                   SHEX("2519498e80f1478f37ba55bd6d27618c"))
+
+    def test_aes256_gcm(self):
+        self._test(nettle.aes256_gcm,
+                   SHEX("feffe9928665731c6d6a8f9467308308"
+                        "feffe9928665731c6d6a8f9467308308"),
+                   SHEX("feedfacedeadbeeffeedfacedeadbeef"
+                        "abaddad2"),
+                   SHEX("d9313225f88406e5a55909c5aff5269a"
+                        "86a7a9531534f7da2e4c303d8a318a72"
+                        "1c3c0c95956809532fcf0e2449a6b525"
+                        "b16aedf5aa0de657ba637b39"),
+                   SHEX("522dc1f099567d07f47f37a32a84427d"
+                        "643a8cdcbfe5c0c97598a2bd2555d1aa"
+                        "8cb08e48590dbb3da7b08b1056828838"
+                        "c5f61e6393ba7a0abcc9f662"),
+                   SHEX("cafebabefacedbaddecaf888"),
+                   SHEX("76fc6ece0f4e1768cddf8853bb2d551b"))
+
+
 class Camellia_ECB(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext):
