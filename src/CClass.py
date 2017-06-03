@@ -73,7 +73,7 @@ class CClass:
                        .format(name=self.name))
         for member in self.members:
             if member['public']:
-                self.out.write('  {{"{member}", {type}, '
+                self.out.write('  {{"{member}", {type},'
                                ' offsetof(pynettle_{name}, {member}), {flags},'
                                ' "{docstring}"}},\n'
                                .format(name=self.name,

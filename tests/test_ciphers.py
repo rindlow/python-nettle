@@ -164,6 +164,15 @@ class AES_GCM(TestCase):
     def _test(self, cipher, key, authtext, cleartext, ciphertext,
               iv, digest):
         self.assertEqual(len(cleartext), len(ciphertext))
+
+        c = cipher()
+        self.assertEqual(c.key_size, len(key))
+        c.set_encrypt_key(key)
+        c.set_iv(iv)
+        c.update(authtext)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.digest(), digest)
+
         c = cipher(encrypt_key=key, iv=iv)
         c.update(authtext)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
