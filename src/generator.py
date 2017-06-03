@@ -43,28 +43,43 @@ camelliadocs = 'Camellia is a block cipher developed by Mitsubishi and' \
      ' 128, 192, and 256 bits. The variants with 192 and 256 bit keys' \
      ' are identical, except for the key setup.'
 
+arcfourdocs = 'ARCFOUR is a stream cipher, also known under the trade marked' \
+     'name RC4, and it is one of the fastest ciphers around. A' \
+     ' problem is that the key setup of ARCFOUR is quite weak, you should' \
+     ' never use keys with structure, keys that are ordinary' \
+     ' passwords, or sequences of keys like "secret:1", "secret:2"' \
+     ' .... If you have keys that don’t look like random bit strings,' \
+     ' and you want to use ARCFOUR, always hash the key before feeding' \
+     ' it to ARCFOUR. Furthermore, the initial bytes of the generated' \
+     ' key stream leak information about the key; for this reason, it' \
+     ' is recommended to discard the first 512 bytes of the key' \
+     ' stream.'
+
 ciphers = [
+    {'name': 'arcfour', 'family': None, 'headers': ['arcfour.h'],
+     'docstring': aesdocs, 'lenparam': True, 'twokeys': False,
+     'twofuncs': False, 'invert': False},
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': aesdocs},
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': True, 'invert': True, 'docstring': aesdocs},
     {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': aesdocs},
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': True, 'invert': True, 'docstring': aesdocs},
     {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': aesdocs},
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': True, 'invert': True, 'docstring': aesdocs},
     {'name': 'camellia128', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': camelliadocs},
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
     {'name': 'camellia192', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': camelliadocs},
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
     {'name': 'camellia256', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'version.h'],
-     'modes': ['ecb', 'cbc', 'ctr'],
-     'docstring': camelliadocs},
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
+     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
 ]
 
 
@@ -114,12 +129,29 @@ class Generator:
             f.write('\n')
 
             for c in ciphers:
-                for mode in c['modes']:
-                    objname = '{}_{}'.format(c['name'], mode)
-                    cipherclass = Cipher(c['name'], c['family'], mode,
-                                         c['docstring'])
+                if 'modes' in c:
+                    for mode in c['modes']:
+                        objname = '{}_{}'.format(c['name'], mode)
+                        cipherclass = Cipher(c['name'],
+                                             family=c['family'],
+                                             docs=c['docstring'],
+                                             lenparam=c['lenparam'],
+                                             twokeys=c['twokeys'],
+                                             twofuncs=c['twofuncs'],
+                                             invert=c['invert'],
+                                             mode=mode)
+                        cipherclass.write_to_file(f)
+                        self.objects.append(objname)
+                else:
+                    cipherclass = Cipher(c['name'],
+                                         family=c['family'],
+                                         docs=c['docstring'],
+                                         lenparam=c['lenparam'],
+                                         twokeys=c['twokeys'],
+                                         twofuncs=c['twofuncs'],
+                                         invert=c['invert'])
                     cipherclass.write_to_file(f)
-                    self.objects.append(objname)
+                    self.objects.append(c['name'])
 
     def gen_mod_file(self):
         with open(self.mod_file, 'w') as f:

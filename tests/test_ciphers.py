@@ -28,6 +28,13 @@ class AES_ECB(TestCase):
         c = cipher(decrypt_key=key)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
 
+    def _test_invert(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c.invert_key()
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
     def test_aes128_ecb(self):
         self._test(nettle.aes128_ecb,
                    SHEX("0001020305060708 0A0B0C0D0F101112"),
@@ -47,6 +54,12 @@ class AES_ECB(TestCase):
                         "14151617191A1B1C 1E1F202123242526"),
                    SHEX("834EADFCCAC7E1B30664B1ABA44815AB"),
                    SHEX("1946DABF6A03A2A2 C3D0B05080AED6FC"))
+
+    def test_aes128_ecb_invert(self):
+        self._test_invert(nettle.aes128_ecb,
+                          SHEX("0001020305060708 0A0B0C0D0F101112"),
+                          SHEX("506812A45F08C889 B97F5980038B8359"),
+                          SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
 
 
 class AES_CTR(TestCase):
@@ -144,3 +157,78 @@ class AES_CBC(TestCase):
                         "39f23369a9d9bacfa530e26304231461"
                         "b2eb05e2c39be9fcda6c19078c6a9d1b"),
                    SHEX("000102030405060708090a0b0c0d0e0f"))
+
+
+class Camellia_ECB(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        self.assertEqual(len(key), c.key_size)
+        c.set_encrypt_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_decrypt_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = cipher(decrypt_key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+    def _test_invert(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.invert_key()
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+    def test_camellia128_ecb(self):
+        self._test(nettle.camellia128_ecb,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"))
+
+    def test_camellia192_ecb(self):
+        self._test(nettle.camellia192_ecb,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                        "00 11 22 33 44 55 66 77"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"))
+
+    def test_camellia256_ecb(self):
+        self._test(nettle.camellia256_ecb,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                        "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"))
+
+    def test_camellia128_ecb_invert(self):
+        self._test_invert(nettle.camellia128_ecb,
+                          SHEX("01 23 45 67 89 ab cd ef"
+                               "fe dc ba 98 76 54 32 10"),
+                          SHEX("01 23 45 67 89 ab cd ef"
+                               "fe dc ba 98 76 54 32 10"),
+                          SHEX("67 67 31 38 54 96 69 73"
+                               "08 57 06 56 48 ea be 43"))
+
+
+class ARCFOUR(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.arcfour()
+        self.assertEqual(len(key), c.key_size)
+        c.set_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+    def test_arcfour(self):
+        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
+                   SHEX("01234567 89ABCDEF"),
+                   SHEX("69723659 1B5242B1"))

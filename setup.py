@@ -16,5 +16,3 @@ setup(name="nettle",
                     sources=['src/nettle_hashes.c',
                              'src/nettle_ciphers.c',
                              'src/nettle.c'])])
-
-

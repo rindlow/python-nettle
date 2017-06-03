@@ -1,11 +1,23 @@
 from CClass import CClass
+from textwrap import dedent
 
 
 class Cipher(CClass):
 
-    def __init__(self, name, family, mode, docs):
+    def __init__(self, name, family=None, docs=None, lenparam=False,
+                 twofuncs=False, twokeys=False, invert=False, mode=None):
         CClass.__init__(self, name, docs)
-        self.name = '{}_{}'.format(name, mode)
+
+        if mode is None:
+            self.name = name
+        else:
+            self.name = '{}_{}'.format(name, mode)
+        self.family = family
+        self.mode = mode
+        if lenparam:
+            keylen = 'key.len, '
+        else:
+            keylen = ''
 
         self.add_member(
             name='ctx',
@@ -18,27 +30,25 @@ class Cipher(CClass):
             self.add_member(
                 name='iv',
                 decl='uint8_t iv[{}_BLOCK_SIZE];'.format(family.upper()))
-            self.add_to_init_body('''
-  static char *kwlist[] = {"encrypt_key", "decrypt_key", "iv",  NULL};
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer encrypt_key, decrypt_key, iv;
-#else
-  nettle_py2buf encrypt_key, decrypt_key, iv;
-#endif
-  encrypt_key.buf = NULL;
-  decrypt_key.buf = NULL;
-  iv.buf = NULL;
-#if PY_MAJOR_VERSION >= 3
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|y*y*y*", kwlist,
-                                    &encrypt_key, &decrypt_key, &iv)) {
-#else
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|t#t#t#", kwlist,
-                                    &encrypt_key.buf, &encrypt_key.len,
-                                    &decrypt_key.buf, &decrypt_key.len,
-                                    &iv.buf,  &iv.len)) {
-#endif
-  return -1;
-}''')
+            if twokeys:
+                self.add_bufferparse_to_init(['encrypt_key', 'decrypt_key',
+                                              'iv'])
+                self.add_to_init_body(
+                    '  if (encrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_encrypt_key(self->ctx,'
+                    ' encrypt_key.buf);\n'
+                    '  }}\n'
+                    '  if (decrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_decrypt_key(self->ctx,'
+                    ' decrypt_key.buf);\n'
+                    '  }}\n'.format(name=name))
+            else:
+                self.add_bufferparse_to_init(['key', 'iv'])
+                self.add_to_init_body(
+                    '  if (key.buf != NULL) {{\n'
+                    '    {name}_set_key(self->ctx, key.buf);\n'
+                    '  }}\n'.format(name=name))
+
             self.add_to_init_body(
                 '  if (iv.buf != NULL) {{\n'
                 '    memcpy(self->iv, iv.buf, {}_BLOCK_SIZE);\n'
@@ -47,60 +57,47 @@ class Cipher(CClass):
             self.add_member(
                 name='ctr',
                 decl='uint8_t ctr[{}_BLOCK_SIZE];'.format(family.upper()))
-            self.add_to_init_body('''
-  static char *kwlist[] = {"encrypt_key", "decrypt_key", "ctr",  NULL};
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer encrypt_key, decrypt_key, ctr;
-#else
-  nettle_py2buf encrypt_key, decrypt_key, ctr;
-#endif
-  encrypt_key.buf = NULL;
-  decrypt_key.buf = NULL;
-  ctr.buf = NULL;
-#if PY_MAJOR_VERSION >= 3
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|y*y*y*", kwlist,
-                                    &encrypt_key, &decrypt_key, &ctr)) {
-#else
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|t#t#t#", kwlist,
-                                    &encrypt_key.buf, &encrypt_key.len,
-                                    &decrypt_key.buf, &decrypt_key.len,
-                                    &ctr.buf,  &ctr.len)) {
-#endif
-  return -1;
-}''')
+            if twokeys:
+                self.add_bufferparse_to_init(['encrypt_key', 'decrypt_key',
+                                              'ctr'])
+                self.add_to_init_body(
+                    '  if (encrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_encrypt_key(self->ctx,'
+                    ' encrypt_key.buf);\n'
+                    '  }}\n'
+                    '  if (decrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_decrypt_key(self->ctx,'
+                    ' decrypt_key.buf);\n'
+                    '  }}\n'.format(name=name))
+            else:
+                self.add_bufferparse_to_init(['key', 'ctr'])
+                self.add_to_init_body(
+                    '  if (key.buf != NULL) {{\n'
+                    '    {name}_set_key(self->ctx, key.buf);\n'
+                    '  }}\n'.format(name=name))
             self.add_to_init_body(
                 '  if (ctr.buf != NULL) {{\n'
                 '    memcpy(self->ctr, ctr.buf, {}_BLOCK_SIZE);\n'
                 '  }} \n'.format(family.upper()))
         else:
-            self.add_to_init_body('''
-  static char *kwlist[] = {"encrypt_key", "decrypt_key", NULL};
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer encrypt_key, decrypt_key;
-#else
-  nettle_py2buf encrypt_key, decrypt_key;
-#endif
-  encrypt_key.buf = NULL;
-  decrypt_key.buf = NULL;
-#if PY_MAJOR_VERSION >= 3
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|y*y*", kwlist,
-                                    &encrypt_key, &decrypt_key)) {
-#else
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|t#t#", kwlist,
-                                    &encrypt_key.buf, &encrypt_key.len,
-                                    &decrypt_key.buf, &decrypt_key.len)) {
-#endif
-  return -1;
-}''')
-        self.add_to_init_body(
-            '  if (encrypt_key.buf != NULL) {{\n'
-            '    {name}_set_encrypt_key(self->ctx,'
-            ' encrypt_key.buf);\n'
-            '  }}\n'
-            '  if (decrypt_key.buf != NULL) {{\n'
-            '    {name}_set_decrypt_key(self->ctx,'
-            ' decrypt_key.buf);\n'
-            '  }}\n'.format(name=name))
+            if twokeys:
+                self.add_bufferparse_to_init(['encrypt_key', 'decrypt_key'])
+                self.add_to_init_body(
+                    '  if (encrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_encrypt_key(self->ctx,'
+                    ' encrypt_key.buf);\n'
+                    '  }}\n'
+                    '  if (decrypt_key.buf != NULL) {{\n'
+                    '    {name}_set_decrypt_key(self->ctx,'
+                    ' decrypt_key.buf);\n'
+                    '  }}\n'.format(name=name))
+            else:
+                self.add_bufferparse_to_init(['key'])
+                self.add_to_init_body(
+                    '  if (key.buf != NULL) {{\n'
+                    '    {name}_set_key(self->ctx, {keylen}key.buf);\n'
+                    '  }}\n'.format(name=name, keylen=keylen))
+
         self.add_member(
             name='key_size',
             decl='int key_size',
@@ -109,127 +106,136 @@ class Cipher(CClass):
             flags='READONLY',
             type='T_INT',
             public=True)
-        self.add_member(
-            name='block_size',
-            decl='int block_size',
-            init='self->block_size = {}_BLOCK_SIZE;'.format(family.upper()),
-            docs='The internal block size of {}'.format(family.upper()),
-            flags='READONLY',
-            type='T_INT',
-            public=True)
 
-        self.add_method(
-            name='set_encrypt_key',
-            args='METH_VARARGS',
-            docs='Initialize the cipher for encryption',
-            body='''
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer encrypt_key;
-  if (! PyArg_ParseTuple(args, "y*", &encrypt_key)) {{
-#else
-  nettle_py2buf encrypt_key;
-  if (! PyArg_ParseTuple(args, "t#", &encrypt_key.buf, &encrypt_key.len)) {{
-#endif
-    return NULL;
-  }}
-  {name}_set_encrypt_key(self->ctx, encrypt_key.buf);
-  Py_RETURN_NONE;
-'''.format(name=name))
+        if family is not None:
+            self.add_member(
+                name='block_size',
+                decl='int block_size',
+                init='self->block_size = {}_BLOCK_SIZE;'
+                .format(family.upper()),
+                docs='The internal block size of {}'.format(family.upper()),
+                flags='READONLY',
+                type='T_INT',
+                public=True)
 
-        self.add_method(
-            name='set_decrypt_key',
-            args='METH_VARARGS',
-            docs='Initialize the cipher for decryption',
-            body='''
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer decrypt_key;
-  if (! PyArg_ParseTuple(args, "y*", &decrypt_key)) {{
-#else
-  nettle_py2buf decrypt_key;
-  if (! PyArg_ParseTuple(args, "t#", &decrypt_key.buf, &decrypt_key.len)) {{
-#endif
-    return NULL;
-  }}
-  {name}_set_decrypt_key(self->ctx, decrypt_key.buf);
-  Py_RETURN_NONE;
-'''.format(name=name))
+        if twokeys:
+            self.add_set_key_function(name, keylen=keylen, usage='encrypt')
+            self.add_set_key_function(name, keylen=keylen, usage='decrypt')
+        else:
+            self.add_set_key_function(name, keylen=keylen)
 
-        if mode == 'ecb':
-            crypt = '{}_{{func}}(self->ctx, buffer.len, dst, buffer.buf);'\
-                    .format(name)
-        elif mode == 'cbc':
+        if twofuncs:
+            self.add_crypt_method(name, 'encrypt')
+            self.add_crypt_method(name, 'decrypt')
+        else:
+            self.add_crypt_method(name, 'crypt')
+
+        if invert:
+            self.add_method(
+                name='invert_key',
+                args='METH_NOARGS',
+                docs='On an instance initialized for encryption, initializes'
+                ' the context for decryption using the same key',
+                body=dedent('''
+                    {name}_invert_key(self->ctx, self->ctx);
+                    Py_RETURN_NONE;
+                    ''').format(name=name))
+
+    def add_bufferparse_to_init(self, buffers):
+        self.add_to_init_body(dedent('''
+              static char *kwlist[] = {kwlist};
+            #if PY_MAJOR_VERSION >= 3
+              Py_buffer {vars};
+            #else
+              nettle_py2buf {vars};
+            #endif
+              {nullify}
+            #if PY_MAJOR_VERSION >= 3
+              if (! PyArg_ParseTupleAndKeywords(args, kwds, "{py3fmt}", kwlist,
+                                                {py3pointers}))
+            #else
+              if (! PyArg_ParseTupleAndKeywords(args, kwds, "{py2fmt}", kwlist,
+                                                {py2pointers}))
+            #endif
+              {{
+                return -1;
+              }}
+            ''').format(kwlist='{{"{}", NULL}}'.format('", "'.join(buffers)),
+                        vars=', '.join(buffers),
+                        nullify='\n  '.join(['{}.buf = NULL;'.format(b)
+                                             for b in buffers]),
+                        py2fmt='|' + 't#' * len(buffers),
+                        py3fmt='|' + 'y*' * len(buffers),
+                        py2pointers=',\n\t\t\t\t    '.join(
+                            ['&{b}.buf, &{b}.len'.format(b=b)
+                             for b in buffers]),
+                        py3pointers=', '.join(['&{}'.format(b)
+                                               for b in buffers])))
+
+    def add_crypt_method(self, name, func):
+        if self.mode == 'cbc':
             crypt = 'cbc_encrypt(self->ctx,' \
                     ' (nettle_cipher_func *)&{name}_{{func}},'\
                     ' {FAMILY}_BLOCK_SIZE,' \
                     ' self->iv, buffer.len, dst, buffer.buf);\n'\
-                    .format(name=name, FAMILY=family.upper())
-        elif mode == 'ctr':
+                    .format(name=name, FAMILY=self.family.upper())
+        elif self.mode == 'ctr':
             crypt = 'ctr_crypt(self->ctx,' \
                     ' (nettle_cipher_func *)&{name}_{{func}},' \
                     ' {FAMILY}_BLOCK_SIZE,'\
                     ' self->ctr, buffer.len, dst, buffer.buf);'\
-                    .format(name=name, FAMILY=family.upper())
-
-        if name[:8] == 'camellia':
-            func = 'crypt'
+                    .format(name=name, FAMILY=self.family.upper())
         else:
-            func = 'encrypt'
-        self.add_method(
-            name='encrypt',
-            args='METH_VARARGS',
-            docs='Encrypt data, the length of which must be an integral'
-            ' multiple of the block size',
-            body='''
-  uint8_t *dst;
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer buffer;
-  if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
-#else
-  nettle_py2buf buffer;
-  if (! PyArg_ParseTuple(args, "t#", &buffer.buf, &buffer.len)) {{
-#endif
-    return NULL;
-  }}
-  if ((dst = PyMem_Malloc(buffer.len)) == NULL) {{
-    return PyErr_NoMemory();
-  }}
-  {}
-  return PyBytes_FromStringAndSize((const char *)dst, buffer.len);
-'''.format(crypt.format(func=func)))
+            crypt = '{}_{{func}}(self->ctx, buffer.len, dst, buffer.buf);'\
+                    .format(name)
 
-        if name[:8] == 'camellia':
-            func = 'crypt'
+        self.add_method(
+            name=func,
+            args='METH_VARARGS',
+            docs='{} data, the length of which must be an'
+            ' integral multiple of the block size'.format(name.capitalize()),
+            body=dedent('''
+                  uint8_t *dst;
+                #if PY_MAJOR_VERSION >= 3
+                  Py_buffer buffer;
+                  if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
+                #else
+                  nettle_py2buf buffer;
+                  if (! PyArg_ParseTuple(args, "t#",
+                                         &buffer.buf, &buffer.len)) {{
+                #endif
+                    return NULL;
+                  }}
+                  if ((dst = PyMem_Malloc(buffer.len)) == NULL) {{
+                    return PyErr_NoMemory();
+                  }}
+                  {}
+                  return PyBytes_FromStringAndSize((const char *)dst,
+                                                   buffer.len);
+                ''').format(crypt.format(func=func)))
+
+    def add_set_key_function(self, name, keylen, usage=None):
+        if usage is None:
+            funcname = 'set_key'
+            docs = 'Initialize the cipher'
         else:
-            func = 'decrypt'
-        self.add_method(
-            name='decrypt',
-            args='METH_VARARGS',
-            docs='Encrypt data, the length of which must be an integral'
-            ' multiple of the block size',
-            body='''
-  uint8_t *dst;
-#if PY_MAJOR_VERSION >= 3
-  Py_buffer buffer;
-  if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
-#else
-  nettle_py2buf buffer;
-  if (! PyArg_ParseTuple(args, "t#", &buffer.buf, &buffer.len)) {{
-#endif
-    return NULL;
-  }}
-  if ((dst = PyMem_Malloc(buffer.len)) == NULL) {{
-    return PyErr_NoMemory();
-  }}
-  {}
-  return PyBytes_FromStringAndSize((const char *)dst, buffer.len);
-'''.format(crypt.format(func=func)))
+            funcname = 'set_{}_key'.format(usage)
+            docs = 'Initialize the cipher for {}ion'.format(usage)
 
         self.add_method(
-            name='invert_key',
-            args='METH_NOARGS',
-            docs='On an instance initialized for encryption, initializes'
-            ' the context for decryption using the same key',
-            body='''
-  {name}_invert_key(self->ctx, self->ctx);
-  Py_RETURN_NONE;
-    '''.format(name=name))
+            name=funcname,
+            args='METH_VARARGS',
+            docs=docs,
+            body=dedent('''
+                #if PY_MAJOR_VERSION >= 3
+                  Py_buffer key;
+                  if (! PyArg_ParseTuple(args, "y*", &key)) {{
+                #else
+                  nettle_py2buf key;
+                  if (! PyArg_ParseTuple(args, "t#", &key.buf, &key.len)) {{
+                #endif
+                    return NULL;
+                  }}
+                  {name}_{funcname}(self->ctx, {keylen}key.buf);
+                  Py_RETURN_NONE;
+                ''').format(name=name, funcname=funcname, keylen=keylen))
