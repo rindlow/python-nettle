@@ -15,4 +15,5 @@ setup(name="nettle",
           Extension("nettle", libraries=['nettle'],
                     sources=['src/nettle_hashes.c',
                              'src/nettle_ciphers.c',
+                             'src/nettle_macs.c',
                              'src/nettle.c'])])

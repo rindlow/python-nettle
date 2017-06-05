@@ -107,11 +107,12 @@ class Cipher(CClass):
                 body=dedent('''
                     #if PY_MAJOR_VERSION >= 3
                       Py_buffer ctr;
-                      if (! PyArg_ParseTuple(args, "y*", &ctr)) {{
+                      if (! PyArg_ParseTuple(args, "y*", &ctr))
                     #else
                       nettle_py2buf ctr;
-                      if (! PyArg_ParseTuple(args, "t#", &ctr.buf, &ctr.len)) {{
+                      if (! PyArg_ParseTuple(args, "t#", &ctr.buf, &ctr.len))
                     #endif
+                      {{
                         return NULL;
                       }}
                       if (ctr.buf != NULL) {{
@@ -189,7 +190,7 @@ class Cipher(CClass):
                 body=dedent('''
                     #if PY_MAJOR_VERSION >= 3
                       Py_buffer buffer;
-                    
+
                       if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
                     #else
                       nettle_py2buf buffer;
@@ -375,7 +376,7 @@ class Cipher(CClass):
                   .format(name=name, usage=usage)
         else:
             gsk = ''
-            
+
         self.add_method(
             name=funcname,
             args='METH_VARARGS',
