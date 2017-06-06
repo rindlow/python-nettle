@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from CModule import CModule
+from CException import CException
 from Hash import Hash
 from Cipher import Cipher
 from MAC import MAC
@@ -86,8 +87,7 @@ ciphers = [
      'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
 ]
 
-hmacdocs = '''For an underlying hash function H, with digest size l and internalblock size b, HMAC-H is constructed as follows: From a given key k, two distinct subkeys k_i and k_o are constructed, both of length b. The HMAC-H of a message m is then computed as H(k_o | H(k_i | m)), where | denotes string concatenation. HMAC keys can be of any length, but it is recommended to use keys of length l, the digest size of the underlying hash function H. Keys that are longer than b are shortened to length l by hashing with H, so arbitrarily long keys aren’t very
-useful.''''
+hmacdocs = '''For an underlying hash function H, with digest size l and internalblock size b, HMAC-H is constructed as follows: From a given key k, two distinct subkeys k_i and k_o are constructed, both of length b. The HMAC-H of a message m is then computed as H(k_o | H(k_i | m)), where | denotes string concatenation. HMAC keys can be of any length, but it is recommended to use keys of length l, the digest size of the underlying hash function H. Keys that are longer than b are shortened to length l by hashing with H, so arbitrarily long keys aren’t very useful.'''
 
 umacdocs = '''UMAC is a message authentication code based on universal hashing, and designed for high performance on modern processors (in contrast to GCM, See GCM, which is designed primarily for hardware performance). On processors with good integer multiplication performance, it can be 10 times faster than SHA256 and SHA512. UMAC is specified in RFC 4418. The secret key is always 128 bits (16 octets). The key is used as an encryption key for the AES block cipher. This cipher is used in counter mode to generate various internal subkeys needed in UMAC. Messages are of arbitrary size, and for each message, UMAC also needs a unique nonce. Nonce values must not be reused for two messages with the same key, but they need not be kept secret. The nonce must be at least one octet, and at most 16; nonces shorter than 16 octets are zero-padded. Nettle’s implementation of UMAC increments the nonce automatically for each message, so explicitly setting the nonce for each message is optional. This auto-increment uses network byte order and it takes the length of the nonce into account. E.g., if the initial nonce is “abc” (3 octets), this value is zero-padded to 16 octets for the first message. For the next message, the nonce is incremented to “abd”, and this incremented value is zero-padded to 16 octets. UMAC is defined in four variants, for different output sizes: 32 bits (4 octets), 64 bits (8 octets), 96 bits (12 octets) and 128 bits (16 octets), corresponding to different trade-offs between speed and security. Using a shorter output size sometimes (but not always!) gives the same result as using a longer output size and truncating the result. So it is important to use the right variant. For consistency with other hash and MAC functions, Nettle’s _digest functions for UMAC accept a length parameter so that the output can be truncated to any desired size, but it is recommended to stick to the specified output size and select the umac variant corresponding to the desired size. The internal block size of UMAC is 1024 octets, and it also generates more than 1024 bytes of subkeys. This makes the size of the context struct quite a bit larger than other hash functions and MAC algorithms in Nettle.'''
 
@@ -95,7 +95,15 @@ macs = [
     {'name': 'hmac_sha1', 'headers': ['hmac.h'], 'docstring': hmacdocs},
     {'name': 'hmac_sha256', 'headers': ['hmac.h'], 'docstring': hmacdocs},
     {'name': 'umac128', 'headers': ['umac.h'], 'docstring': umacdocs},
-    ]
+]
+
+exceptions = [
+    {'name': 'BaseException', 'base': 'NULL',
+     'docs': 'Generic Nettle Exception'},
+    {'name': 'KeyLenError', 'base': 'BaseException',
+     'docs': 'Key Length is not as expected'},
+]
+ 
 
 
 class Generator:
@@ -106,10 +114,14 @@ class Generator:
 
     def __init__(self):
         self.objects = []
+        self.exceptions = []
+        for e in exceptions:
+            self.exceptions.append(CException(e['name'], 'nettle',
+                                              e['docs'], e['base']))
 
     def write_python2_buffer_struct(self, f):
         f.write('#if PY_MAJOR_VERSION < 3\n'
-                'typedef struct py2buf_struct {\n'
+                'typedef struct py2buf_struct\n{\n'
                 '  const uint8_t *buf;\n'
                 '  int len;\n'
                 '} nettle_py2buf;\n'
@@ -143,6 +155,8 @@ class Generator:
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
+            for e in self.exceptions:
+                e.write_decl_to_file(f, extern=True)
 
             for c in ciphers:
                 if 'modes' in c:
@@ -192,8 +206,11 @@ class Generator:
             for object in sorted(self.objects):
                 f.write('extern PyTypeObject pynettle_{}_Type;\n'
                         .format(object))
+            for e in self.exceptions:
+                e.write_decl_to_file(f)
 
             module = CModule(name='nettle', objects=self.objects,
+                             exceptions=self.exceptions,
                              doc='An interface to the Nettle'
                              ' low level cryptographic library')
             module.write_to_file(f)

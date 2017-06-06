@@ -8,28 +8,29 @@ class CClass:
         self.out = None
 
     def write_class_struct(self):
-        self.out.write('typedef struct {\n  PyObject_HEAD\n')
+        self.out.write('typedef struct\n{\n  PyObject_HEAD\n')
         for member in self.members:
             self.out.write('  {};\n'.format(member['decl']))
         self.out.write('}} pynettle_{};\n\n'.format(self.name))
 
     def write_new(self,):
         self.out.write('static PyObject *\n'
-                       'pynettle_{name}_new(PyTypeObject *type,'
-                       ' PyObject *args, PyObject *kwds)\n'
+                       'pynettle_{name}_new (PyTypeObject * type,'
+                       ' PyObject * args, PyObject * kwds)\n'
                        '{{\n'
                        '  pynettle_{name} *self;\n'
-                       '  self = (pynettle_{name} *)type->tp_alloc(type, 0);\n'
+                       '  self = (pynettle_{name} *)'
+                       ' type->tp_alloc (type, 0);\n'
                        .format(name=self.name))
         for member in self.members:
             if member['alloc'] is not None:
                 self.out.write('  {}\n'.format(member['alloc']))
-        self.out.write('  return (PyObject *)self;\n}\n\n')
+        self.out.write('  return (PyObject *) self;\n}\n\n')
 
     def write_init(self):
         self.out.write('static int\n'
-                       'pynettle_{name}_init(pynettle_{name} *self,'
-                       ' PyObject *args, PyObject *kwds)\n'
+                       'pynettle_{name}_init (pynettle_{name} * self,'
+                       ' PyObject * args, PyObject * kwds)\n'
                        '{{\n'.format(name=self.name))
         if self.init_body != '':
             self.out.write(self.init_body)
@@ -40,7 +41,7 @@ class CClass:
 
     def write_dealloc(self):
         self.out.write('static void\n'
-                       'pynettle_{name}_dealloc(pynettle_{name} *self)\n'
+                       'pynettle_{name}_dealloc (pynettle_{name} * self)\n'
                        '{{\n'.format(name=self.name))
         for member in self.members:
             if member['dealloc'] is not None:
@@ -50,8 +51,8 @@ class CClass:
     def write_methods(self):
         for method in self.methods:
             self.out.write('static PyObject *\n'
-                           'pynettle_{name}_{method}(pynettle_{name} *self,'
-                           ' PyObject *args, PyObject *kwds)\n'
+                           'pynettle_{name}_{method} (pynettle_{name} * self,'
+                           ' PyObject * args, PyObject * kwds)\n'
                            '{{'.format(name=self.name, method=method['name']))
             self.out.write(method['body'] + '}\n\n')
 
@@ -60,7 +61,7 @@ class CClass:
                        .format(name=self.name))
         for method in self.methods:
             self.out.write('  {{"{method}",'
-                           ' (PyCFunction)pynettle_{name}_{method}, {args},'
+                           ' (PyCFunction) pynettle_{name}_{method}, {args},'
                            ' "{docstring}"}},\n'.format(
                                name=self.name,
                                method=method['name'],
@@ -74,7 +75,7 @@ class CClass:
         for member in self.members:
             if member['public']:
                 self.out.write('  {{"{member}", {type},'
-                               ' offsetof(pynettle_{name}, {member}), {flags},'
+                               ' offsetof (pynettle_{name}, {member}), {flags},'
                                ' "{docstring}"}},\n'
                                .format(name=self.name,
                                        member=member['name'],
