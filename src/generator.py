@@ -102,8 +102,9 @@ exceptions = [
      'docs': 'Generic Nettle Exception'},
     {'name': 'KeyLenError', 'base': 'BaseException',
      'docs': 'Key Length is not as expected'},
+    {'name': 'NotInitializedError', 'base': 'BaseException',
+     'docs': 'Object must be initialized before calling this method'},
 ]
- 
 
 
 class Generator:
@@ -137,6 +138,8 @@ class Generator:
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
+            for e in self.exceptions:
+                e.write_decl_to_file(f, extern=True)
             f.write('\n')
 
             for h in hashes:
@@ -154,9 +157,9 @@ class Generator:
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
-            f.write('\n')
             for e in self.exceptions:
                 e.write_decl_to_file(f, extern=True)
+            f.write('\n')
 
             for c in ciphers:
                 if 'modes' in c:
@@ -193,6 +196,8 @@ class Generator:
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
+            for e in self.exceptions:
+                e.write_decl_to_file(f, extern=True)
             f.write('\n')
 
             for m in macdata:

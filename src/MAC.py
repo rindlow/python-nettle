@@ -8,6 +8,10 @@ class MAC(CClass):
         CClass.__init__(self, name, docs)
 
         self.add_member(
+            name='is_initialized',
+            decl='int is_initialized',
+            init='self->is_initialized = 0;')
+        self.add_member(
             name='ctx',
             decl='struct {}_ctx *ctx'.format(self.name),
             alloc='if ((self->ctx = PyMem_Malloc(sizeof(struct {}_ctx)))'
@@ -22,7 +26,9 @@ class MAC(CClass):
             self.add_bufferparse_to_init(['key', 'nonce'])
             self.add_to_init_body('  if (key.buf != NULL) {{\n'
                                   '    {name}_set_key(self->ctx,'
-                                  ' key.len, key.buf);\n  }}\n'
+                                  ' key.len, key.buf);\n'
+                                  '    self->is_initialized = 1;\n'
+                                  '  }}\n'
                                   .format(name=name))
         else:
             digestsize = '{}_DIGEST_SIZE'.format(name.upper())
@@ -35,8 +41,15 @@ class MAC(CClass):
             self.add_to_init_body(dedent('''
                 if (key.buf != NULL) {{
                   {name}_set_key(self->ctx, key.buf);
+                  self->is_initialized = 1;
                 }}
                 if (nonce.buf != NULL) {{
+                  if (!self->is_initialized)
+                    {{
+                      PyErr_Format (NotInitializedError, 
+                                    "Cipher not initialized. Set key first!");
+                      return -1;
+                    }}
                   {name}_set_nonce(self->ctx, nonce.len, nonce.buf);
                 }}
             ''').format(name=name))
@@ -45,6 +58,12 @@ class MAC(CClass):
                 args='METH_VARARGS',
                 docs='Initializes the MAC with the nonce',
                 body=dedent('''
+                      if (!self->is_initialized)
+                        {{
+                          PyErr_Format (NotInitializedError, 
+                                     "Cipher not initialized. Set key first!");
+                          return NULL;
+                        }}
                     #if PY_MAJOR_VERSION >= 3
                       Py_buffer nonce;
 
@@ -93,6 +112,7 @@ class MAC(CClass):
                     return NULL;
                   }}
                   {name}_set_key(self->ctx, {keylen}key.buf);
+                  self->is_initialized = 1;
                   Py_RETURN_NONE;
                 ''').format(name=name, keylen=keylen))
         self.add_method(
@@ -100,6 +120,12 @@ class MAC(CClass):
             args='METH_VARARGS',
             docs='Process some more data',
             body=dedent('''
+                  if (!self->is_initialized)
+                    {{
+                      PyErr_Format (NotInitializedError, 
+                                    "Cipher not initialized. Set key first!");
+                      return NULL;
+                    }}
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
 
@@ -121,6 +147,12 @@ class MAC(CClass):
             body='''
   uint8_t digest[{DIGESTSIZE}];
 
+  if (!self->is_initialized)
+    {{
+      PyErr_Format (NotInitializedError, 
+                    "Cipher not initialized. Set key first!");
+      return NULL;
+    }}
   {name}_digest(self->ctx, {DIGESTSIZE}, digest);
   return PyBytes_FromStringAndSize((const char *)digest, {DIGESTSIZE});
 '''.format(name=name, DIGESTSIZE=digestsize))

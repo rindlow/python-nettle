@@ -20,6 +20,10 @@ class Cipher(CClass):
             keylen = ''
 
         self.add_member(
+            name='is_initialized',
+            decl='int is_initialized',
+            init='self->is_initialized = 0;')
+        self.add_member(
             name='ctx',
             decl='struct {}_ctx *ctx'.format(name),
             alloc='if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx)))'
@@ -140,8 +144,8 @@ class Cipher(CClass):
                     self.key_len_check_and_set(
                         key=key, keylen=keylen, cipher_name=name, init=True,
                         key_size='{}_KEY_SIZE'.format(name.upper()),
-                        key_init='gcm_set_key (self->gcmkey,' \
-                        ' self->ctx, (nettle_cipher_func *)' \
+                        key_init='gcm_set_key (self->gcmkey,'
+                        ' self->ctx, (nettle_cipher_func *)'
                         '&{name}_{usage});'.format(name=name,
                                                    usage=key.split('_')[0])))
 
@@ -279,9 +283,11 @@ class Cipher(CClass):
             #endif
               {nullify}
             #if PY_MAJOR_VERSION >= 3
-              if (!PyArg_ParseTupleAndKeywords (args, kwds, "{py3fmt}", kwlist, {py3pointers}))
+              if (!PyArg_ParseTupleAndKeywords
+                      (args, kwds, "{py3fmt}", kwlist, {py3pointers}))
             #else
-              if (!PyArg_ParseTupleAndKeywords (args, kwds, "{py2fmt}", kwlist, {py2pointers}))
+              if (!PyArg_ParseTupleAndKeywords
+                      (args, kwds, "{py2fmt}", kwlist, {py2pointers}))
             #endif
                 {{
                   return -1;
@@ -326,6 +332,12 @@ class Cipher(CClass):
             docs='{} data, the length of which must be an'
             ' integral multiple of the block size'.format(name.capitalize()),
             body=dedent('''
+                  if (!self->is_initialized)
+                    {{
+                      PyErr_Format (NotInitializedError, 
+                                    "Cipher not initialized. Set key first!");
+                      return NULL;
+                    }}
                   uint8_t *dst;
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
@@ -399,6 +411,7 @@ class Cipher(CClass):
             '        }}\n' \
             '      {cipher_name}_set_{key} (self->ctx, {keylen}{key}.buf);\n' \
             '      {key_init}\n' \
+            '      self->is_initialized = 1;\n' \
             '    }}\n' \
             .format(key=key, key_size=key_size, cipher_name=cipher_name,
                     keylen=keylen, errval=errval, key_init=key_init)

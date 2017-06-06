@@ -32,11 +32,11 @@ class CClass:
                        'pynettle_{name}_init (pynettle_{name} * self,'
                        ' PyObject * args, PyObject * kwds)\n'
                        '{{\n'.format(name=self.name))
-        if self.init_body != '':
-            self.out.write(self.init_body)
         for member in self.members:
             if member['init'] is not None:
                 self.out.write('  {}\n'.format(member['init']))
+        if self.init_body != '':
+            self.out.write(self.init_body)
         self.out.write('  return 0;\n}\n\n')
 
     def write_dealloc(self):

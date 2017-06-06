@@ -33,6 +33,10 @@ class MAC(TestCase):
         h.update(msg)
         self.assertEqual(h.digest(), digest)
 
+        with self.assertRaises(nettle.NotInitializedError):
+            h = hashfunc()
+            h.update(msg)
+        
     def test_hmac_sha1(self):
         self._test(nettle.hmac_sha1,
                    SHEX("0b0b0b0b0b0b0b0b 0b0b0b0b0b0b0b0b 0b0b0b0b"),

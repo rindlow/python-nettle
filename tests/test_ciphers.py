@@ -28,6 +28,13 @@ class AES_ECB(TestCase):
         c = cipher(decrypt_key=key)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
 
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
+
+        with self.assertRaises(nettle.NotInitializedError):
+            c = cipher()
+            c.encrypt(cleartext)
+        
     def _test_invert(self, cipher, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher(encrypt_key=key)
@@ -68,6 +75,9 @@ class AES_CTR(TestCase):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher(encrypt_key=key, ctr=ctr)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
+
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
 
     def test_aes128_ctr(self):
         self._test(nettle.aes128_ctr,
@@ -116,6 +126,9 @@ class AES_CBC(TestCase):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher(encrypt_key=key, iv=iv)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
+
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
 
     def test_aes128_cbc(self):
         self._test(nettle.aes128_cbc,
@@ -178,6 +191,9 @@ class AES_GCM(TestCase):
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.digest(), digest)
 
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key+b'a', iv=iv)
+        
     def test_aes128_gcm(self):
         self._test(nettle.aes128_gcm,
                    SHEX("feffe9928665731c6d6a8f9467308308"),
@@ -245,6 +261,9 @@ class Camellia_ECB(TestCase):
         c = cipher(decrypt_key=key)
         self.assertEqual(c.crypt(ciphertext), cleartext)
 
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
+        
     def _test_invert(self, cipher, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher(encrypt_key=key)
@@ -298,6 +317,13 @@ class ARCFOUR(TestCase):
         c = nettle.arcfour(key=key)
         self.assertEqual(c.crypt(ciphertext), cleartext)
 
+        with self.assertRaises(nettle.KeyLenError):
+            c = nettle.arcfour(key=key[:-1])
+
+        with self.assertRaises(nettle.NotInitializedError):
+            c = nettle.arcfour()
+            c.crypt(cleartext)
+            
     def test_arcfour(self):
         self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
                    SHEX("01234567 89ABCDEF"),
