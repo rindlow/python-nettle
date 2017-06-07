@@ -87,9 +87,52 @@ ciphers = [
      'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
 ]
 
-hmacdocs = '''For an underlying hash function H, with digest size l and internalblock size b, HMAC-H is constructed as follows: From a given key k, two distinct subkeys k_i and k_o are constructed, both of length b. The HMAC-H of a message m is then computed as H(k_o | H(k_i | m)), where | denotes string concatenation. HMAC keys can be of any length, but it is recommended to use keys of length l, the digest size of the underlying hash function H. Keys that are longer than b are shortened to length l by hashing with H, so arbitrarily long keys aren’t very useful.'''
+hmacdocs = 'For an underlying hash function H, with digest size l and' \
+     ' internalblock size b, HMAC-H is constructed as follows: From a' \
+     ' given key k, two distinct subkeys k_i and k_o are constructed,' \
+     ' both of length b. The HMAC-H of a message m is then computed as' \
+     ' H(k_o | H(k_i | m)), where | denotes string concatenation. HMAC' \
+     ' keys can be of any length, but it is recommended to use keys of' \
+     ' length l, the digest size of the underlying hash function H.' \
+     ' Keys that are longer than b are shortened to length l by hashing' \
+     ' with H, so arbitrarily long keys aren’t very useful.'
 
-umacdocs = '''UMAC is a message authentication code based on universal hashing, and designed for high performance on modern processors (in contrast to GCM, See GCM, which is designed primarily for hardware performance). On processors with good integer multiplication performance, it can be 10 times faster than SHA256 and SHA512. UMAC is specified in RFC 4418. The secret key is always 128 bits (16 octets). The key is used as an encryption key for the AES block cipher. This cipher is used in counter mode to generate various internal subkeys needed in UMAC. Messages are of arbitrary size, and for each message, UMAC also needs a unique nonce. Nonce values must not be reused for two messages with the same key, but they need not be kept secret. The nonce must be at least one octet, and at most 16; nonces shorter than 16 octets are zero-padded. Nettle’s implementation of UMAC increments the nonce automatically for each message, so explicitly setting the nonce for each message is optional. This auto-increment uses network byte order and it takes the length of the nonce into account. E.g., if the initial nonce is “abc” (3 octets), this value is zero-padded to 16 octets for the first message. For the next message, the nonce is incremented to “abd”, and this incremented value is zero-padded to 16 octets. UMAC is defined in four variants, for different output sizes: 32 bits (4 octets), 64 bits (8 octets), 96 bits (12 octets) and 128 bits (16 octets), corresponding to different trade-offs between speed and security. Using a shorter output size sometimes (but not always!) gives the same result as using a longer output size and truncating the result. So it is important to use the right variant. For consistency with other hash and MAC functions, Nettle’s _digest functions for UMAC accept a length parameter so that the output can be truncated to any desired size, but it is recommended to stick to the specified output size and select the umac variant corresponding to the desired size. The internal block size of UMAC is 1024 octets, and it also generates more than 1024 bytes of subkeys. This makes the size of the context struct quite a bit larger than other hash functions and MAC algorithms in Nettle.'''
+umacdocs = 'UMAC is a message authentication code based on universal' \
+     ' hashing, and designed for high performance on modern processors (in' \
+     ' contrast to GCM, See GCM, which is designed primarily for' \
+     ' hardware performance). On processors with good integer' \
+     ' multiplication performance, it can be 10 times faster than' \
+     ' SHA256 and SHA512. UMAC is specified in RFC 4418. The secret key' \
+     ' is always 128 bits (16 octets). The key is used as an encryption' \
+     ' key for the AES block cipher. This cipher is used in counter' \
+     ' mode to generate various internal subkeys needed in UMAC.' \
+     ' Messages are of arbitrary size, and for each message, UMAC also' \
+     ' needs a unique nonce. Nonce values must not be reused for two' \
+     ' messages with the same key, but they need not be kept secret.' \
+     ' The nonce must be at least one octet, and at most 16; nonces' \
+     ' shorter than 16 octets are zero-padded. Nettle’s implementation' \
+     ' of UMAC increments the nonce automatically for each message, so' \
+     ' explicitly setting the nonce for each message is optional. This' \
+     ' auto-increment uses network byte order and it takes the length' \
+     ' of the nonce into account. E.g., if the initial nonce is “abc”' \
+     ' (3 octets), this value is zero-padded to 16 octets for the first' \
+     ' message. For the next message, the nonce is incremented to' \
+     ' “abd”, and this incremented value is zero-padded to 16 octets.' \
+     ' UMAC is defined in four variants, for different output sizes: 32' \
+     ' bits (4 octets), 64 bits (8 octets), 96 bits (12 octets) and 128' \
+     ' bits (16 octets), corresponding to different trade-offs between' \
+     ' speed and security. Using a shorter output size sometimes (but' \
+     ' not always!) gives the same result as using a longer output size' \
+     ' and truncating the result. So it is important to use the right' \
+     ' variant. For consistency with other hash and MAC functions,' \
+     ' Nettle’s _digest functions for UMAC accept a length parameter so' \
+     ' that the output can be truncated to any desired size, but it is' \
+     ' recommended to stick to the specified output size and select the' \
+     ' umac variant corresponding to the desired size. The internal' \
+     ' block size of UMAC is 1024 octets, and it also generates more' \
+     ' than 1024 bytes of subkeys. This makes the size of the context' \
+     ' struct quite a bit larger than other hash functions and MAC' \
+     ' algorithms in Nettle.'
 
 macs = [
     {'name': 'hmac_sha1', 'headers': ['hmac.h'], 'docstring': hmacdocs},
@@ -108,6 +151,7 @@ exceptions = [
 
 
 class Generator:
+    exception_header_file = 'nettle_exceptions.h'
     hash_file = 'nettle_hashes.c'
     cipher_file = 'nettle_ciphers.c'
     mac_file = 'nettle_macs.c'
@@ -115,10 +159,6 @@ class Generator:
 
     def __init__(self):
         self.objects = []
-        self.exceptions = []
-        for e in exceptions:
-            self.exceptions.append(CException(e['name'], 'nettle',
-                                              e['docs'], e['base']))
 
     def write_python2_buffer_struct(self, f):
         f.write('#if PY_MAJOR_VERSION < 3\n'
@@ -132,33 +172,31 @@ class Generator:
         with open(self.hash_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
+            f.write('#include "nettle_exceptions.h"\n')
             headers = set()
             for h in hashdata:
                 headers.update(set(h['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
-            for e in self.exceptions:
-                e.write_decl_to_file(f, extern=True)
             f.write('\n')
 
             for h in hashes:
                 hashclass = Hash(h['name'], h['docstring'])
                 hashclass.write_to_file(f)
-                self.objects.append(h['name'])
+                self.objects.append(hashclass)
 
     def gen_cipher_file(self, cipherdata):
         with open(self.cipher_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
+            f.write('#include "nettle_exceptions.h"\n')
             headers = set()
             for c in cipherdata:
                 headers.update(set(c['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
-            for e in self.exceptions:
-                e.write_decl_to_file(f, extern=True)
             f.write('\n')
 
             for c in ciphers:
@@ -174,7 +212,7 @@ class Generator:
                                              invert=c['invert'],
                                              mode=mode)
                         cipherclass.write_to_file(f)
-                        self.objects.append(objname)
+                        self.objects.append(cipherclass)
                 else:
                     cipherclass = Cipher(c['name'],
                                          family=c['family'],
@@ -184,38 +222,40 @@ class Generator:
                                          twofuncs=c['twofuncs'],
                                          invert=c['invert'])
                     cipherclass.write_to_file(f)
-                    self.objects.append(c['name'])
+                    self.objects.append(cipherclass)
 
     def gen_mac_file(self, macdata):
         with open(self.mac_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
+            f.write('#include "nettle_exceptions.h"\n')
             headers = set()
             for m in macdata:
                 headers.update(set(m['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
-            for e in self.exceptions:
-                e.write_decl_to_file(f, extern=True)
             f.write('\n')
 
             for m in macdata:
                 macclass = MAC(m['name'], m['docstring'])
                 macclass.write_to_file(f)
-                self.objects.append(m['name'])
+                self.objects.append(macclass)
+
+    def gen_exception_header_file(self, exceptions):
+        with open(self.exception_header_file, 'w') as f:
+            for e in exceptions:
+                ex = CException(e['name'], 'nettle', e['docs'], e['base'])
+                ex.write_decl_to_file(f, extern=True)
+                self.objects.append(ex)
 
     def gen_mod_file(self):
         with open(self.mod_file, 'w') as f:
             f.write('#include <Python.h>\n')
-            for object in sorted(self.objects):
-                f.write('extern PyTypeObject pynettle_{}_Type;\n'
-                        .format(object))
-            for e in self.exceptions:
-                e.write_decl_to_file(f)
+            for object in sorted(self.objects, key=lambda o: o.name):
+                object.write_decl_to_file(f)
 
             module = CModule(name='nettle', objects=self.objects,
-                             exceptions=self.exceptions,
                              doc='An interface to the Nettle'
                              ' low level cryptographic library')
             module.write_to_file(f)
@@ -224,4 +264,5 @@ gen = Generator()
 gen.gen_hash_file(hashes)
 gen.gen_cipher_file(ciphers)
 gen.gen_mac_file(macs)
+gen.gen_exception_header_file(exceptions)
 gen.gen_mod_file()

@@ -75,8 +75,8 @@ class CClass:
         for member in self.members:
             if member['public']:
                 self.out.write('  {{"{member}", {type},'
-                               ' offsetof (pynettle_{name}, {member}), {flags},'
-                               ' "{docstring}"}},\n'
+                               ' offsetof (pynettle_{name}, {member}),'
+                               ' {flags}, "{docstring}"}},\n'
                                .format(name=self.name,
                                        member=member['name'],
                                        flags=member['flags'],
@@ -142,8 +142,20 @@ class CClass:
         self.write_member_def()
         self.write_type()
 
-    def add_member(self, name, decl, init=None, type=None,
-                   alloc=None, dealloc=None, docs=None, flags=0, public=False):
+    def write_decl_to_file(self, f):
+        f.write('extern PyTypeObject pynettle_{}_Type;\n'.format(self.name))
+
+    def write_reg_to_file(self, f):
+        f.write('  if (PyType_Ready (&pynettle_{name}_Type) < 0) {{\n'
+                '    return MOD_ERR_VAL;\n'
+                '  }}\n'
+                '  Py_INCREF (&pynettle_{name}_Type);\n'
+                '  PyModule_AddObject (m, "{name}",'
+                ' (PyObject *) &pynettle_{name}_Type);\n'
+                .format(name=self.name))
+
+    def add_member(self, name, decl, init=None, type=None, alloc=None,
+                   dealloc=None, docs=None, flags=0, public=False):
         self.members.append({'name': name, 'decl': decl, 'docs': docs,
                              'init': init, 'alloc': alloc, 'dealloc': dealloc,
                              'type': type, 'flags': flags, 'public': public})

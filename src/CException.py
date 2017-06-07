@@ -11,14 +11,14 @@ class CException:
             f.write('extern ')
         f.write('PyObject *{};\n'.format(self.name))
 
-    def write_to_file(self, f):
-        f.write('  {self.name} = PyErr_NewExceptionWithDoc('
-                '    "{self.module}.{self.name}",\n'
-                '    "{self.docs}",\n {self.base}, NULL);\n'
-                '  if (! {self.name}) {{\n'
-                '    return MOD_ERR_VAL;\n'
-                '  }} else {{\n'
-                '    Py_INCREF({self.name});\n'
-                '    PyModule_AddObject(m, "{self.name}", {self.name});\n'
-                '  }}\n'
+    def write_reg_to_file(self, f):
+        f.write('  {self.name} = PyErr_NewExceptionWithDoc ('
+                '"{self.module}.{self.name}",'
+                ' "{self.docs}", {self.base}, NULL);\n'
+                '  if (!{self.name})\n    {{\n'
+                '      return MOD_ERR_VAL;\n'
+                '    }}\n  else\n    {{\n'
+                '      Py_INCREF ({self.name});\n'
+                '      PyModule_AddObject (m, "{self.name}", {self.name});\n'
+                '    }}\n'
                 .format(self=self))

@@ -1,10 +1,9 @@
 class CModule:
 
-    def __init__(self, name, doc, objects, exceptions):
+    def __init__(self, name, doc, objects):
         self.name = name
         self.doc = doc
         self.objects = objects
-        self.exceptions = exceptions
         self.out = None
 
     def write_to_file(self, out):
@@ -32,16 +31,9 @@ class CModule:
                   '    return MOD_ERR_VAL;\n'
                   '  }}\n'.format(name=self.name, doc=self.doc))
 
-        for object in sorted(self.objects):
-            out.write('  if (PyType_Ready(&pynettle_{object}_Type) < 0) {{\n'
-                      '    return MOD_ERR_VAL;\n'
-                      '  }}\n'
-                      '  Py_INCREF(&pynettle_{object}_Type);\n'
-                      '  PyModule_AddObject(m, "{object}",'
-                      ' (PyObject *)&pynettle_{object}_Type);\n'
-                      .format(object=object))
-        for ex in self.exceptions:
-            ex.write_to_file(out)
+        for object in sorted(self.objects, key=lambda o: o.name):
+            object.write_reg_to_file(out)
+
         out.write('#if PY_MAJOR_VERSION >= 3\n'
                   '  return m;\n'
                   '#endif\n'

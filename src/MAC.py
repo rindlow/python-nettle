@@ -46,7 +46,7 @@ class MAC(CClass):
                 if (nonce.buf != NULL) {{
                   if (!self->is_initialized)
                     {{
-                      PyErr_Format (NotInitializedError, 
+                      PyErr_Format (NotInitializedError,
                                     "Cipher not initialized. Set key first!");
                       return -1;
                     }}
@@ -60,7 +60,7 @@ class MAC(CClass):
                 body=dedent('''
                       if (!self->is_initialized)
                         {{
-                          PyErr_Format (NotInitializedError, 
+                          PyErr_Format (NotInitializedError,
                                      "Cipher not initialized. Set key first!");
                           return NULL;
                         }}
@@ -122,7 +122,7 @@ class MAC(CClass):
             body=dedent('''
                   if (!self->is_initialized)
                     {{
-                      PyErr_Format (NotInitializedError, 
+                      PyErr_Format (NotInitializedError,
                                     "Cipher not initialized. Set key first!");
                       return NULL;
                     }}
@@ -149,7 +149,7 @@ class MAC(CClass):
 
   if (!self->is_initialized)
     {{
-      PyErr_Format (NotInitializedError, 
+      PyErr_Format (NotInitializedError,
                     "Cipher not initialized. Set key first!");
       return NULL;
     }}

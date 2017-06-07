@@ -160,19 +160,19 @@ class Cipher(CClass):
                 args='METH_VARARGS',
                 docs='argument is a pointer to an Initialization Vector (IV) ',
                 body=dedent('''
-                    #if PY_MAJOR_VERSION >= 3
-                      Py_buffer iv;
-                      if (!PyArg_ParseTuple (args, "y*", &iv)) {{
-                    #else
-                      nettle_py2buf iv;
-                      if (!PyArg_ParseTuple (args, "t#", &iv.buf, &iv.len)) {{
-                    #endif
-                        return NULL;
-                      }}
-                      if (iv.buf != NULL) {{
-                        gcm_set_iv (self->gcmctx, self->gcmkey, iv.len, iv.buf);
-                      }}
-                      Py_RETURN_NONE;
+                   #if PY_MAJOR_VERSION >= 3
+                     Py_buffer iv;
+                     if (!PyArg_ParseTuple (args, "y*", &iv)) {{
+                   #else
+                     nettle_py2buf iv;
+                     if (!PyArg_ParseTuple (args, "t#", &iv.buf, &iv.len)) {{
+                   #endif
+                       return NULL;
+                     }}
+                     if (iv.buf != NULL) {{
+                       gcm_set_iv (self->gcmctx, self->gcmkey, iv.len, iv.buf);
+                     }}
+                     Py_RETURN_NONE;
                 ''').format(name=name, FAMILY=family.upper()))
 
             self.add_method(
@@ -334,7 +334,7 @@ class Cipher(CClass):
             body=dedent('''
                   if (!self->is_initialized)
                     {{
-                      PyErr_Format (NotInitializedError, 
+                      PyErr_Format (NotInitializedError,
                                     "Cipher not initialized. Set key first!");
                       return NULL;
                     }}
