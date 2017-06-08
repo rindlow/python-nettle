@@ -8,8 +8,9 @@
 # Compiled python files
 *.pyc
 
-# All c files are auto generated
+# All c and h files are auto generated
 *.c
+*.h
 
 # setuptools metadata
 nettle.egg-info/*
