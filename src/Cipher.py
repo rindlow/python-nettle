@@ -33,7 +33,7 @@ class Cipher(CClass):
         if mode == 'cbc':
             self.add_member(
                 name='iv',
-                decl='uint8_t iv[{}_BLOCK_SIZE];'.format(family.upper()))
+                decl='uint8_t iv[{}_BLOCK_SIZE]'.format(family.upper()))
             if twokeys:
                 keys = ['encrypt_key', 'decrypt_key']
             else:
@@ -76,7 +76,7 @@ class Cipher(CClass):
         elif mode == 'ctr':
             self.add_member(
                 name='ctr',
-                decl='uint8_t ctr[{}_BLOCK_SIZE];'.format(family.upper()))
+                decl='uint8_t ctr[{}_BLOCK_SIZE]'.format(family.upper()))
             if twokeys:
                 keys = ['encrypt_key', 'decrypt_key']
             else:

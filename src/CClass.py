@@ -9,14 +9,14 @@ class CClass:
         self.getsetters = []
         self.out = None
 
-    def write_class_struct(self):
-        self.out.write('struct pynettle_{}_Struct\n{{'
-                       '\n  PyObject_HEAD\n'.format(self.name))
+    def write_class_struct_to_file(self, f):
+        f.write('typedef struct\n{{'
+                '\n  PyObject_HEAD\n'.format(self.name))
         for member in self.members:
-            self.out.write('  {};\n'.format(member['decl']))
-        self.out.write('};\n\n')
+            f.write('  {};\n'.format(member['decl']))
+        f.write('}} pynettle_{};\n'.format(self.name))
 
-    def write_new(self,):
+    def write_new(self):
         self.out.write('static PyObject *\n'
                        'pynettle_{name}_new (PyTypeObject * type,'
                        ' PyObject * args, PyObject * kwds)\n'
@@ -187,7 +187,6 @@ class CClass:
         self.out = f
         self.out.write('\n/******************** {} ********************/\n'
                        .format(self.name))
-        self.write_class_struct()
         self.write_new()
         self.write_init()
         self.write_dealloc()
@@ -200,8 +199,7 @@ class CClass:
 
     def write_decl_to_file(self, f, extern=False):
         if extern:
-            f.write('typedef struct pynettle_{0}_Struct pynettle_{0};\n'
-                    .format(self.name))
+            self.write_class_struct_to_file(f)
             f.write('extern ')
             f.write('PyTypeObject pynettle_{}_Type;\n'.format(self.name))
 

@@ -12,6 +12,7 @@ typedef struct asn1object
 int get_keypair_from_file (uint8_t *,
 			   struct rsa_public_key *,
 			   struct rsa_private_key *);
+struct rsa_public_key *get_public_key_from_certfile (uint8_t *);
 struct rsa_public_key *get_public_key_from_file (uint8_t *);
 asn1object *keypair_to_der (struct rsa_public_key *, struct rsa_private_key *);
 asn1object *pubkey_to_der (struct rsa_public_key *);

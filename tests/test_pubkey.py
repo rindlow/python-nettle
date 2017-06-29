@@ -3,18 +3,6 @@ import nettle
 import sys
 import os
 
-def SDATA(string):
-    return string.encode('ascii')
-
-
-def SHEX(hexstring):
-    # return bytes.fromhex(hexstring) #Python 3 only. :-(
-    b = bytearray()
-    hexstring = ''.join(hexstring.split())
-    for i in range(0, len(hexstring), 2):
-        b.append(int(hexstring[i:i+2], 16))
-    return bytes(b)
-
 
 class PubKey(TestCase):
 
@@ -35,11 +23,29 @@ class PubKey(TestCase):
         pk2 = pubkey()
         pk2.read_key(pubfile)
         self.assertEqual(pk, pk2)
+        del pk2
 
         cleartext = b'Urtica dioica'
         ciphertext = pk.encrypt(cleartext)
         decrypted = kp.decrypt(ciphertext)
         self.assertEqual(cleartext, decrypted)
-        
+
+        cleartext = b'Urtica dioica'
+        ciphertext = kp.encrypt(cleartext)
+        decrypted = kp.decrypt(ciphertext)
+        self.assertEqual(cleartext, decrypted)
+
+        h = nettle.sha256()
+        h.update(cleartext)
+        signature = kp.sign(h)
+        h2 = nettle.sha256()
+        h2.update(cleartext)
+        self.assertTrue(pk.verify(signature, h2))
+        h2.update(b'gibberish')
+        self.assertFalse(pk.verify(signature, h2))
+
+        yarrow = nettle.Yarrow()
+        pk = pubkey(yarrow)
+
     def test_rsa(self):
         self._test(nettle.RSAKeyPair, nettle.RSAPubKey)

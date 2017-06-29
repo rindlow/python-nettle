@@ -5,7 +5,7 @@ from CException import CException
 from Hash import Hash
 from Cipher import Cipher
 from MAC import MAC
-from PubKey import RSAKeyPair, RSAPubKey
+from PubKey import Yarrow, RSAKeyPair, RSAPubKey
 
 hashes = [
     {'name': 'sha1', 'headers': ['sha1.h'],
@@ -258,12 +258,10 @@ class Generator:
             f.write('#include <nettle/rsa.h>\n')
             f.write('#include "nettle_asn1.h"\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            pubkeyclass = RSAPubKey()
-            pubkeyclass.write_to_file(f)
-            keypairclass = RSAKeyPair()
-            keypairclass.write_to_file(f)
-        self.objects.append(keypairclass)
-        self.objects.append(pubkeyclass)
+            self.write_python2_buffer_struct(f)
+            for cls in [Yarrow(), RSAPubKey(), RSAKeyPair()]:
+                cls.write_to_file(f)
+                self.objects.append(cls)
 
     def gen_exceptions(self, exceptions):
         for e in exceptions:
@@ -273,6 +271,9 @@ class Generator:
     def gen_header_file(self):
         with open(self.header_file, 'w') as f:
             f.write('#ifndef _NETTLE_H_\n#define _NETTLE_H_\n\n')
+            f.write('#include <nettle/aes.h>\n')
+            f.write('#include <nettle/camellia.h>\n')
+            f.write('#include <nettle/sha2.h>\n')
             for object in self.objects:
                 object.write_decl_to_file(f, extern=True)
             f.write('#endif /* _NETTLE_H_ */\n')
