@@ -8,9 +8,14 @@
 # Compiled python files
 *.pyc
 
-# All c and h files are auto generated
-*.c
-*.h
+# Auto generated files
+nettle.c
+nettle_ciphers.c
+nettle_hashes.c
+nettle_macs.c
+nettle_pubkey.c
+nettle.h
 
 # setuptools metadata
 nettle.egg-info/*
+dist/*

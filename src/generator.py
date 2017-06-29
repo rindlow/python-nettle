@@ -5,6 +5,7 @@ from CException import CException
 from Hash import Hash
 from Cipher import Cipher
 from MAC import MAC
+from PubKey import RSAKeyPair, RSAPubKey
 
 hashes = [
     {'name': 'sha1', 'headers': ['sha1.h'],
@@ -147,15 +148,22 @@ exceptions = [
      'docs': 'Key Length is not as expected'},
     {'name': 'NotInitializedError', 'base': 'BaseException',
      'docs': 'Object must be initialized before calling this method'},
+    {'name': 'RandomError', 'base': 'BaseException',
+     'docs': 'Failed to open/read /dev/random'},
+    {'name': 'RSAError', 'base': 'BaseException',
+     'docs': 'RSA operation failed'},
+    {'name': 'ASN1Error', 'base': 'BaseException',
+     'docs': 'ASN1 parsing failed'},
 ]
 
 
 class Generator:
-    exception_header_file = 'nettle_exceptions.h'
-    hash_file = 'nettle_hashes.c'
     cipher_file = 'nettle_ciphers.c'
+    hash_file = 'nettle_hashes.c'
+    header_file = 'nettle.h'
     mac_file = 'nettle_macs.c'
     mod_file = 'nettle.c'
+    pubkey_file = 'nettle_pubkey.c'
 
     def __init__(self):
         self.objects = []
@@ -172,7 +180,7 @@ class Generator:
         with open(self.hash_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
-            f.write('#include "nettle_exceptions.h"\n')
+            f.write('#include "{}"\n'.format(self.header_file))
             headers = set()
             for h in hashdata:
                 headers.update(set(h['headers']))
@@ -190,7 +198,7 @@ class Generator:
         with open(self.cipher_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
-            f.write('#include "nettle_exceptions.h"\n')
+            f.write('#include "{}"\n'.format(self.header_file))
             headers = set()
             for c in cipherdata:
                 headers.update(set(c['headers']))
@@ -228,7 +236,7 @@ class Generator:
         with open(self.mac_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
-            f.write('#include "nettle_exceptions.h"\n')
+            f.write('#include "{}"\n'.format(self.header_file))
             headers = set()
             for m in macdata:
                 headers.update(set(m['headers']))
@@ -242,18 +250,39 @@ class Generator:
                 macclass.write_to_file(f)
                 self.objects.append(macclass)
 
-    def gen_exception_header_file(self, exceptions):
-        with open(self.exception_header_file, 'w') as f:
-            for e in exceptions:
-                ex = CException(e['name'], 'nettle', e['docs'], e['base'])
-                ex.write_decl_to_file(f, extern=True)
-                self.objects.append(ex)
+    def gen_pubkey_file(self):
+        with open(self.pubkey_file, 'w') as f:
+            f.write('#include <Python.h>\n')
+            f.write('#include <fcntl.h>\n')
+            f.write('#include <nettle/yarrow.h>\n')
+            f.write('#include <nettle/rsa.h>\n')
+            f.write('#include "nettle_asn1.h"\n')
+            f.write('#include "{}"\n'.format(self.header_file))
+            pubkeyclass = RSAPubKey()
+            pubkeyclass.write_to_file(f)
+            keypairclass = RSAKeyPair()
+            keypairclass.write_to_file(f)
+        self.objects.append(keypairclass)
+        self.objects.append(pubkeyclass)
+
+    def gen_exceptions(self, exceptions):
+        for e in exceptions:
+            self.objects.append(CException(e['name'], 'nettle',
+                                           e['docs'], e['base']))
+
+    def gen_header_file(self):
+        with open(self.header_file, 'w') as f:
+            f.write('#ifndef _NETTLE_H_\n#define _NETTLE_H_\n\n')
+            for object in self.objects:
+                object.write_decl_to_file(f, extern=True)
+            f.write('#endif /* _NETTLE_H_ */\n')
 
     def gen_mod_file(self):
         with open(self.mod_file, 'w') as f:
             f.write('#include <Python.h>\n')
+            f.write('#include "{}"\n'.format(self.header_file))
             for object in sorted(self.objects, key=lambda o: o.name):
-                object.write_decl_to_file(f)
+                object.write_decl_to_file(f, extern=False)
 
             module = CModule(name='nettle', objects=self.objects,
                              doc='An interface to the Nettle'
@@ -264,5 +293,7 @@ gen = Generator()
 gen.gen_hash_file(hashes)
 gen.gen_cipher_file(ciphers)
 gen.gen_mac_file(macs)
-gen.gen_exception_header_file(exceptions)
+gen.gen_pubkey_file()
+gen.gen_exceptions(exceptions)
+gen.gen_header_file()
 gen.gen_mod_file()

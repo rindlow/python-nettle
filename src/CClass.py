@@ -5,13 +5,16 @@ class CClass:
         self.members = []
         self.methods = []
         self.init_body = ''
+        self.richcompare = None
+        self.getsetters = []
         self.out = None
 
     def write_class_struct(self):
-        self.out.write('typedef struct\n{\n  PyObject_HEAD\n')
+        self.out.write('struct pynettle_{}_Struct\n{{'
+                       '\n  PyObject_HEAD\n'.format(self.name))
         for member in self.members:
             self.out.write('  {};\n'.format(member['decl']))
-        self.out.write('}} pynettle_{};\n\n'.format(self.name))
+        self.out.write('};\n\n')
 
     def write_new(self,):
         self.out.write('static PyObject *\n'
@@ -70,21 +73,70 @@ class CClass:
         self.out.write('  {NULL}\n};\n\n')
 
     def write_member_def(self):
-        self.out.write('static PyMemberDef pynettle_{name}_members[] = {{\n'
-                       .format(name=self.name))
-        for member in self.members:
-            if member['public']:
-                self.out.write('  {{"{member}", {type},'
-                               ' offsetof (pynettle_{name}, {member}),'
-                               ' {flags}, "{docstring}"}},\n'
-                               .format(name=self.name,
-                                       member=member['name'],
-                                       flags=member['flags'],
-                                       type=member['type'],
-                                       docstring=member['docs']))
-        self.out.write('  {NULL}\n};\n\n')
+        if len([m for m in self.members if m['public']]) > 0:
+            self.out.write('static PyMemberDef pynettle_{name}_members[]'
+                           ' = {{\n'.format(name=self.name))
+            for member in self.members:
+                if member['public']:
+                    self.out.write('  {{"{member}", {type},'
+                                   ' offsetof (pynettle_{name}, {member}),'
+                                   ' {flags}, "{docstring}"}},\n'
+                                   .format(name=self.name,
+                                           member=member['name'],
+                                           flags=member['flags'],
+                                           type=member['type'],
+                                           docstring=member['docs']))
+            self.out.write('  {NULL}\n};\n\n')
+
+    def write_richcompare(self):
+        if self.richcompare is not None:
+            self.out.write('PyObject *\npynettle_{}_richcompare(PyObject *a,'
+                           ' PyObject *b, int op)\n{{\n{}\n}}'''
+                           .format(self.name, self.richcompare))
+
+    def write_getsetters(self):
+        if self.getsetters:
+            for gs in self.getsetters:
+                if gs['gbody'] is not None:
+                    self.out.write('static PyObject *\n'
+                                   '{getter} (pynettle_{name}'
+                                   ' *self, void *closure)\n{{\n{body}\n}}\n'
+                                   .format(getter=gs['getter'],
+                                           name=self.name,
+                                           body=gs['gbody']))
+                if gs['sbody'] is not None:
+                    self.out.write('static PyObject *\n'
+                                   '{setter} (pynettle_{name}'
+                                   ' *self, PyObject *value, void *closure)'
+                                   '\n{{\n{body}\n}}\n'
+                                   .format(setter=gs['setter'],
+                                           name=self.name,
+                                           body=gs['sbody']))
+            self.out.write('static PyGetSetDef pynettle_{}_getsetters[] = {{\n'
+                           .format(self.name))
+            for gs in self.getsetters:
+                self.out.write('    {{"{member}", '
+                               '(getter){getter}, (setter){setter},'
+                               ' "{docs}", NULL}},\n'.format(**gs))
+            self.out.write('    {NULL}\n};\n')
 
     def write_type(self):
+        if len([m for m in self.members if m['public']]) > 0:
+            members = 'pynettle_{}_members'.format(self.name)
+        else:
+            members = 0
+        if self.richcompare is None:
+            richcompare = 0
+            have_richcompare = ''
+        else:
+            richcompare = 'pynettle_{}_richcompare'.format(self.name)
+            have_richcompare = '\n#if PY_MAJOR_VERSION < 3\n' \
+                               '    Py_TPFLAGS_HAVE_RICHCOMPARE |\n' \
+                               '#endif'
+        if self.getsetters:
+            getset = 'pynettle_{}_getsetters'.format(self.name)
+        else:
+            getset = 0
         self.out.write('''PyTypeObject pynettle_{name}_Type = {{
     PyVarObject_HEAD_INIT(NULL, 0)
     "nettle.{name}",			 /* tp_name */
@@ -105,18 +157,18 @@ class CClass:
     0,					 /* tp_getattro */
     0,					 /* tp_setattro */
     0,					 /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT |
+    Py_TPFLAGS_DEFAULT | {have_richcompare}
     Py_TPFLAGS_BASETYPE,		 /* tp_flags */
     "{docstring}",			 /* tp_doc */
     0,					 /* tp_traverse */
     0,					 /* tp_clear */
-    0,					 /* tp_richcompare */
+    {richcompare},			 /* tp_richcompare */
     0,					 /* tp_weaklistoffset */
     0,					 /* tp_iter */
     0,					 /* tp_iternext */
     pynettle_{name}_methods,		 /* tp_methods */
-    pynettle_{name}_members,		 /* tp_members */
-    0,					 /* tp_getset */
+    {members},		                 /* tp_members */
+    {getset},				 /* tp_getset */
     0,					 /* tp_base */
     0,					 /* tp_dict */
     0,					 /* tp_descr_get */
@@ -127,7 +179,9 @@ class CClass:
     pynettle_{name}_new,		 /* tp_new */
 
 }};
-'''.format(name=self.name, docstring=self.docs))
+'''.format(name=self.name, docstring=self.docs, members=members,
+           richcompare=richcompare, have_richcompare=have_richcompare,
+           getset=getset))
 
     def write_to_file(self, f):
         self.out = f
@@ -140,10 +194,16 @@ class CClass:
         self.write_methods()
         self.write_method_def()
         self.write_member_def()
+        self.write_richcompare()
+        self.write_getsetters()
         self.write_type()
 
-    def write_decl_to_file(self, f):
-        f.write('extern PyTypeObject pynettle_{}_Type;\n'.format(self.name))
+    def write_decl_to_file(self, f, extern=False):
+        if extern:
+            f.write('typedef struct pynettle_{0}_Struct pynettle_{0};\n'
+                    .format(self.name))
+            f.write('extern ')
+            f.write('PyTypeObject pynettle_{}_Type;\n'.format(self.name))
 
     def write_reg_to_file(self, f):
         f.write('  if (PyType_Ready (&pynettle_{name}_Type) < 0) {{\n'
@@ -166,3 +226,19 @@ class CClass:
 
     def add_to_init_body(self, code):
         self.init_body += code
+
+    def add_richcompare(self, body):
+        self.richcompare = body
+
+    def add_getsetter(self, member, gbody=None, sbody=None, docs=None):
+        if gbody is None:
+            getter = 'NULL'
+        else:
+            getter = 'pynettle_{}_get{}'.format(self.name, member)
+        if sbody is None:
+            setter = 'NULL'
+        else:
+            setter = 'pynettle_{}_set{}'.format(self.name, member)
+        self.getsetters.append({'member': member, 'docs': docs,
+                                'getter': getter, 'gbody': gbody,
+                                'setter': setter, 'sbody': sbody})
