@@ -1,35 +1,5 @@
 from CClass import CClass
 
-yarrowinit = '''
-    ssize_t res;
-    int fd;
-    uint8_t seed[YARROW256_SEED_FILE_SIZE];
-
-    if ((self->yarrow = PyMem_Malloc (sizeof (struct yarrow256_ctx))) == NULL)
-    {
-        PyErr_NoMemory ();
-        return -1;
-    }
-    yarrow256_init (self->yarrow, 0, NULL);
-    if ((fd = open ("/dev/random", O_RDONLY)) < 0)
-    {
-        PyErr_Format (RandomError, "Failed to open /dev/random:");
-        return -1;
-    }
-    do
-    {
-        res = read (fd, seed, YARROW256_SEED_FILE_SIZE);
-    }
-    while (res < 0 && errno == EAGAIN);
-    if (res < 0 && errno != EAGAIN)
-    {
-        PyErr_Format (RandomError, "Failed to read /dev/random:");
-        return -1;
-    }
-
-    yarrow256_seed (self->yarrow, YARROW256_SEED_FILE_SIZE, seed);
-'''
-
 encryptbody = '''
   mpz_t ciphertext;
   uint8_t *data;
@@ -46,7 +16,7 @@ encryptbody = '''
     return NULL;
   }
   mpz_init(ciphertext);
-  if (! rsa_encrypt(self->pub, self->yarrow,
+  if (! rsa_encrypt(self->pub, self->yarrow->ctx,
                     (nettle_random_func *) &yarrow256_random,
                     buffer.len, buffer.buf, ciphertext))
   {
@@ -99,11 +69,38 @@ class Yarrow(CClass):
 
         self.add_member(
             name='yarrow',
-            decl='struct yarrow256_ctx *yarrow;',
+            decl='struct yarrow256_ctx *ctx;',
             alloc='',
-            init='  self->yarrow = NULL;',
-            dealloc='PyMem_Free (self->yarrow);\n  self->yarrow = NULL;')
-        self.add_to_init_body(yarrowinit)
+            init='  self->ctx = NULL;',
+            dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
+        self.add_to_init_body('''
+    ssize_t res;
+    int fd;
+    uint8_t seed[YARROW256_SEED_FILE_SIZE];
+
+    if ((self->ctx = PyMem_Malloc (sizeof (struct yarrow256_ctx))) == NULL)
+    {
+        PyErr_NoMemory ();
+        return -1;
+    }
+    yarrow256_init (self->ctx, 0, NULL);
+    if ((fd = open ("/dev/random", O_RDONLY)) < 0)
+    {
+        PyErr_Format (RandomError, "Failed to open /dev/random:");
+        return -1;
+    }
+    do
+    {
+        res = read (fd, seed, YARROW256_SEED_FILE_SIZE);
+    }
+    while (res < 0 && errno == EAGAIN);
+    if (res < 0 && errno != EAGAIN)
+    {
+        PyErr_Format (RandomError, "Failed to read /dev/random:");
+        return -1;
+    }
+    yarrow256_seed (self->ctx, YARROW256_SEED_FILE_SIZE, seed);
+''')
 
 
 class RSAKeyPair(CClass):
@@ -129,43 +126,37 @@ class RSAKeyPair(CClass):
             dealloc='PyMem_Free (self->key);\n  self->key = NULL;')
         self.add_member(
             name='yarrow',
-            decl='struct yarrow256_ctx *yarrow',
-            alloc='',
+            decl='pynettle_Yarrow *yarrow',
             init='  self->yarrow = NULL;',
-            dealloc='if (!self->shared_yarrow)\n  {'
-            '    PyMem_Free (self->yarrow);\n    self->yarrow = NULL;\n  }\n')
-        self.add_member(
-            name='shared_yarrow',
-            decl='int shared_yarrow',
-            alloc='',
-            init='  self->shared_yarrow = 0;')
+            dealloc='Py_DECREF (self->yarrow);')
         self.add_to_init_body('''
   PyObject *obj = NULL;
   pynettle_Yarrow *yarrow;
 
   if (! PyArg_ParseTuple(args, "|O", &obj))
-  {{
+  {
     return -1;
-  }}
+  }
   if (obj != NULL)
-  {{
+  {
     if (PyObject_TypeCheck (obj, &pynettle_Yarrow_Type))
-    {{
+    {
       yarrow = (pynettle_Yarrow *)obj;
-      self->yarrow = yarrow->yarrow;
-      self->shared_yarrow = 1;
-    }}
+      self->yarrow = yarrow;
+      Py_INCREF(self->yarrow);
+    }
     else
-    {{
+    {
       PyErr_Format (PyExc_TypeError, "Expected Yarrow object");
       return -1;
-    }}
-  }}
+    }
+  }
   else
-  {{
-    {yarrowinit}
-  }}
-'''.format(yarrowinit=yarrowinit))
+  {
+    self->yarrow = (pynettle_Yarrow *) PyObject_CallObject(
+         (PyObject *)& pynettle_Yarrow_Type, NULL);
+  }
+''')
 
         self.add_method('genkey',
                         docs='Generate a new RSA keypair',
@@ -177,7 +168,7 @@ class RSAKeyPair(CClass):
     }
 
     res = rsa_generate_keypair (self->pub, self->key,
-                                self->yarrow,
+                                self->yarrow->ctx,
                                 (nettle_random_func *) &yarrow256_random,
                                 NULL, NULL,
                                 n_size, e_size);
@@ -361,11 +352,10 @@ class RSAPubKey(CClass):
             dealloc='PyMem_Free (self->pub);\n  self->pub = NULL;')
         self.add_member(
             name='yarrow',
-            decl='struct yarrow256_ctx *yarrow',
+            decl='pynettle_Yarrow *yarrow',
             alloc='',
             init='  self->yarrow = NULL;',
-            dealloc='if (!self->shared_yarrow)\n  {'
-            '    PyMem_Free (self->yarrow);\n    self->yarrow = NULL;\n  }\n')
+            dealloc='Py_DECREF (self->yarrow);')
         self.add_member(
             name='shared_yarrow',
             decl='int shared_yarrow',
@@ -476,25 +466,26 @@ class RSAPubKey(CClass):
   pynettle_Yarrow *yarrow;
 
   if (! PyArg_ParseTuple(args, "|O", &obj))
-  {{
+  {
     return -1;
-  }}
+  }
   if (obj != NULL)
-  {{
+  {
     if (PyObject_TypeCheck (obj, &pynettle_Yarrow_Type))
-    {{
+    {
       yarrow = (pynettle_Yarrow *)obj;
-      self->yarrow = yarrow->yarrow;
-      self->shared_yarrow = 1;
-    }}
+      self->yarrow = yarrow;
+      Py_INCREF(self->yarrow);
+    }
     else
-    {{
+    {
       PyErr_Format (PyExc_TypeError, "Expected Yarrow object");
       return -1;
-    }}
-  }}
+    }
+  }
   else
-  {{
-    {yarrowinit}
-  }}
-'''.format(yarrowinit=yarrowinit))
+  {
+    self->yarrow = (pynettle_Yarrow *) PyObject_CallObject(
+         (PyObject *)& pynettle_Yarrow_Type, NULL);
+  }
+''')
