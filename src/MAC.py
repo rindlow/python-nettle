@@ -14,21 +14,21 @@ class MAC(CClass):
         self.add_member(
             name='ctx',
             decl='struct {}_ctx *ctx'.format(self.name),
-            alloc='if ((self->ctx = PyMem_Malloc(sizeof(struct {}_ctx)))'
-            ' == NULL) {{\n    return PyErr_NoMemory();\n  }}'
+            alloc='if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx)))'
+            ' == NULL)\n    {{\n      return PyErr_NoMemory ();\n    }}'
             .format(self.name),
-            dealloc='PyMem_Free(self->ctx);\n  self->ctx = NULL;')
+            dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
 
         if name[:4] == 'hmac':
             digestsize = '{}_DIGEST_SIZE'.format(name[5:].upper())
             blocksize = '{}_BLOCK_SIZE'.format(name[5:].upper())
             keylen = 'key.len, '
             self.add_bufferparse_to_init(['key', 'nonce'])
-            self.add_to_init_body('  if (key.buf != NULL) {{\n'
-                                  '    {name}_set_key(self->ctx,'
+            self.add_to_init_body('  if (key.buf != NULL)\n    {{\n'
+                                  '      {name}_set_key (self->ctx,'
                                   ' key.len, key.buf);\n'
-                                  '    self->is_initialized = 1;\n'
-                                  '  }}\n'
+                                  '      self->is_initialized = 1;\n'
+                                  '    }}\n'
                                   .format(name=name))
         else:
             digestsize = '{}_DIGEST_SIZE'.format(name.upper())
@@ -39,19 +39,22 @@ class MAC(CClass):
                 blocksize = 'AES_BLOCK_SIZE'
             self.add_bufferparse_to_init(['key', 'nonce'])
             self.add_to_init_body(dedent('''
-                if (key.buf != NULL) {{
-                  {name}_set_key(self->ctx, key.buf);
-                  self->is_initialized = 1;
-                }}
-                if (nonce.buf != NULL) {{
-                  if (!self->is_initialized)
-                    {{
-                      PyErr_Format (NotInitializedError,
-                                    "Cipher not initialized. Set key first!");
-                      return -1;
-                    }}
-                  {name}_set_nonce(self->ctx, nonce.len, nonce.buf);
-                }}
+                if (key.buf != NULL)
+                  {{
+                    {name}_set_key (self->ctx, key.buf);
+                    self->is_initialized = 1;
+                  }}
+                if (nonce.buf != NULL)
+                  {{
+                    if (!self->is_initialized)
+                      {{
+                        PyErr_Format (NotInitializedError,
+                                      "Cipher not initialized. \\
+                                       Set key first!");
+                        return -1;
+                      }}
+                    {name}_set_nonce (self->ctx, nonce.len, nonce.buf);
+                  }}
             ''').format(name=name))
             self.add_method(
                 name='set_nonce',
@@ -67,15 +70,16 @@ class MAC(CClass):
                     #if PY_MAJOR_VERSION >= 3
                       Py_buffer nonce;
 
-                      if (! PyArg_ParseTuple(args, "y*", &nonce)) {{
+                      if (! PyArg_ParseTuple (args, "y*", &nonce))
                     #else
                       nettle_py2buf nonce;
-                      if (! PyArg_ParseTuple(args, "t#",
-                                             &nonce.buf, &nonce.len)) {{
+                      if (! PyArg_ParseTuple (args, "t#",
+                                             &nonce.buf, &nonce.len))
                     #endif
-                        return NULL;
-                      }}
-                      {name}_set_nonce(self->ctx, nonce.len, nonce.buf);
+                        {{
+                          return NULL;
+                        }}
+                      {name}_set_nonce (self->ctx, nonce.len, nonce.buf);
                       Py_RETURN_NONE;
                     ''').format(name=name))
 
@@ -103,15 +107,16 @@ class MAC(CClass):
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer key;
 
-                  if (! PyArg_ParseTuple(args, "y*", &key)) {{
+                  if (! PyArg_ParseTuple (args, "y*", &key))
                 #else
                   nettle_py2buf key;
-                  if (! PyArg_ParseTuple(args, "t#",
-                                         &key.buf, &key.len)) {{
+                  if (! PyArg_ParseTuple (args, "t#",
+                                         &key.buf, &key.len))
                 #endif
-                    return NULL;
-                  }}
-                  {name}_set_key(self->ctx, {keylen}key.buf);
+                    {{
+                      return NULL;
+                    }}
+                  {name}_set_key (self->ctx, {keylen}key.buf);
                   self->is_initialized = 1;
                   Py_RETURN_NONE;
                 ''').format(name=name, keylen=keylen))
@@ -129,15 +134,16 @@ class MAC(CClass):
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
 
-                  if (! PyArg_ParseTuple(args, "y*", &buffer)) {{
+                  if (! PyArg_ParseTuple (args, "y*", &buffer))
                 #else
                   nettle_py2buf buffer;
-                  if (! PyArg_ParseTuple(args, "t#",
-                                         &buffer.buf, &buffer.len)) {{
+                  if (! PyArg_ParseTuple (args, "t#",
+                                         &buffer.buf, &buffer.len))
                 #endif
-                    return NULL;
-                  }}
-                  {name}_update(self->ctx, buffer.len, buffer.buf);
+                    {{
+                      return NULL;
+                    }}
+                  {name}_update (self->ctx, buffer.len, buffer.buf);
                   Py_RETURN_NONE;
                 ''').format(name=name))
         self.add_method(
@@ -153,8 +159,8 @@ class MAC(CClass):
                     "Cipher not initialized. Set key first!");
       return NULL;
     }}
-  {name}_digest(self->ctx, {DIGESTSIZE}, digest);
-  return PyBytes_FromStringAndSize((const char *)digest, {DIGESTSIZE});
+  {name}_digest (self->ctx, {DIGESTSIZE}, digest);
+  return PyBytes_FromStringAndSize ((const char *) digest, {DIGESTSIZE});
 '''.format(name=name, DIGESTSIZE=digestsize))
 
     def add_bufferparse_to_init(self, buffers):
@@ -167,22 +173,24 @@ class MAC(CClass):
             #endif
               {nullify}
             #if PY_MAJOR_VERSION >= 3
-              if (! PyArg_ParseTupleAndKeywords(args, kwds, "{py3fmt}", kwlist,
-                                                {py3pointers}))
+              if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py3fmt}", \\
+                                                 kwlist,
+                                                 {py3pointers}))
             #else
-              if (! PyArg_ParseTupleAndKeywords(args, kwds, "{py2fmt}", kwlist,
-                                                {py2pointers}))
+              if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py2fmt}", \\
+                                                 kwlist,
+                                                 {py2pointers}))
             #endif
-              {{
-                return -1;
-              }}
+                {{
+                  return -1;
+                }}
             ''').format(kwlist='{{"{}", NULL}}'.format('", "'.join(buffers)),
                         vars=', '.join(buffers),
                         nullify='\n  '.join(['{b}.buf = NULL; {b}.len = 0;'
                                              .format(b=b) for b in buffers]),
                         py2fmt='|' + 't#' * len(buffers),
                         py3fmt='|' + 'z*' * len(buffers),
-                        py2pointers=',\n\t\t\t\t    '.join(
+                        py2pointers=(',\n' + ' ' * 37).join(
                             ['&{b}.buf, &{b}.len'.format(b=b)
                              for b in buffers]),
                         py3pointers=', '.join(['&{}'.format(b)

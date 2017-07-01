@@ -19,3 +19,6 @@ nettle.h
 # setuptools metadata
 nettle.egg-info/*
 dist/*
+
+# MacOS metadata
+.DS_Store

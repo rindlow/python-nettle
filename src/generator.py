@@ -164,6 +164,7 @@ class Generator:
     mac_file = 'nettle_macs.c'
     mod_file = 'nettle.c'
     pubkey_file = 'nettle_pubkey.c'
+    python_module = '../nettle/classes.py'
 
     def __init__(self):
         self.objects = []
@@ -285,11 +286,17 @@ class Generator:
             for object in sorted(self.objects, key=lambda o: o.name):
                 object.write_decl_to_file(f, extern=False)
 
-            module = CModule(name='nettle', objects=self.objects,
+            module = CModule(name='_nettle', objects=self.objects,
                              doc='An interface to the Nettle'
                              ' low level cryptographic library')
             module.write_to_file(f)
 
+    def gen_python_file(self):
+        with open(self.python_module, 'w') as f:
+            f.write('import _nettle\n')
+            for object in sorted(self.objects, key=lambda o:o.name):
+                object.write_python_subclass(f)
+            
 gen = Generator()
 gen.gen_hash_file(hashes)
 gen.gen_cipher_file(ciphers)
@@ -298,3 +305,4 @@ gen.gen_pubkey_file()
 gen.gen_exceptions(exceptions)
 gen.gen_header_file()
 gen.gen_mod_file()
+gen.gen_python_file()

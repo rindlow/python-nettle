@@ -22,3 +22,6 @@ class CException:
                 '      PyModule_AddObject (m, "{self.name}", {self.name});\n'
                 '    }}\n'
                 .format(self=self))
+
+    def write_python_subclass(self, f):
+        f.write('{0} = _nettle.{0}\n'.format(self.name))

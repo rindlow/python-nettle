@@ -48,7 +48,7 @@ class Cipher(CClass):
             self.add_to_init_body(
                 '  if (iv.buf != NULL)\n'
                 '    {{\n'
-                '      memcpy(self->iv, iv.buf, {}_BLOCK_SIZE);\n'
+                '      memcpy (self->iv, iv.buf, {}_BLOCK_SIZE);\n'
                 '    }}\n'.format(family.upper()))
 
             self.add_method(
@@ -68,7 +68,7 @@ class Cipher(CClass):
                         }}
                       if (iv.buf != NULL)
                         {{
-                          memcpy(self->iv, iv.buf, {FAMILY}_BLOCK_SIZE);
+                          memcpy (self->iv, iv.buf, {FAMILY}_BLOCK_SIZE);
                         }}
                       Py_RETURN_NONE;
                 ''').format(name=name, FAMILY=family.upper()))
@@ -91,7 +91,7 @@ class Cipher(CClass):
             self.add_to_init_body(
                 '  if (ctr.buf != NULL)\n'
                 '    {{\n'
-                '      memcpy(self->ctr, ctr.buf, {}_BLOCK_SIZE);\n'
+                '      memcpy (self->ctr, ctr.buf, {}_BLOCK_SIZE);\n'
                 '    }}\n'.format(family.upper()))
             self.add_method(
                 name='set_counter',
@@ -110,7 +110,7 @@ class Cipher(CClass):
                       }}
                       if (ctr.buf != NULL)
                         {{
-                          memcpy(self->ctr, ctr.buf, {FAMILY}_BLOCK_SIZE);
+                          memcpy (self->ctr, ctr.buf, {FAMILY}_BLOCK_SIZE);
                         }}
                       Py_RETURN_NONE;
                 ''').format(name=name, FAMILY=family.upper()))
@@ -124,7 +124,7 @@ class Cipher(CClass):
                 '  {\n'
                 '    return PyErr_NoMemory ();\n'
                 '  }',
-                dealloc='PyMem_Free(self->gcmctx);\n  self->gcmctx = NULL;')
+                dealloc='PyMem_Free (self->gcmctx);\n  self->gcmctx = NULL;')
             self.add_member(
                 name='gcm_key',
                 decl='struct gcm_key *gcmkey',
@@ -133,7 +133,7 @@ class Cipher(CClass):
                 '  {\n'
                 '    return PyErr_NoMemory ();\n'
                 '  }',
-                dealloc='PyMem_Free(self->gcmkey);\n  self->gcmkey = NULL;')
+                dealloc='PyMem_Free (self->gcmkey);\n  self->gcmkey = NULL;')
             if twokeys:
                 keys = ['encrypt_key', 'decrypt_key']
             else:
@@ -152,7 +152,7 @@ class Cipher(CClass):
             self.add_to_init_body(
                 '  if (iv.buf != NULL)\n'
                 '    {\n'
-                '      gcm_set_iv(self->gcmctx, self->gcmkey, iv.len,'
+                '      gcm_set_iv (self->gcmctx, self->gcmkey, iv.len,'
                 ' iv.buf);\n'
                 '    } \n')
             self.add_method(
@@ -269,7 +269,7 @@ class Cipher(CClass):
                 docs='On an instance initialized for encryption, initializes'
                 ' the context for decryption using the same key',
                 body=dedent('''
-                    {name}_invert_key(self->ctx, self->ctx);
+                    {name}_invert_key (self->ctx, self->ctx);
                     Py_RETURN_NONE;
                     ''').format(name=name))
 
@@ -363,7 +363,7 @@ class Cipher(CClass):
                              usage='crypt', mode='ecb'):
         docs = 'Initialize the cipher'
         if mode == 'gcm':
-            gsk = 'gcm_set_key(self->gcmkey, self->ctx,' \
+            gsk = 'gcm_set_key (self->gcmkey, self->ctx,' \
                   '(nettle_cipher_func *)&{name}_{usage});' \
                   .format(name=name, usage=usage)
         else:

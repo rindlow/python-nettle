@@ -49,3 +49,7 @@ class PubKey(TestCase):
 
     def test_rsa(self):
         self._test(nettle.RSAKeyPair, nettle.RSAPubKey)
+
+    def test_yarrow(self):
+        yarrow = nettle.Yarrow()
+        random = yarrow.random(1)

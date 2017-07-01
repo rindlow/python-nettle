@@ -12,7 +12,7 @@ setup(name="nettle",
       license='GPLv2',
       test_suite='tests',
       ext_modules=[
-          Extension("nettle", libraries=['nettle', 'hogweed', 'gmp'],
+          Extension("_nettle", libraries=['nettle', 'hogweed', 'gmp'],
                     sources=['src/nettle_hashes.c',
                              'src/nettle_ciphers.c',
                              'src/nettle_macs.c',

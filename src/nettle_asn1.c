@@ -76,7 +76,7 @@ read_file (const char *filename)
     }
   if ((buf = malloc (len + 1)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   if (fread (buf, len, 1, f) < 1)
@@ -94,7 +94,7 @@ read_file (const char *filename)
   *end = '\0';
   der = base64decode (start);
   free (buf);
-  fclose(f);
+  fclose (f);
   return der;
 }
 
@@ -152,7 +152,7 @@ parse_header (uint8_t * data, int offset)
   h->offset = offset;
   if ((h->data = malloc (h->len)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
 
@@ -211,13 +211,13 @@ assert_bitstring (asn1object * o)
       if (o->data[0] != 0)
 	{
 	  PyErr_Format (ASN1Error,
-		   "ASN.1: Bitstring with non octet bits found at byte %d\n",
-		   o->offset);
+			"ASN.1: Bitstring with non octet bits found at byte %d\n",
+			o->offset);
 	  return NULL;
 	}
       if ((data = malloc (o->len - 1)) == NULL)
 	{
-	  PyErr_Format(PyExc_MemoryError, "malloc failed");
+	  PyErr_Format (PyExc_MemoryError, "malloc failed");
 	  return NULL;
 	}
       memcpy (data, &o->data[1], o->len - 1);
@@ -253,73 +253,6 @@ assert_context0 (asn1object * o)
   return NULL;
 }
 
-// char *
-// bytes_to_str (uint8_t * buf, int len)
-// {
-//   char *str;
-//   if ((str = malloc (len * 2 + 1)) == NULL)
-//     {
-//       PyErr_Format(PyExc_MemoryError, "malloc failed");
-//       return NULL;
-//     }
-//   char *ptr = str;
-//   for (int i = 0; i < len; i++)
-//     {
-//       snprintf (ptr, 3, "%02X", buf[i]);
-//       ptr += 2;
-//     }
-//   return str;
-// }
-// 
-// uint8_t *
-// str_to_bytes (char *buf, int *len)
-// {
-//   uint8_t *bytes;
-//   int itmp, i, j, odd = 0, negative = 0, buflen;
-//   char tmp[3];
-//   tmp[2] = 0;
-//   buflen = (int) strlen (buf);
-//   *len = buflen / 2;
-//   if (buflen % 2 == 1)
-//     {
-//       (*len)++;
-//       odd = 1;
-//     }
-//   else if (buf[0] < '0' || buf[0] > '7')
-//     {
-//       (*len)++;
-//       negative = 1;
-//     }
-// 
-//   if ((bytes = malloc (*len)) == NULL)
-//     {
-//       PyErr_Format(PyExc_MemoryError, "malloc failed");
-//       return NULL;
-//     }
-//   i = 0;
-//   j = 0;
-//   if (negative)
-//     {
-//       bytes[j++] = 0;
-//     }
-//   while (i < buflen)
-//     {
-//       if (odd && i == 0)
-// 	{
-// 	  tmp[0] = '0';
-// 	}
-//       else
-// 	{
-// 	  tmp[0] = buf[i++];
-// 	}
-//       tmp[1] = buf[i++];
-//       itmp = (int) strtol (tmp, NULL, 16);
-//       bytes[j++] = itmp;
-//     }
-//   free (buf);
-//   return bytes;
-// }
-
 struct rsa_public_key *
 der_to_pubkey (asn1object * parent)
 {
@@ -329,7 +262,7 @@ der_to_pubkey (asn1object * parent)
   // Malloc and init key
   if ((key = malloc (sizeof (struct rsa_public_key))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   rsa_public_key_init (key);
@@ -339,14 +272,14 @@ der_to_pubkey (asn1object * parent)
       PyErr_Format (ASN1Error, "Expected integer");
       return NULL;
     }
-  mpz_import(key->n, modulus->len, 1, 1, 0, 0, modulus->data);
+  mpz_import (key->n, modulus->len, 1, 1, 0, 0, modulus->data);
 
   if (!(publicExponent = assert_integer (next_child (parent, modulus))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return NULL;
     }
-  mpz_import(key->e, publicExponent->len, 1, 1, 0, 0, publicExponent->data);
+  mpz_import (key->e, publicExponent->len, 1, 1, 0, 0, publicExponent->data);
 
   free_asn1object (modulus);
   free_asn1object (publicExponent);
@@ -375,10 +308,10 @@ der_to_keypair (asn1object * parent,
     return 0;
   if (!(modulus = assert_integer (next_child (parent, version))))
     return 0;
-  mpz_import(pub->n, modulus->len, 1, 1, 0, 0, modulus->data);
+  mpz_import (pub->n, modulus->len, 1, 1, 0, 0, modulus->data);
   if (!(publicExponent = assert_integer (next_child (parent, modulus))))
     return 0;
-  mpz_import(pub->e, publicExponent->len, 1, 1, 0, 0, publicExponent->data);
+  mpz_import (pub->e, publicExponent->len, 1, 1, 0, 0, publicExponent->data);
   if (!rsa_public_key_prepare (pub))
     {
       PyErr_Format (ASN1Error, "rsa_public_key_prepare failed");
@@ -386,39 +319,39 @@ der_to_keypair (asn1object * parent,
     }
 
   if (!(privateExponent =
-       assert_integer (next_child (parent, publicExponent))))
+	assert_integer (next_child (parent, publicExponent))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return 0;
     }
-  mpz_import(priv->d, privateExponent->len, 1, 1, 0, 0, privateExponent->data);
+  mpz_import (priv->d, privateExponent->len, 1, 1, 0, 0, privateExponent->data);
   if (!(prime1 = assert_integer (next_child (parent, privateExponent))))
     return 0;
-  mpz_import(priv->p, prime1->len, 1, 1, 0, 0, prime1->data);
+  mpz_import (priv->p, prime1->len, 1, 1, 0, 0, prime1->data);
   if (!(prime2 = assert_integer (next_child (parent, prime1))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return 0;
     }
-  mpz_import(priv->q, prime2->len, 1, 1, 0, 0, prime2->data);
+  mpz_import (priv->q, prime2->len, 1, 1, 0, 0, prime2->data);
   if (!(exponent1 = assert_integer (next_child (parent, prime2))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return 0;
     }
-  mpz_import(priv->a, exponent1->len, 1, 1, 0, 0, exponent1->data);
+  mpz_import (priv->a, exponent1->len, 1, 1, 0, 0, exponent1->data);
   if (!(exponent2 = assert_integer (next_child (parent, exponent1))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return 0;
     }
-  mpz_import(priv->b, exponent2->len, 1, 1, 0, 0, exponent2->data);
+  mpz_import (priv->b, exponent2->len, 1, 1, 0, 0, exponent2->data);
   if (!(coefficient = assert_integer (next_child (parent, exponent2))))
     {
       PyErr_Format (ASN1Error, "Expected integer");
       return 0;
     }
-  mpz_import(priv->c, coefficient->len, 1, 1, 0, 0, coefficient->data);
+  mpz_import (priv->c, coefficient->len, 1, 1, 0, 0, coefficient->data);
   if (!rsa_private_key_prepare (priv))
     {
       PyErr_Format (ASN1Error, "rsa_private_key_prepare failed");
@@ -465,7 +398,7 @@ pack_header (asn1object * obj)
     }
   if ((header = malloc (idlen + lenptrlen + lenlen)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   h = header;
@@ -519,7 +452,7 @@ make_sequence (int argc, ...)
   asn1object *obj, *child;
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -545,7 +478,7 @@ encapsulate_in_bitstring (asn1object * child)
   asn1object *obj;
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -554,7 +487,7 @@ encapsulate_in_bitstring (asn1object * child)
   obj->len = 1;
   if ((obj->data = malloc (1)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->data[0] = 0;
@@ -569,7 +502,7 @@ make_integer_from_char (char i)
   asn1object *obj;
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -577,7 +510,7 @@ make_integer_from_char (char i)
   obj->tag = 2;
   if ((obj->data = malloc (1)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->data[0] = i;
@@ -593,7 +526,7 @@ make_integer_from_gmp (mpz_t integer)
   
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -602,10 +535,10 @@ make_integer_from_gmp (mpz_t integer)
 
   if ((obj->data = malloc (mpz_sizeinbase (integer, 256))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
-  mpz_export(obj->data, &len, 1, 1, 0, 0, integer);
+  mpz_export (obj->data, &len, 1, 1, 0, 0, integer);
   obj->len = (int)len;
   return obj;
 }
@@ -617,7 +550,7 @@ make_null ()
 
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -637,7 +570,7 @@ make_oid (char *input)
 
   if ((obj = malloc (sizeof (asn1object))) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   obj->tag_class = 0;
@@ -656,7 +589,7 @@ make_oid (char *input)
 
   if ((subs = malloc (sizeof (int) * nsub)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
   while ((token = strsep (&string, ".")))
@@ -677,7 +610,7 @@ make_oid (char *input)
 
   if ((obj->data = malloc (obj->len)) == NULL)
     {
-      PyErr_Format(PyExc_MemoryError, "malloc failed");
+      PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
 
@@ -755,7 +688,7 @@ write_object_to_file (asn1object * obj, char *filename)
       return 0;
     }
   free (buf);
-  fclose(f);
+  fclose (f);
   return 1;
 }
 

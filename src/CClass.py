@@ -1,4 +1,16 @@
+import re
+
+
 class CClass:
+
+    indent_re = re.compile(r'''
+        ^ (?P<line> \s*
+            (?P<pre> \# ) ?
+            (?P<code>
+              (?P<nonwhite> \S) .*? ) )
+          (?P<backslash> \\ \s* ) ?
+        $''', re.X)
+
     def __init__(self, name, docs):
         self.name = name
         self.docs = docs
@@ -8,7 +20,39 @@ class CClass:
         self.richcompare = None
         self.getsetters = []
         self.out = None
+        self.to_be_subclassed = False
 
+    def writeindent(self, spaces, str):
+        lines = str.split('\n')
+        minindent = 9999
+        for line in lines:
+            m = self.indent_re.search(line)
+            if m and m.group('pre') is None:
+                if m.start('nonwhite') < minindent:
+                    minindent = m.start('nonwhite')
+        cont = False
+        for line in lines:
+            m = self.indent_re.search(line)
+            if m:
+                if m.group('pre') is not None:
+                    self.out.write(m.group('pre') + m.group('code') + '\n')
+                else:
+                    if not cont:
+                        self.out.write(' ' * spaces)
+                    if m.group('backslash') is not None:
+                        self.out.write(m.group('line')[minindent:])
+                        cont = True
+                    else:
+                        if cont:
+                            self.out.write(m.group('code') + '\n')
+                        else:
+                            self.out.write(m.group('line')[minindent:] + '\n')
+                        cont = False
+
+    def write_python_subclass(self, f):
+        if not self.to_be_subclassed:
+            f.write('{0} = _nettle.{0}\n'.format(self.name))
+        
     def write_class_struct_to_file(self, f):
         f.write('typedef struct\n{{'
                 '\n  PyObject_HEAD\n'.format(self.name))
@@ -17,108 +61,125 @@ class CClass:
         f.write('}} pynettle_{};\n'.format(self.name))
 
     def write_new(self):
-        self.out.write('static PyObject *\n'
-                       'pynettle_{name}_new (PyTypeObject * type,'
-                       ' PyObject * args, PyObject * kwds)\n'
-                       '{{\n'
-                       '  pynettle_{name} *self;\n'
-                       '  self = (pynettle_{name} *)'
-                       ' type->tp_alloc (type, 0);\n'
-                       .format(name=self.name))
+        self.writeindent(0, '''
+            static PyObject *
+            pynettle_{name}_new (PyTypeObject * type, PyObject * args, \\
+                                 PyObject * kwds)
+            {{\n
+              pynettle_{name} *self = (pynettle_{name} *) type->tp_alloc \\
+                (type, 0);
+            ''' .format(name=self.name))
         for member in self.members:
             if member['alloc'] is not None:
-                self.out.write('  {}\n'.format(member['alloc']))
-        self.out.write('  return (PyObject *) self;\n}\n\n')
+                self.writeindent(2, member['alloc'])
+        self.writeindent(2, 'return (PyObject *) self;')
+        self.writeindent(0, '}')
 
     def write_init(self):
-        self.out.write('static int\n'
-                       'pynettle_{name}_init (pynettle_{name} * self,'
-                       ' PyObject * args, PyObject * kwds)\n'
-                       '{{\n'.format(name=self.name))
+        self.writeindent(0, '''
+            static int
+            pynettle_{name}_init (pynettle_{name} * self, PyObject * args, \\
+                                  PyObject * kwds)
+            {{'''.format(name=self.name))
         for member in self.members:
             if member['init'] is not None:
-                self.out.write('  {}\n'.format(member['init']))
+                self.writeindent(2, member['init'])
         if self.init_body != '':
-            self.out.write(self.init_body)
-        self.out.write('  return 0;\n}\n\n')
+            self.writeindent(2, self.init_body)
+        self.writeindent(2, 'return 0;')
+        self.writeindent(0, '}')
 
     def write_dealloc(self):
-        self.out.write('static void\n'
-                       'pynettle_{name}_dealloc (pynettle_{name} * self)\n'
-                       '{{\n'.format(name=self.name))
+        self.writeindent(0, '''
+            static void
+            pynettle_{name}_dealloc (pynettle_{name} * self)
+            {{'''.format(name=self.name))
         for member in self.members:
             if member['dealloc'] is not None:
-                self.out.write('  {}\n'.format(member['dealloc']))
-        self.out.write('}\n\n')
+                self.writeindent(2, member['dealloc'])
+        self.writeindent(0, '}')
 
     def write_methods(self):
         for method in self.methods:
-            self.out.write('static PyObject *\n'
-                           'pynettle_{name}_{method} (pynettle_{name} * self,'
-                           ' PyObject * args, PyObject * kwds)\n'
-                           '{{'.format(name=self.name, method=method['name']))
-            self.out.write(method['body'] + '}\n\n')
+            self.writeindent(0, '''
+                static PyObject *
+                pynettle_{name}_{method} (pynettle_{name} * self, \\
+                                          PyObject * args, PyObject * kwds)
+                {{'''.format(name=self.name, method=method['name']))
+            self.writeindent(2, method['body'])
+            self.writeindent(0, '}')
 
     def write_method_def(self):
-        self.out.write('static PyMethodDef pynettle_{name}_methods[] = {{\n'
-                       .format(name=self.name))
+        self.writeindent(0, 'static PyMethodDef pynettle_{name}_methods[] = {{'
+                         .format(name=self.name))
         for method in self.methods:
-            self.out.write('  {{"{method}",'
-                           ' (PyCFunction) pynettle_{name}_{method}, {args},'
-                           ' "{docstring}"}},\n'.format(
-                               name=self.name,
-                               method=method['name'],
-                               args=method['args'],
-                               docstring=method['docs']))
-        self.out.write('  {NULL}\n};\n\n')
+            self.writeindent(2, '''
+                {{ "{method}", (PyCFunction) pynettle_{name}_{method}, \\
+                   {args}, "{docstring}" }},
+                '''.format(name=self.name, method=method['name'],
+                           args=method['args'], docstring=method['docs']))
+        self.writeindent(2, '{ NULL }')
+        self.writeindent(0, '};')
 
     def write_member_def(self):
         if len([m for m in self.members if m['public']]) > 0:
-            self.out.write('static PyMemberDef pynettle_{name}_members[]'
-                           ' = {{\n'.format(name=self.name))
+            self.writeindent(0, '''
+                static PyMemberDef pynettle_{name}_members[] = {{
+                '''.format(name=self.name))
             for member in self.members:
                 if member['public']:
-                    self.out.write('  {{"{member}", {type},'
-                                   ' offsetof (pynettle_{name}, {member}),'
-                                   ' {flags}, "{docstring}"}},\n'
-                                   .format(name=self.name,
-                                           member=member['name'],
-                                           flags=member['flags'],
-                                           type=member['type'],
-                                           docstring=member['docs']))
-            self.out.write('  {NULL}\n};\n\n')
+                    self.writeindent(2, '''
+                        {{ "{member}", {type}, offsetof (pynettle_{name}, \\
+                           {member}), {flags}, "{docstring}" }},
+                        '''.format(name=self.name,
+                                   member=member['name'],
+                                   flags=member['flags'],
+                                   type=member['type'],
+                                   docstring=member['docs']))
+            self.writeindent(2, '{ NULL }')
+            self.writeindent(0, '};')
 
     def write_richcompare(self):
         if self.richcompare is not None:
-            self.out.write('PyObject *\npynettle_{}_richcompare(PyObject *a,'
-                           ' PyObject *b, int op)\n{{\n{}\n}}'''
-                           .format(self.name, self.richcompare))
+            self.writeindent(0, '''
+                PyObject *
+                pynettle_{}_richcompare (PyObject *a, PyObject *b, int op)
+                {{'''.format(self.name))
+            self.writeindent(2, self.richcompare)
+            self.writeindent(0, '}')
 
     def write_getsetters(self):
         if self.getsetters:
             for gs in self.getsetters:
                 if gs['gbody'] is not None:
-                    self.out.write('static PyObject *\n'
-                                   '{getter} (pynettle_{name}'
-                                   ' *self, void *closure)\n{{\n{body}\n}}\n'
-                                   .format(getter=gs['getter'],
-                                           name=self.name,
-                                           body=gs['gbody']))
+                    self.writeindent(0, '''
+                        static PyObject *
+                        {getter} (pynettle_{name} * self, void * closure)
+                        {{'''.format(getter=gs['getter'], name=self.name))
+                    self.writeindent(2, gs['gbody'])
+                    self.writeindent(0, '}')
+
                 if gs['sbody'] is not None:
-                    self.out.write('static PyObject *\n'
-                                   '{setter} (pynettle_{name}'
-                                   ' *self, PyObject *value, void *closure)'
-                                   '\n{{\n{body}\n}}\n'
-                                   .format(setter=gs['setter'],
-                                           name=self.name,
-                                           body=gs['sbody']))
-            self.out.write('static PyGetSetDef pynettle_{}_getsetters[] = {{\n'
-                           .format(self.name))
+                    self.writeindent(0, '''
+                        static PyObject *
+                        {setter} (pynettle_{name} * self, PyObject * value, \\
+                                  void * closure)
+                        {{'''.format(setter=gs['setter'], name=self.name))
+                    self.writeindent(2, gs['sbody'])
+                    self.writeindent(0, '}')
+
+            self.writeindent(0, '''
+                static PyGetSetDef pynettle_{}_getsetters[] = {{
+                '''.format(self.name))
             for gs in self.getsetters:
-                self.out.write('    {{"{member}", '
-                               '(getter){getter}, (setter){setter},'
-                               ' "{docs}", NULL}},\n'.format(**gs))
-            self.out.write('    {NULL}\n};\n')
+                self.writeindent(2, '''
+                {{ "{member}",
+                  (getter){getter},
+                  (setter){setter},
+                  "{docs}",
+                  NULL }},'''.format(**gs))
+            self.writeindent(2, '{ NULL }')
+            self.writeindent(0, '};')
 
     def write_type(self):
         if len([m for m in self.members if m['public']]) > 0:
@@ -130,58 +191,66 @@ class CClass:
             have_richcompare = ''
         else:
             richcompare = 'pynettle_{}_richcompare'.format(self.name)
-            have_richcompare = '\n#if PY_MAJOR_VERSION < 3\n' \
-                               '    Py_TPFLAGS_HAVE_RICHCOMPARE |\n' \
-                               '#endif'
+            have_richcompare = '''
+                #if PY_MAJOR_VERSION < 3
+                Py_TPFLAGS_HAVE_RICHCOMPARE |
+                #endif
+                '''
         if self.getsetters:
             getset = 'pynettle_{}_getsetters'.format(self.name)
         else:
             getset = 0
-        self.out.write('''PyTypeObject pynettle_{name}_Type = {{
-    PyVarObject_HEAD_INIT(NULL, 0)
-    "nettle.{name}",			 /* tp_name */
-    sizeof(pynettle_{name}),		 /* tp_basicsize */
-    0,					 /* tp_itemsize */
-    (destructor)pynettle_{name}_dealloc,	/* tp_dealloc */
-    0,					 /* tp_print */
-    0,					 /* tp_getattr */
-    0,					 /* tp_setattr */
-    0,					 /* tp_reserved */
-    0,					 /* tp_repr */
-    0,					 /* tp_as_number */
-    0,					 /* tp_as_sequence */
-    0,					 /* tp_as_mapping */
-    0,					 /* tp_hash  */
-    0,					 /* tp_call */
-    0,					 /* tp_str */
-    0,					 /* tp_getattro */
-    0,					 /* tp_setattro */
-    0,					 /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | {have_richcompare}
-    Py_TPFLAGS_BASETYPE,		 /* tp_flags */
-    "{docstring}",			 /* tp_doc */
-    0,					 /* tp_traverse */
-    0,					 /* tp_clear */
-    {richcompare},			 /* tp_richcompare */
-    0,					 /* tp_weaklistoffset */
-    0,					 /* tp_iter */
-    0,					 /* tp_iternext */
-    pynettle_{name}_methods,		 /* tp_methods */
-    {members},		                 /* tp_members */
-    {getset},				 /* tp_getset */
-    0,					 /* tp_base */
-    0,					 /* tp_dict */
-    0,					 /* tp_descr_get */
-    0,					 /* tp_descr_set */
-    0,					 /* tp_dictoffset */
-    (initproc)pynettle_{name}_init,	 /* tp_init */
-    0,					 /* tp_alloc */
-    pynettle_{name}_new,		 /* tp_new */
-
-}};
-'''.format(name=self.name, docstring=self.docs, members=members,
-           richcompare=richcompare, have_richcompare=have_richcompare,
-           getset=getset))
+        self.writeindent(0, '''
+            PyTypeObject pynettle_{name}_Type = {{
+              PyVarObject_HEAD_INIT(NULL, 0)
+              "nettle.{name}",			      /* tp_name */
+              sizeof (pynettle_{name}),		      /* tp_basicsize */
+              0,				      /* tp_itemsize */
+              (destructor)pynettle_{name}_dealloc,    /* tp_dealloc */
+              0,				      /* tp_print */
+              0,				      /* tp_getattr */
+              0,				      /* tp_setattr */
+              0,				      /* tp_reserved */
+              0,				      /* tp_repr */
+              0,				      /* tp_as_number */
+              0,				      /* tp_as_sequence */
+              0,				      /* tp_as_mapping */
+              0,				      /* tp_hash  */
+              0,				      /* tp_call */
+              0,				      /* tp_str */
+              0,				      /* tp_getattro */
+              0,				      /* tp_setattro */
+              0,				      /* tp_as_buffer */
+              '''.format(name=self.name))
+        self.writeindent(2, have_richcompare)
+        self.writeindent(0, '''
+              Py_TPFLAGS_DEFAULT |
+              Py_TPFLAGS_BASETYPE,                    /* tp_flags */
+              "{docstring}",			      /* tp_doc */
+              0,				      /* tp_traverse */
+              0,				      /* tp_clear */
+              {richcompare},			      /* tp_richcompare */
+              0,				      /* tp_weaklistoffset */
+              0,				      /* tp_iter */
+              0,				      /* tp_iternext */
+              pynettle_{name}_methods,		      /* tp_methods */
+              {members},		              /* tp_members */
+              {getset},				      /* tp_getset */
+              0,				      /* tp_base */
+              0,				      /* tp_dict */
+              0,				      /* tp_descr_get */
+              0,				      /* tp_descr_set */
+              0,				      /* tp_dictoffset */
+              (initproc)pynettle_{name}_init,	      /* tp_init */
+              0,				      /* tp_alloc */
+              pynettle_{name}_new,                    /* tp_new */
+            }};
+            '''.format(name=self.name,
+                       docstring=self.docs,
+                       members=members,
+                       richcompare=richcompare,
+                       have_richcompare=have_richcompare,
+                       getset=getset))
 
     def write_to_file(self, f):
         self.out = f
@@ -204,9 +273,10 @@ class CClass:
             f.write('PyTypeObject pynettle_{}_Type;\n'.format(self.name))
 
     def write_reg_to_file(self, f):
-        f.write('  if (PyType_Ready (&pynettle_{name}_Type) < 0) {{\n'
-                '    return MOD_ERR_VAL;\n'
-                '  }}\n'
+        f.write('  if (PyType_Ready (&pynettle_{name}_Type) < 0)\n'
+                '    {{\n'
+                '      return MOD_ERR_VAL;\n'
+                '    }}\n'
                 '  Py_INCREF (&pynettle_{name}_Type);\n'
                 '  PyModule_AddObject (m, "{name}",'
                 ' (PyObject *) &pynettle_{name}_Type);\n'
