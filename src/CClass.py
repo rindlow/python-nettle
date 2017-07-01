@@ -20,7 +20,6 @@ class CClass:
         self.richcompare = None
         self.getsetters = []
         self.out = None
-        self.to_be_subclassed = False
 
     def writeindent(self, spaces, str):
         lines = str.split('\n')
@@ -50,8 +49,7 @@ class CClass:
                         cont = False
 
     def write_python_subclass(self, f):
-        if not self.to_be_subclassed:
-            f.write('{0} = _nettle.{0}\n'.format(self.name))
+        f.write('{0} = _nettle.{0}\n'.format(self.name))
         
     def write_class_struct_to_file(self, f):
         f.write('typedef struct\n{{'
