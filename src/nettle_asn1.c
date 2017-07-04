@@ -9,94 +9,16 @@
 #include "nettle.h"
 #include "nettle_asn1.h"
 
-const char *base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  "abcdefghijklmnopqrstuvwxyz0123456789+/=";
-
-uint8_t *
-base64decode (char *in)
+typedef struct asn1object
 {
-  uint8_t *out;
-  size_t inlen;
-  int work, n, o;
-  char *idx;
-
-  inlen = strlen ((char *) in);
-  out = malloc (inlen * 3 / 4);
-  o = 0;
-  work = 0;
-  n = 0;
-  for (size_t i = 0; i < inlen; i++)
-    {
-      idx = index (base64chars, in[i]);
-      if (idx != NULL)
-	{
-	  work <<= 6;
-	  work |= ((idx - base64chars) & 0x3f);
-	  n++;
-	  if (n == 4)
-	    {
-	      for (int j = 16; j >= 0; j -= 8)
-		{
-		  out[o++] = (work >> j) & 0xff;
-		}
-	      work = 0;
-	      n = 0;
-	    }
-	}
-    }
-  return out;
-}
-
-uint8_t *
-read_file (const char *filename)
-{
-  FILE *f;
-  char *buf, *start, *end;
-  uint8_t *der;
-  long len;
-  if ((f = fopen (filename, "r")) == NULL)
-    {
-      perror ("fopen failed");
-      return NULL;
-    }
-  if (fseek (f, 0, SEEK_END) < 0)
-    {
-      perror ("fseek to end failed");
-      return NULL;
-    }
-  if ((len = ftell (f)) < 0)
-    {
-      perror ("ftell failed");
-      return NULL;
-    }
-  if (fseek (f, 0, SEEK_SET) < 0)
-    {
-      perror ("fseek to start failed");
-      return NULL;
-    }
-  if ((buf = malloc (len + 1)) == NULL)
-    {
-      PyErr_Format (PyExc_MemoryError, "malloc failed");
-      return NULL;
-    }
-  if (fread (buf, len, 1, f) < 1)
-    {
-      perror ("fread failed");
-      return NULL;
-    }
-  buf[len] = '\0';
-
-  if (strstr (buf, "-----BEGIN") == NULL)
-    return (uint8_t *) buf;
-
-  start = strchr (buf, '\n');
-  end = strchr (start, '-');
-  *end = '\0';
-  der = base64decode (start);
-  free (buf);
-  fclose (f);
-  return der;
-}
+  char tag_class;
+  char is_constructed;
+  int tag;
+  int len;
+  int hlen;
+  int offset;
+  uint8_t *data;
+} asn1object;
 
 asn1object *
 parse_header (uint8_t * data, int offset)
@@ -293,7 +215,7 @@ der_to_pubkey (asn1object * parent)
 }
 
 int
-der_to_keypair (asn1object * parent,
+pkcs1_to_keypair (asn1object * parent,
 		struct rsa_public_key *pub, struct rsa_private_key *priv)
 {
   asn1object *version, *modulus, *publicExponent, *privateExponent,
@@ -426,20 +348,20 @@ pack_header (asn1object * obj)
 }
 
 int
-pack_asn1object (asn1object * obj, uint8_t ** dst, int * len)
+pack_asn1object (asn1object * obj, uint8_t ** dstp, int * len)
 {
   uint8_t *header;
   header = pack_header (obj);
 
-  if (((*dst) = realloc (*dst, *len + obj->hlen + obj->len)) == NULL)
+  if (((*dstp) = realloc (*dstp, *len + obj->hlen + obj->len)) == NULL)
     {
       PyErr_Format (ASN1Error, "realloc failed");
       return 0;
     }
-  memcpy (&(*dst)[*len], header, obj->hlen);
+  memcpy (&(*dstp)[*len], header, obj->hlen);
   free (header);
   *len += obj->hlen;
-  memcpy (&(*dst)[*len], obj->data, obj->len);
+  memcpy (&(*dstp)[*len], obj->data, obj->len);
   *len += obj->len;
   free_asn1object (obj);
   return 1;
@@ -631,25 +553,28 @@ make_oid (char *input)
   return obj;
 }
 
-asn1object *
-pubkey_to_der (struct rsa_public_key * key)
+int
+pubkey_to_pkcs8 (struct rsa_public_key * key, uint8_t **bufp, int *len)
 {
   asn1object *obj;
 
   obj = make_sequence (2,
-		       make_sequence (2,
-				      make_oid ("1.2.840.113549.1.1.1"),
-				      make_null ()),
-		       encapsulate_in_bitstring (make_sequence (2,
-								make_integer_from_gmp
-								(key->n),
-								make_integer_from_gmp
-								(key->e))));
-  return obj;
+	    make_sequence (2,
+		make_oid ("1.2.840.113549.1.1.1"),
+		make_null ()),
+	    encapsulate_in_bitstring (
+		make_sequence (2,
+		    make_integer_from_gmp (key->n),
+		    make_integer_from_gmp (key->e))));
+
+  if (!pack_asn1object (obj, bufp, len))
+    return 0;
+  return 1;
 }
 
-asn1object *
-keypair_to_der (struct rsa_public_key * pub, struct rsa_private_key * priv)
+int
+keypair_to_pkcs1 (struct rsa_public_key * pub, struct rsa_private_key * priv,
+		  uint8_t **bufp, int *len)
 {
   asn1object *obj;
   obj = make_sequence (9,
@@ -663,37 +588,13 @@ keypair_to_der (struct rsa_public_key * pub, struct rsa_private_key * priv)
 		       make_integer_from_gmp (priv->b),
 		       make_integer_from_gmp (priv->c));
 
-  return obj;
-}
-
-int
-write_object_to_file (asn1object * obj, char *filename)
-{
-  uint8_t *buf = NULL;
-  int len = 0;
-  FILE *f;
-
-  if (!pack_asn1object (obj, &buf, &len))
+  if (!pack_asn1object (obj, bufp, len))
     return 0;
-
-  if ((f = fopen (filename, "w")) == NULL)
-    {
-      PyErr_Format (ASN1Error, "Failed to open file '%s' for writing",
-		    filename); 
-      return 0;
-    }
-  if (fwrite (buf, len, 1, f) < 1)
-    {
-      PyErr_Format (ASN1Error, "Failed to write to file '%s'", filename); 
-      return 0;
-    }
-  free (buf);
-  fclose (f);
   return 1;
 }
 
 struct rsa_public_key *
-get_public_key_from_certfile (uint8_t * der)
+pubkey_from_cert (uint8_t * der)
 {
   asn1object *certificate, *tbsCertificate, *version, *serialNumber,
     *signature, *issuer, *validity, *subject, *subjectPublicKeyInfo,
@@ -742,12 +643,23 @@ get_public_key_from_certfile (uint8_t * der)
 
   pub = der_to_pubkey (rsaPublicKey);
   free_asn1object (subjectPublicKey);
-  free (der);
   return pub;
 }
 
 struct rsa_public_key *
-get_public_key_from_file (uint8_t * der)
+pubkey_from_pkcs1 (uint8_t * der)
+{
+  asn1object *rsaPublicKey;
+
+  // Navigate ASN.1 Tree
+  if (!(rsaPublicKey = assert_sequence (root_object (der))))
+    return NULL;
+
+  return der_to_pubkey (rsaPublicKey);
+}
+
+struct rsa_public_key *
+pubkey_from_pkcs8 (uint8_t * der)
 {
   asn1object *publicKeyInfo, *algorithm, *publicKey, *rsaPublicKey;
 
@@ -761,7 +673,6 @@ get_public_key_from_file (uint8_t * der)
   if (!(rsaPublicKey = assert_sequence (first_child (publicKey))))
     return NULL;
 
-  free (der);
   free_asn1object (publicKeyInfo);
   free_asn1object (algorithm);
   free_asn1object (publicKey);
@@ -770,14 +681,31 @@ get_public_key_from_file (uint8_t * der)
 }
 
 int
-get_keypair_from_file (uint8_t * der,
-		       struct rsa_public_key *pub,
-		       struct rsa_private_key *priv)
+keypair_from_pkcs1 (uint8_t * der,
+			struct rsa_public_key *pub,
+			struct rsa_private_key *priv)
 {
   asn1object *rsaPrivateKey;
   // Navigate ASN.1 Tree
   if (!(rsaPrivateKey = assert_sequence (root_object (der))))
     return 0;
-  free (der);
-  return der_to_keypair (rsaPrivateKey, pub, priv);
+  return pkcs1_to_keypair (rsaPrivateKey, pub, priv);
+}
+
+int
+keypair_from_pkcs8 (uint8_t * der,
+			struct rsa_public_key *pub,
+			struct rsa_private_key *priv)
+{
+  asn1object * privateKeyInfo, * algorithm, * privateKey, * rsaPrivateKey;
+  // Navigate ASN.1 Tree
+  if (!(privateKeyInfo = assert_sequence (root_object (der))))
+    return 0;
+  if (!(algorithm = assert_sequence (first_child (privateKeyInfo))))
+    return 0;
+  if (!(privateKey = assert_bitstring (next_child (privateKeyInfo, algorithm))))
+    return 0;
+  if (!(rsaPrivateKey = assert_sequence (first_child (privateKey))))
+    return 0;
+  return pkcs1_to_keypair (rsaPrivateKey, pub, priv);
 }

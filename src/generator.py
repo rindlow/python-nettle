@@ -164,7 +164,7 @@ class Generator:
     mac_file = 'nettle_macs.c'
     mod_file = 'nettle.c'
     pubkey_file = 'nettle_pubkey.c'
-    python_module = '../nettle/classes.py'
+    python_module = '../nettle/autogen.py'
 
     def __init__(self):
         self.objects = []
@@ -254,6 +254,7 @@ class Generator:
     def gen_pubkey_file(self):
         with open(self.pubkey_file, 'w') as f:
             f.write('#include <Python.h>\n')
+            f.write('#include <structmember.h>\n')
             f.write('#include <fcntl.h>\n')
             f.write('#include <nettle/yarrow.h>\n')
             f.write('#include <nettle/rsa.h>\n')
@@ -294,9 +295,9 @@ class Generator:
     def gen_python_file(self):
         with open(self.python_module, 'w') as f:
             f.write('import _nettle\n')
-            for object in sorted(self.objects, key=lambda o:o.name):
+            for object in sorted(self.objects, key=lambda o: o.name):
                 object.write_python_subclass(f)
-            
+
 gen = Generator()
 gen.gen_hash_file(hashes)
 gen.gen_cipher_file(ciphers)

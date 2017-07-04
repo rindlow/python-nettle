@@ -15,6 +15,7 @@ nettle_hashes.c
 nettle_macs.c
 nettle_pubkey.c
 nettle.h
+nettle/autogen.py
 
 # setuptools metadata
 nettle.egg-info/*

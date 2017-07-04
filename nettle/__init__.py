@@ -1,2 +1,2 @@
-from .classes import *
+from .autogen import *
 from .pubkey import *

@@ -11,6 +11,7 @@ setup(name="nettle",
       url='https://github.com/rindlow/python-nettle',
       license='GPLv2',
       test_suite='tests',
+      packages=['nettle'],
       ext_modules=[
           Extension("_nettle", libraries=['nettle', 'hogweed', 'gmp'],
                     sources=['src/nettle_hashes.c',

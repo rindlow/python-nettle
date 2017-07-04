@@ -1,21 +1,15 @@
-typedef struct asn1object
-{
-  char tag_class;
-  char is_constructed;
-  int tag;
-  int len;
-  int hlen;
-  int offset;
-  uint8_t *data;
-} asn1object;
+int keypair_from_pkcs1 (uint8_t *,
+			struct rsa_public_key *,
+			struct rsa_private_key *);
+int keypair_from_pkcs8 (uint8_t *,
+			struct rsa_public_key *,
+			struct rsa_private_key *);
+int keypair_to_pkcs1 (struct rsa_public_key *,
+		      struct rsa_private_key *,
+		      uint8_t **, int *);
+struct rsa_public_key *pubkey_from_cert (uint8_t *);
+struct rsa_public_key *pubkey_from_pkcs1 (uint8_t *);
+struct rsa_public_key *pubkey_from_pkcs8 (uint8_t *);
+int pubkey_to_pkcs8 (struct rsa_public_key *, uint8_t **, int *);
 
-int get_keypair_from_file (uint8_t *,
-			   struct rsa_public_key *,
-			   struct rsa_private_key *);
-struct rsa_public_key *get_public_key_from_certfile (uint8_t *);
-struct rsa_public_key *get_public_key_from_file (uint8_t *);
-asn1object *keypair_to_der (struct rsa_public_key *, struct rsa_private_key *);
-asn1object *pubkey_to_der (struct rsa_public_key *);
-uint8_t *read_file (const char *);
-int write_object_to_file (asn1object *, char *);
 

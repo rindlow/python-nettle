@@ -50,7 +50,7 @@ class CClass:
 
     def write_python_subclass(self, f):
         f.write('{0} = _nettle.{0}\n'.format(self.name))
-        
+
     def write_class_struct_to_file(self, f):
         f.write('typedef struct\n{{'
                 '\n  PyObject_HEAD\n'.format(self.name))

@@ -99,7 +99,8 @@ class Yarrow(CClass):
             decl='struct yarrow256_ctx *ctx;',
             init='self->ctx = NULL;',
             dealloc='PyMem_Free (self->ctx);\nself->ctx = NULL;')
-        self.add_method('random',
+        self.add_method(
+            'random',
             docs='Generate random bytes',
             args='METH_VARARGS',
             body='''
@@ -183,7 +184,11 @@ class RSAKeyPair(CClass):
             name='yarrow',
             decl='pynettle_Yarrow *yarrow',
             init='self->yarrow = NULL;',
-            dealloc='Py_DECREF (self->yarrow);')
+            dealloc='Py_DECREF (self->yarrow);',
+            docs='Yarrow instance',
+            flags='READONLY',
+            type='T_OBJECT',
+            public=True)
         self.add_to_init_body(yarrowinit)
 
         self.add_method(
@@ -211,43 +216,66 @@ class RSAKeyPair(CClass):
             ''')
 
         self.add_method(
-            'save_key',
-            docs='Save key (keypair) to file (der)',
+            'from_pkcs1',
+            docs='Read key (keypair) from buffer in PKCS#1 format',
             args='METH_VARARGS',
             body='''
-                char *path;
-                if (! PyArg_ParseTuple (args, "s", &path))
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (! PyArg_ParseTuple (args, "y*", &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (! PyArg_ParseTuple (args, "t#",
+                                        &buffer.buf, &buffer.len))
+                #endif
                   {
                     return NULL;
                   }
-                if (! write_object_to_file (keypair_to_der (self->pub, \\
-                    self->key), path))
+                if (! keypair_from_pkcs1 ((uint8_t *) buffer.buf, self->pub, \\
+                                         self->key))
                   {
-                    PyErr_Format (RSAError, "Failed to write file");
+                    PyErr_Format (ASN1Error, "Failed to find key in buffer");
                     return NULL;
                   }
                 Py_RETURN_NONE;
               ''')
-
         self.add_method(
-            'read_key',
-            docs='Read key (keypair) from file (der or pem)',
+            'from_pkcs8',
+            docs='Read key (keypair) from buffer in plain PKCS#8 format',
             args='METH_VARARGS',
             body='''
-                char *path;
-                if (! PyArg_ParseTuple (args, "s", &path))
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (! PyArg_ParseTuple (args, "y*", &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (! PyArg_ParseTuple (args, "t#",
+                                        &buffer.buf, &buffer.len))
+                #endif
                   {
                     return NULL;
                   }
-                if (! get_keypair_from_file (read_file (path), self->pub, \\
-                    self->key))
+                if (! keypair_from_pkcs8 ((uint8_t *) buffer.buf, self->pub, \\
+                                          self->key))
                   {
-                    PyErr_Format (RSAError, "Failed to read file");
+                    PyErr_Format (ASN1Error, "Failed to find key in buffer");
                     return NULL;
                   }
                 Py_RETURN_NONE;
               ''')
-
+        self.add_method(
+            'to_pkcs1_key',
+            docs='Write key (keypair) to buffer in PKCS#1 format',
+            args='METH_NOARGS',
+            body='''
+                uint8_t *data = NULL;
+                int len = 0;
+                if (! keypair_to_pkcs1 (self->pub, self->key, &data, &len))
+                  {
+                    PyErr_Format (ASN1Error, "Failed to encode key");
+                  }
+                return PyBytes_FromStringAndSize ((const char *) data, len);
+            ''')
         self.add_method(
             name='encrypt',
             args='METH_VARARGS',
@@ -359,9 +387,10 @@ class RSAKeyPair(CClass):
         self.add_getsetter(
             'public_key',
             gbody='''
+                PyObject * module = PyImport_ImportModule("nettle");
+                PyObject *pk = PyObject_GetAttrString(module, "RSAPubKey");
                 pynettle_RSAPubKey *pubkey = (pynettle_RSAPubKey *) \\
-                   PyObject_CallObject (
-                     (PyObject *) &pynettle_RSAPubKey_Type, NULL);
+                   PyObject_CallObject (pk, NULL);
                 mpz_set (pubkey->pub->n, self->pub->n);
                 mpz_set (pubkey->pub->e, self->pub->e);
                 if (! rsa_public_key_prepare (pubkey->pub))
@@ -374,7 +403,8 @@ class RSAKeyPair(CClass):
 
     def write_python_subclass(self, f):
         # Do not write copying code, this class will be subclassed
-        pass 
+        pass
+
 
 class RSAPubKey(CClass):
 
@@ -393,62 +423,100 @@ class RSAPubKey(CClass):
             name='yarrow',
             decl='pynettle_Yarrow *yarrow',
             init='self->yarrow = NULL;',
-            dealloc='Py_DECREF (self->yarrow);')
-        self.add_member(
-            name='shared_yarrow',
-            decl='int shared_yarrow',
-            init='self->shared_yarrow = 0;')
+            dealloc='Py_DECREF (self->yarrow);',
+            docs='Yarrow instance',
+            flags='READONLY',
+            type='T_OBJECT',
+            public=True)
 
-        self.add_method('save_key',
-                        docs='Save key to file (der)',
-                        args='METH_VARARGS',
-                        body='''
-  char *path;
-  if (! PyArg_ParseTuple (args, "s", &path))
-    {
-      return NULL;
-    }
-  if (! write_object_to_file (pubkey_to_der (self->pub), path))
-    {
-      PyErr_Format (RSAError, "Failed to write file");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-''')
+        self.add_method(
+            'to_pkcs8_key',
+            docs='Write key to buffer in PKCS#8 format',
+            args='METH_NOARGS',
+            body='''
+                uint8_t *data = NULL;
+                int len = 0;
+                if (! pubkey_to_pkcs8 (self->pub, &data, &len))
+                  {
+                    PyErr_Format (RSAError, "Failed to encode key");
+                  }
+                return PyBytes_FromStringAndSize ((const char *) data, len);
+            ''')
 
-        self.add_method('read_key',
-                        docs='Read key from file (der or pem)',
-                        args='METH_VARARGS',
-                        body='''
-  char *path;
-  if (! PyArg_ParseTuple (args, "s", &path))
-    {
-      return NULL;
-    }
-  if ((self->pub = get_public_key_from_file (read_file (path))) == NULL)
-    {
-      PyErr_Format (RSAError, "Failed to read file");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-''')
+        self.add_method(
+            'from_pkcs1',
+            docs='Read key from buffer in PKCS#1 format',
+            args='METH_VARARGS',
+            body='''
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (! PyArg_ParseTuple (args, "y*", &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (! PyArg_ParseTuple (args, "t#",
+                                        &buffer.buf, &buffer.len))
+                #endif
+                  {
+                    return NULL;
+                  }
+                if ((self->pub = pubkey_from_pkcs1 ((uint8_t *) buffer.buf)) \\
+                     == NULL)
+                  {
+                    PyErr_Format (ASN1Error, "Failed to find key in buffer");
+                    return NULL;
+                  }
+                Py_RETURN_NONE;
+              ''')
 
-        self.add_method('read_key_from_cert',
-                        docs='Read key from certificate file (der or pem)',
-                        args='METH_VARARGS',
-                        body='''
-  char *path;
-  if (! PyArg_ParseTuple (args, "s", &path))
-    {
-      return NULL;
-    }
-  if ((self->pub = get_public_key_from_certfile (read_file (path))) == NULL)
-    {
-      PyErr_Format (RSAError, "Failed to read file");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-''')
+        self.add_method(
+            'from_pkcs8',
+            docs='Read key from buffer in PKCS#8 format',
+            args='METH_VARARGS',
+            body='''
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (! PyArg_ParseTuple (args, "y*", &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (! PyArg_ParseTuple (args, "t#",
+                                        &buffer.buf, &buffer.len))
+                #endif
+                  {
+                    return NULL;
+                  }
+                if ((self->pub = pubkey_from_pkcs8 ((uint8_t *) buffer.buf)) \\
+                     == NULL)
+                  {
+                    PyErr_Format (ASN1Error, "Failed to find key in buffer");
+                    return NULL;
+                  }
+                Py_RETURN_NONE;
+              ''')
+
+        self.add_method(
+            'read_key_from_cert',
+            docs='Read key from buffer containing X.509 certificate',
+            args='METH_VARARGS',
+            body='''
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (! PyArg_ParseTuple (args, "y*", &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (! PyArg_ParseTuple (args, "t#",
+                                        &buffer.buf, &buffer.len))
+                #endif
+                  {
+                    return NULL;
+                  }
+                if ((self->pub = pubkey_from_cert ((uint8_t *) buffer.buf)) \\
+                     == NULL)
+                  {
+                    PyErr_Format (ASN1Error, "Failed to read file");
+                    return NULL;
+                  }
+                Py_RETURN_NONE;
+            ''')
 
         self.add_richcompare(body='''
   pynettle_RSAPubKey *self, *other;
@@ -502,4 +570,4 @@ class RSAPubKey(CClass):
 
     def write_python_subclass(self, f):
         # Do not write copying code, this class will be subclassed
-        pass        
+        pass
