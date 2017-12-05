@@ -51,7 +51,7 @@ arcfourdocs = 'ARCFOUR is a stream cipher, also known under the trade marked' \
      ' problem is that the key setup of ARCFOUR is quite weak, you should' \
      ' never use keys with structure, keys that are ordinary' \
      ' passwords, or sequences of keys like "secret:1", "secret:2"' \
-     ' .... If you have keys that don’t look like random bit strings,' \
+     ' .... If you have keys that don\'t look like random bit strings,' \
      ' and you want to use ARCFOUR, always hash the key before feeding' \
      ' it to ARCFOUR. Furthermore, the initial bytes of the generated' \
      ' key stream leak information about the key; for this reason, it' \
@@ -96,7 +96,7 @@ hmacdocs = 'For an underlying hash function H, with digest size l and' \
      ' keys can be of any length, but it is recommended to use keys of' \
      ' length l, the digest size of the underlying hash function H.' \
      ' Keys that are longer than b are shortened to length l by hashing' \
-     ' with H, so arbitrarily long keys aren’t very useful.'
+     ' with H, so arbitrarily long keys aren\'t very useful.'
 
 umacdocs = 'UMAC is a message authentication code based on universal' \
      ' hashing, and designed for high performance on modern processors (in' \
@@ -111,14 +111,14 @@ umacdocs = 'UMAC is a message authentication code based on universal' \
      ' needs a unique nonce. Nonce values must not be reused for two' \
      ' messages with the same key, but they need not be kept secret.' \
      ' The nonce must be at least one octet, and at most 16; nonces' \
-     ' shorter than 16 octets are zero-padded. Nettle’s implementation' \
+     ' shorter than 16 octets are zero-padded. Nettle\'s implementation' \
      ' of UMAC increments the nonce automatically for each message, so' \
      ' explicitly setting the nonce for each message is optional. This' \
      ' auto-increment uses network byte order and it takes the length' \
-     ' of the nonce into account. E.g., if the initial nonce is “abc”' \
+     ' of the nonce into account. E.g., if the initial nonce is "abc"' \
      ' (3 octets), this value is zero-padded to 16 octets for the first' \
      ' message. For the next message, the nonce is incremented to' \
-     ' “abd”, and this incremented value is zero-padded to 16 octets.' \
+     ' "abd", and this incremented value is zero-padded to 16 octets.' \
      ' UMAC is defined in four variants, for different output sizes: 32' \
      ' bits (4 octets), 64 bits (8 octets), 96 bits (12 octets) and 128' \
      ' bits (16 octets), corresponding to different trade-offs between' \
@@ -126,7 +126,7 @@ umacdocs = 'UMAC is a message authentication code based on universal' \
      ' not always!) gives the same result as using a longer output size' \
      ' and truncating the result. So it is important to use the right' \
      ' variant. For consistency with other hash and MAC functions,' \
-     ' Nettle’s _digest functions for UMAC accept a length parameter so' \
+     ' Nettle\'s _digest functions for UMAC accept a length parameter so' \
      ' that the output can be truncated to any desired size, but it is' \
      ' recommended to stick to the specified output size and select the' \
      ' umac variant corresponding to the desired size. The internal' \

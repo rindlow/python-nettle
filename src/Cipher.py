@@ -204,7 +204,7 @@ class Cipher(CClass):
                 args='METH_NOARGS',
                 docs='Extracts the message digest (also known as'
                 ' \'authentication tag\'). This is the final operation when'
-                ' processing a message. It’s strongly recommended that'
+                ' processing a message. It\'s strongly recommended that'
                 ' length is GCM_DIGEST_SIZE, but if you provide a smaller'
                 ' value, only the first length octets'
                 ' of the digest are written.',
