@@ -25,8 +25,12 @@ Both python2 and python3 is supported.
 
 ## License
 
-This project is licensed under GPLv2 - see the [LICENSE](LICENSE) file for details
+python-nettle is like Nettle dual licenced under the GNU General
+Public License version 2 or later, and the GNU Lesser General Public
+License version 3 or later - see [COPYINGv2](COPYINGv2),
+[COPYINGv3](COPYINGv3) or [COPYING.LESSERv3](COPYING.LESSERv3) for
+details
 
 ## Acknowledgements
 
-Thanks to Niels Möller for the nettle library
+Thanks to Niels Möller for the Nettle library
