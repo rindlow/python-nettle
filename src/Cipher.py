@@ -5,7 +5,8 @@ from textwrap import dedent
 class Cipher(CClass):
 
     def __init__(self, name, family=None, docs=None, lenparam=False,
-                 twofuncs=False, twokeys=False, invert=False, mode=None):
+                 twofuncs=False, twokeys=False, invert=False, varkey=False,
+                 mode=None):
         CClass.__init__(self, name, docs)
 
         if mode is None:
@@ -43,7 +44,7 @@ class Cipher(CClass):
                 self.add_to_init_body(
                     self.key_len_check_and_set(
                         key=key, keylen=keylen, cipher_name=name, init=True,
-                        key_size='{}_KEY_SIZE'.format(name.upper())))
+                        varkey=varkey))
 
             self.add_to_init_body(
                 '  if (iv.buf != NULL)\n'
@@ -86,7 +87,7 @@ class Cipher(CClass):
                 self.add_to_init_body(
                     self.key_len_check_and_set(
                         key=key, keylen=keylen, cipher_name=name, init=True,
-                        key_size='{}_KEY_SIZE'.format(name.upper())))
+                        varkey=varkey))
 
             self.add_to_init_body(
                 '  if (ctr.buf != NULL)\n'
@@ -143,7 +144,7 @@ class Cipher(CClass):
                 self.add_to_init_body(
                     self.key_len_check_and_set(
                         key=key, keylen=keylen, cipher_name=name, init=True,
-                        key_size='{}_KEY_SIZE'.format(name.upper()),
+                        varkey=varkey,
                         key_init='gcm_set_key (self->gcmkey,'
                         ' self->ctx, (nettle_cipher_func *)'
                         '&{name}_{usage});'.format(name=name,
@@ -226,7 +227,7 @@ class Cipher(CClass):
                 self.add_to_init_body(
                     self.key_len_check_and_set(
                         key=key, keylen=keylen, cipher_name=name, init=True,
-                        key_size='{}_KEY_SIZE'.format(name.upper())))
+                        varkey=varkey))
 
         self.add_member(
             name='key_size',
@@ -250,11 +251,14 @@ class Cipher(CClass):
 
         if twokeys:
             self.add_set_key_function(name, key='encrypt_key', keylen=keylen,
-                                      mode=mode, usage='encrypt')
+                                      mode=mode, usage='encrypt',
+                                      cipher_name=name, varkey=varkey)
             self.add_set_key_function(name, key='decrypt_key', keylen=keylen,
-                                      mode=mode, usage='decrypt')
+                                      mode=mode, usage='decrypt',
+                                      cipher_name=name, varkey=varkey)
         else:
-            self.add_set_key_function(name, keylen=keylen, mode=mode)
+            self.add_set_key_function(name, keylen=keylen, mode=mode,
+                                      cipher_name=name, varkey=varkey)
 
         if twofuncs:
             self.add_crypt_method(name, 'encrypt')
@@ -360,7 +364,8 @@ class Cipher(CClass):
                 ''').format(crypt.format(func=func)))
 
     def add_set_key_function(self, name, key='key', keylen='',
-                             usage='crypt', mode='ecb'):
+                             usage='crypt', mode='ecb',
+                             cipher_name='', varkey=False):
         docs = 'Initialize the cipher'
         if mode == 'gcm':
             gsk = 'gcm_set_key (self->gcmkey, self->ctx,' \
@@ -388,30 +393,42 @@ class Cipher(CClass):
             ''').format(key=key,
                         setkey=self.key_len_check_and_set(
                             key=key,
-                            key_size='{}_KEY_SIZE'.format(name.upper()),
+                            varkey=varkey,
                             keylen=keylen,
                             key_init=gsk,
-                            cipher_name=name)))
+                            cipher_name=cipher_name)))
 
-    def key_len_check_and_set(self, key, key_size, keylen,
-                              cipher_name, key_init='', init=False):
+    def key_len_check_and_set(self, key, varkey=False, keylen='',
+                              cipher_name='', key_init='', init=False):
         if init:
             errval = -1
         else:
             errval = 'NULL'
+        if varkey:
+            check = '{key}.len < {cipher_name}_MIN_KEY_SIZE || ' \
+                    '{key}.len > {cipher_name}_MAX_KEY_SIZE' \
+                    .format(key=key, cipher_name=cipher_name.upper())
+            error = '"Invalid key length %d, expected between %d and %d.",' \
+                    '{key}.len, {cipher_name}_MIN_KEY_SIZE, ' \
+                    '{cipher_name}_MAX_KEY_SIZE' \
+                    .format(key=key, cipher_name=cipher_name.upper())
+        else:
+            check = '{key}.len != {cipher_name}_KEY_SIZE' \
+                    .format(key=key, cipher_name=cipher_name.upper())
+            error = '"Invalid key length %d, expected %d.",' \
+                    '{key}.len, {cipher_name}_KEY_SIZE' \
+                    .format(key=key, cipher_name=cipher_name.upper())
         return \
             '  if ({key}.buf != NULL)\n' \
             '    {{\n' \
-            '      if ({key}.len != {key_size})\n' \
+            '      if ({check})\n' \
             '        {{\n' \
-            '          PyErr_Format (KeyLenError,' \
-            ' "Invalid key length %d, expected %d.",' \
-            ' {key}.len, {key_size});\n' \
+            '          PyErr_Format (KeyLenError, {error});\n' \
             '          return {errval};\n' \
             '        }}\n' \
             '      {cipher_name}_set_{key} (self->ctx, {keylen}{key}.buf);\n' \
             '      {key_init}\n' \
             '      self->is_initialized = 1;\n' \
             '    }}\n' \
-            .format(key=key, key_size=key_size, cipher_name=cipher_name,
+            .format(key=key, check=check, error=error, cipher_name=cipher_name,
                     keylen=keylen, errval=errval, key_init=key_init)

@@ -58,34 +58,57 @@ arcfourdocs = 'ARCFOUR is a stream cipher, also known under the trade marked' \
      ' is recommended to discard the first 512 bytes of the key' \
      ' stream.'
 
+serpentdocs = 'SERPENT is one of the AES finalists, designed by Ross' \
+              'Anderson, Eli Biham and Lars Knudsen. Thus, the interface' \
+              'and properties are similar to AES\'. One peculiarity is that' \
+              'it is quite pointless to use it with anything but the' \
+              'maximum key size, smaller keys are just padded to larger ones.'
+
+twofishdocs = 'Another AES finalist, this one designed by Bruce Schneier ' \
+              'and others.'
+
 ciphers = [
     {'name': 'arcfour', 'family': None, 'headers': ['arcfour.h'],
      'docstring': aesdocs, 'lenparam': True, 'twokeys': False,
-     'twofuncs': False, 'invert': False},
+     'twofuncs': False, 'invert': False, 'variable_keylen': False},
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
      'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
-     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs},
+     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
+     'variable_keylen': False},
     {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
      'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
-     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs},
+     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
+     'variable_keylen': False},
     {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
      'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
-     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs},
+     'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
+     'variable_keylen': False},
     {'name': 'camellia128', 'family': 'camellia',
      'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
      'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
+     'variable_keylen': False},
     {'name': 'camellia192', 'family': 'camellia',
      'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
      'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
+     'variable_keylen': False},
     {'name': 'camellia256', 'family': 'camellia',
      'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
      'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': camelliadocs},
+     'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
+     'variable_keylen': False},
+    {'name': 'serpent', 'family': 'serpent',
+     'headers': ['serpent.h'], 'lenparam': True, 'twokeys': False,
+     'twofuncs': True, 'invert': False, 'docstring': serpentdocs,
+     'variable_keylen': True},
+    {'name': 'twofish', 'family': 'twofish',
+     'headers': ['twofish.h'], 'lenparam': True, 'twokeys': False,
+     'twofuncs': True, 'invert': False, 'docstring': twofishdocs,
+     'variable_keylen': True},
 ]
 
 hmacdocs = 'For an underlying hash function H, with digest size l and' \
@@ -115,10 +138,10 @@ umacdocs = 'UMAC is a message authentication code based on universal' \
      ' of UMAC increments the nonce automatically for each message, so' \
      ' explicitly setting the nonce for each message is optional. This' \
      ' auto-increment uses network byte order and it takes the length' \
-     ' of the nonce into account. E.g., if the initial nonce is "abc"' \
+     ' of the nonce into account. E.g., if the initial nonce is \\"abc\\"' \
      ' (3 octets), this value is zero-padded to 16 octets for the first' \
      ' message. For the next message, the nonce is incremented to' \
-     ' "abd", and this incremented value is zero-padded to 16 octets.' \
+     ' \\"abd\\", and this incremented value is zero-padded to 16 octets.' \
      ' UMAC is defined in four variants, for different output sizes: 32' \
      ' bits (4 octets), 64 bits (8 octets), 96 bits (12 octets) and 128' \
      ' bits (16 octets), corresponding to different trade-offs between' \
@@ -211,7 +234,6 @@ class Generator:
             for c in ciphers:
                 if 'modes' in c:
                     for mode in c['modes']:
-                        objname = '{}_{}'.format(c['name'], mode)
                         cipherclass = Cipher(c['name'],
                                              family=c['family'],
                                              docs=c['docstring'],
@@ -219,6 +241,7 @@ class Generator:
                                              twokeys=c['twokeys'],
                                              twofuncs=c['twofuncs'],
                                              invert=c['invert'],
+                                             varkey=c['variable_keylen'],
                                              mode=mode)
                         cipherclass.write_to_file(f)
                         self.objects.append(cipherclass)
@@ -229,7 +252,8 @@ class Generator:
                                          lenparam=c['lenparam'],
                                          twokeys=c['twokeys'],
                                          twofuncs=c['twofuncs'],
-                                         invert=c['invert'])
+                                         invert=c['invert'],
+                                         varkey=c['variable_keylen'])
                     cipherclass.write_to_file(f)
                     self.objects.append(cipherclass)
 
@@ -297,6 +321,7 @@ class Generator:
             f.write('import _nettle\n')
             for object in sorted(self.objects, key=lambda o: o.name):
                 object.write_python_subclass(f)
+
 
 gen = Generator()
 gen.gen_hash_file(hashes)
