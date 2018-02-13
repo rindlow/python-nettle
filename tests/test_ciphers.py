@@ -54,27 +54,27 @@ class AES_ECB(TestCase):
         self.assertEqual(c.decrypt(ciphertext), cleartext)
 
     def test_aes128_ecb(self):
-        self._test(nettle.aes128_ecb,
+        self._test(nettle.aes128,
                    SHEX("0001020305060708 0A0B0C0D0F101112"),
                    SHEX("506812A45F08C889 B97F5980038B8359"),
                    SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
 
     def test_aes192_ecb(self):
-        self._test(nettle.aes192_ecb,
+        self._test(nettle.aes192,
                    SHEX("0001020305060708 0A0B0C0D0F101112"
                         "14151617191A1B1C"),
                    SHEX("2D33EEF2C0430A8A 9EBF45E809C40BB6"),
                    SHEX("DFF4945E0336DF4C 1C56BC700EFF837F"))
 
     def test_aes256_ecb(self):
-        self._test(nettle.aes256_ecb,
+        self._test(nettle.aes256,
                    SHEX("0001020305060708 0A0B0C0D0F101112"
                         "14151617191A1B1C 1E1F202123242526"),
                    SHEX("834EADFCCAC7E1B30664B1ABA44815AB"),
                    SHEX("1946DABF6A03A2A2 C3D0B05080AED6FC"))
 
     def test_aes128_ecb_invert(self):
-        self._test_invert(nettle.aes128_ecb,
+        self._test_invert(nettle.aes128,
                           SHEX("0001020305060708 0A0B0C0D0F101112"),
                           SHEX("506812A45F08C889 B97F5980038B8359"),
                           SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
@@ -84,8 +84,9 @@ class AES_CTR(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext, ctr):
         self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher(encrypt_key=key, ctr=ctr)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = cipher(encrypt_key=key)
+        ctrmode = nettle.CTR(c, ctr)
+        self.assertEqual(ctrmode.encrypt(cleartext), ciphertext)
 
         with self.assertRaises(nettle.KeyLenError):
             c = cipher(encrypt_key=key[:-1])
@@ -98,13 +99,15 @@ class AES_CTR(TestCase):
 
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.encrypt(cleartext)
+            ctrmode = nettle.CTR(c, ctr)
+            ctrmode.encrypt(cleartext)
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.decrypt(cleartext)
+            ctrmode = nettle.CTR(c, ctr)
+            ctrmode.encrypt(cleartext)
 
     def test_aes128_ctr(self):
-        self._test(nettle.aes128_ctr,
+        self._test(nettle.aes128,
                    SHEX("2b7e151628aed2a6abf7158809cf4f3c"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
                         "ae2d8a571e03ac9c9eb76fac45af8e51"
@@ -117,7 +120,7 @@ class AES_CTR(TestCase):
                    SHEX("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"))
 
     def test_aes192_ctr(self):
-        self._test(nettle.aes192_ctr,
+        self._test(nettle.aes192,
                    SHEX("8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
                         "ae2d8a571e03ac9c9eb76fac45af8e51"
@@ -130,7 +133,7 @@ class AES_CTR(TestCase):
                    SHEX("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"))
 
     def test_aes256_ctr(self):
-        self._test(nettle.aes256_ctr,
+        self._test(nettle.aes256,
                    SHEX("603deb1015ca71be2b73aef0857d7781"
                         "1f352c073b6108d72d9810a30914dff4"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
@@ -148,10 +151,11 @@ class AES_CBC(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext, iv):
         self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher(encrypt_key=key, iv=iv)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = cipher(decrypt_key=key, iv=iv)
+        c = cipher(encrypt_key=key)
+        cbc = nettle.CBC(c, iv)
+        self.assertEqual(cbc.encrypt(cleartext), ciphertext)
 
+        c = cipher(decrypt_key=key)
         with self.assertRaises(nettle.KeyLenError):
             c = cipher(encrypt_key=key[:-1])
         with self.assertRaises(nettle.KeyLenError):
@@ -165,13 +169,15 @@ class AES_CBC(TestCase):
 
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.encrypt(cleartext)
+            cbc = nettle.CBC(c, iv)
+            cbc.encrypt(cleartext)
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.decrypt(cleartext)
+            cbc = nettle.CBC(c, iv)
+            cbc.decrypt(cleartext)
 
     def test_aes128_cbc(self):
-        self._test(nettle.aes128_cbc,
+        self._test(nettle.aes128,
                    SHEX("2b7e151628aed2a6abf7158809cf4f3c"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
                         "ae2d8a571e03ac9c9eb76fac45af8e51"
@@ -184,7 +190,7 @@ class AES_CBC(TestCase):
                    SHEX("000102030405060708090a0b0c0d0e0f"))
 
     def test_aes192_cbc(self):
-        self._test(nettle.aes192_cbc,
+        self._test(nettle.aes192,
                    SHEX("8e73b0f7da0e6452c810f32b809079e5"
                         "62f8ead2522c6b7b"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
@@ -198,7 +204,7 @@ class AES_CBC(TestCase):
                    SHEX("000102030405060708090a0b0c0d0e0f"))
 
     def test_aes256_cbc(self):
-        self._test(nettle.aes256_cbc,
+        self._test(nettle.aes256,
                    SHEX("603deb1015ca71be2b73aef0857d7781"
                         "1f352c073b6108d72d9810a30914dff4"),
                    SHEX("6bc1bee22e409f96e93d7e117393172a"
@@ -218,21 +224,15 @@ class AES_GCM(TestCase):
               iv, digest):
         self.assertEqual(len(cleartext), len(ciphertext))
 
-        c = cipher()
+        c = cipher(key)
         self.assertEqual(c.key_size, len(key))
-        c.set_encrypt_key(key)
-        c.set_iv(iv)
-        c.update(authtext)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.digest(), digest)
-
-        c = cipher(encrypt_key=key, iv=iv)
-        c.update(authtext)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.digest(), digest)
+        gcm = nettle.GCM(c, iv)
+        gcm.update(authtext)
+        self.assertEqual(gcm.encrypt(cleartext), ciphertext)
+        self.assertEqual(gcm.digest(), digest)
 
         with self.assertRaises(nettle.KeyLenError):
-            c = cipher(encrypt_key=key+b'a', iv=iv)
+            c = cipher(encrypt_key=key+b'a')
         with self.assertRaises(nettle.KeyLenError):
             c = cipher()
             c.set_encrypt_key(key[:-1])
@@ -242,13 +242,15 @@ class AES_GCM(TestCase):
 
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.encrypt(cleartext)
+            gcm = nettle.GCM(c, iv)
+            gcm.encrypt(cleartext)
         with self.assertRaises(nettle.NotInitializedError):
             c = cipher()
-            c.decrypt(cleartext)
+            gcm = nettle.GCM(c, iv)
+            gcm.decrypt(cleartext)
 
     def test_aes128_gcm(self):
-        self._test(nettle.aes128_gcm,
+        self._test(nettle.aes128,
                    SHEX("feffe9928665731c6d6a8f9467308308"),
                    SHEX("feedfacedeadbeeffeedfacedeadbeef"
                         "abaddad2"),
@@ -264,7 +266,7 @@ class AES_GCM(TestCase):
                    SHEX("5bc94fbc3221a5db94fae95ae7121a47"))
 
     def test_aes192_gcm(self):
-        self._test(nettle.aes192_gcm,
+        self._test(nettle.aes192,
                    SHEX("feffe9928665731c6d6a8f9467308308"
                         "feffe9928665731c"),
                    SHEX("feedfacedeadbeeffeedfacedeadbeef"
@@ -281,7 +283,7 @@ class AES_GCM(TestCase):
                    SHEX("2519498e80f1478f37ba55bd6d27618c"))
 
     def test_aes256_gcm(self):
-        self._test(nettle.aes256_gcm,
+        self._test(nettle.aes256,
                    SHEX("feffe9928665731c6d6a8f9467308308"
                         "feffe9928665731c6d6a8f9467308308"),
                    SHEX("feedfacedeadbeeffeedfacedeadbeef"
@@ -325,27 +327,27 @@ class Camellia_ECB(TestCase):
         self.assertEqual(c.crypt(ciphertext), cleartext)
 
     def test_camellia128_ecb(self):
-        self._test(nettle.camellia128_ecb,
+        self._test(nettle.camellia128,
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
                    SHEX("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"))
 
     def test_camellia192_ecb(self):
-        self._test(nettle.camellia192_ecb,
+        self._test(nettle.camellia192,
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
                         "00 11 22 33 44 55 66 77"),
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
                    SHEX("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"))
 
     def test_camellia256_ecb(self):
-        self._test(nettle.camellia256_ecb,
+        self._test(nettle.camellia256,
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
                         "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"),
                    SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
                    SHEX("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"))
 
     def test_camellia128_ecb_invert(self):
-        self._test_invert(nettle.camellia128_ecb,
+        self._test_invert(nettle.camellia128,
                           SHEX("01 23 45 67 89 ab cd ef"
                                "fe dc ba 98 76 54 32 10"),
                           SHEX("01 23 45 67 89 ab cd ef"

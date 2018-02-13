@@ -39,16 +39,18 @@ class Cipher(CClass):
                  mode=None):
         CClass.__init__(self, name, docs)
 
-        if mode is None:
-            self.name = name
-        else:
-            self.name = '{}_{}'.format(name, mode)
+        self.name = name
         self.family = family
-        self.mode = mode
         if lenparam:
             keylen = 'key.len, '
         else:
             keylen = ''
+        if twofuncs:
+            encrypt_func = '{}_encrypt'.format(self.name)
+            decrypt_func = '{}_decrypt'.format(self.name)
+        else:
+            encrypt_func = '{}_crypt'.format(self.name)
+            decrypt_func = '{}_crypt'.format(self.name)
 
         self.add_member(
             name='is_initialized',
@@ -57,207 +59,34 @@ class Cipher(CClass):
         self.add_member(
             name='ctx',
             decl='struct {}_ctx *ctx'.format(name),
-            alloc='if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx)))'
-            ' == NULL)\n    {{\n      return PyErr_NoMemory ();\n    }}'
-            .format(name),
-            dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
-        if mode == 'cbc':
-            self.add_member(
-                name='iv',
-                decl='uint8_t iv[{}_BLOCK_SIZE]'.format(family.upper()))
-            if twokeys:
-                keys = ['encrypt_key', 'decrypt_key']
-            else:
-                keys = ['key']
-            self.add_bufferparse_to_init(keys + ['iv'])
-            for key in keys:
-                self.add_to_init_body(
-                    self.key_len_check_and_set(
-                        key=key, keylen=keylen, cipher_name=name, init=True,
-                        varkey=varkey))
+            alloc='''
+                if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx))) \\
+                    == NULL)
+                  {{
+                    return PyErr_NoMemory ();
+                  }}'''.format(name),
+            dealloc='PyMem_Free (self->ctx);\nself->ctx = NULL;')
+        self.add_member(
+            name='encrypt_func',
+            decl='nettle_cipher_func *encrypt_func',
+            init='self->encrypt_func = (nettle_cipher_func *)&{};'
+            .format(encrypt_func))
+        self.add_member(
+            name='decrypt_func',
+            decl='nettle_cipher_func *decrypt_func',
+            init='self->decrypt_func = (nettle_cipher_func *)&{};'
+            .format(decrypt_func))
 
-            self.add_to_init_body(
-                '  if (iv.buf != NULL)\n'
-                '    {{\n'
-                '      memcpy (self->iv, iv.buf, {}_BLOCK_SIZE);\n'
-                '    }}\n'.format(family.upper()))
-
-            self.add_method(
-                name='set_iv',
-                args='METH_VARARGS',
-                docs='argument is a pointer to an Initialization Vector (IV) ',
-                body=dedent('''
-                    #if PY_MAJOR_VERSION >= 3
-                      Py_buffer iv;
-                      if (!PyArg_ParseTuple (args, "y*", &iv))
-                    #else
-                      nettle_py2buf iv;
-                      if (!PyArg_ParseTuple (args, "t#", &iv.buf, &iv.len))
-                    #endif
-                        {{
-                          return NULL;
-                        }}
-                      if (iv.buf != NULL)
-                        {{
-                          memcpy (self->iv, iv.buf, {FAMILY}_BLOCK_SIZE);
-                        }}
-                      Py_RETURN_NONE;
-                ''').format(name=name, FAMILY=family.upper()))
-
-        elif mode == 'ctr':
-            self.add_member(
-                name='ctr',
-                decl='uint8_t ctr[{}_BLOCK_SIZE]'.format(family.upper()))
-            if twokeys:
-                keys = ['encrypt_key', 'decrypt_key']
-            else:
-                keys = ['key']
-            self.add_bufferparse_to_init(keys + ['ctr'])
-            for key in keys:
-                self.add_to_init_body(
-                    self.key_len_check_and_set(
-                        key=key, keylen=keylen, cipher_name=name, init=True,
-                        varkey=varkey))
-
-            self.add_to_init_body(
-                '  if (ctr.buf != NULL)\n'
-                '    {{\n'
-                '      memcpy (self->ctr, ctr.buf, {}_BLOCK_SIZE);\n'
-                '    }}\n'.format(family.upper()))
-            self.add_method(
-                name='set_counter',
-                args='METH_VARARGS',
-                docs='argument is a pointer to an initial counter) ',
-                body=dedent('''
-                    #if PY_MAJOR_VERSION >= 3
-                      Py_buffer ctr;
-                      if (!PyArg_ParseTuple (args, "y*", &ctr))
-                    #else
-                      nettle_py2buf ctr;
-                      if (!PyArg_ParseTuple (args, "t#", &ctr.buf, &ctr.len))
-                    #endif
-                      {{
-                        return NULL;
-                      }}
-                      if (ctr.buf != NULL)
-                        {{
-                          memcpy (self->ctr, ctr.buf, {FAMILY}_BLOCK_SIZE);
-                        }}
-                      Py_RETURN_NONE;
-                ''').format(name=name, FAMILY=family.upper()))
-
-        elif mode == 'gcm':
-            self.add_member(
-                name='gcm_ctx',
-                decl='struct gcm_ctx *gcmctx',
-                alloc='if ((self->gcmctx = PyMem_Malloc (sizeof (struct'
-                ' gcm_ctx))) == NULL)\n'
-                '  {\n'
-                '    return PyErr_NoMemory ();\n'
-                '  }',
-                dealloc='PyMem_Free (self->gcmctx);\n  self->gcmctx = NULL;')
-            self.add_member(
-                name='gcm_key',
-                decl='struct gcm_key *gcmkey',
-                alloc='if ((self->gcmkey = PyMem_Malloc (sizeof (struct'
-                ' gcm_key))) == NULL)\n'
-                '  {\n'
-                '    return PyErr_NoMemory ();\n'
-                '  }',
-                dealloc='PyMem_Free (self->gcmkey);\n  self->gcmkey = NULL;')
-            if twokeys:
-                keys = ['encrypt_key', 'decrypt_key']
-            else:
-                keys = ['key']
-            self.add_bufferparse_to_init(keys + ['iv'])
-            for key in keys:
-                self.add_to_init_body(
-                    self.key_len_check_and_set(
-                        key=key, keylen=keylen, cipher_name=name, init=True,
-                        varkey=varkey,
-                        key_init='gcm_set_key (self->gcmkey,'
-                        ' self->ctx, (nettle_cipher_func *)'
-                        '&{name}_{usage});'.format(name=name,
-                                                   usage=key.split('_')[0])))
-
-            self.add_to_init_body(
-                '  if (iv.buf != NULL)\n'
-                '    {\n'
-                '      gcm_set_iv (self->gcmctx, self->gcmkey, iv.len,'
-                ' iv.buf);\n'
-                '    } \n')
-            self.add_method(
-                name='set_iv',
-                args='METH_VARARGS',
-                docs='argument is a pointer to an Initialization Vector (IV) ',
-                body=dedent('''
-                   #if PY_MAJOR_VERSION >= 3
-                     Py_buffer iv;
-                     if (!PyArg_ParseTuple (args, "y*", &iv)) {{
-                   #else
-                     nettle_py2buf iv;
-                     if (!PyArg_ParseTuple (args, "t#", &iv.buf, &iv.len)) {{
-                   #endif
-                       return NULL;
-                     }}
-                     if (iv.buf != NULL) {{
-                       gcm_set_iv (self->gcmctx, self->gcmkey, iv.len, iv.buf);
-                     }}
-                     Py_RETURN_NONE;
-                ''').format(name=name, FAMILY=family.upper()))
-
-            self.add_method(
-                name='update',
-                args='METH_VARARGS',
-                docs='Provides associated data to be authenticated. If used,'
-                ' must be called before encrypt or decrypt. All but the last'
-                ' call for each message must use a length that is a multiple'
-                ' of the block size.',
-                body=dedent('''
-                    #if PY_MAJOR_VERSION >= 3
-                      Py_buffer buffer;
-
-                      if (!PyArg_ParseTuple (args, "y*", &buffer)) {{
-                    #else
-                      nettle_py2buf buffer;
-                      if (!PyArg_ParseTuple (args, "t#",
-                                             &buffer.buf, &buffer.len)) {{
-                    #endif
-                        return NULL;
-                      }}
-                      gcm_update (self->gcmctx, self->gcmkey,
-                                 buffer.len, buffer.buf);
-                      Py_RETURN_NONE;
-''').format(name=name))
-
-            self.add_method(
-                name='digest',
-                args='METH_NOARGS',
-                docs='Extracts the message digest (also known as'
-                ' \'authentication tag\'). This is the final operation when'
-                ' processing a message. It\'s strongly recommended that'
-                ' length is GCM_DIGEST_SIZE, but if you provide a smaller'
-                ' value, only the first length octets'
-                ' of the digest are written.',
-                body='''
-  uint8_t digest[GCM_DIGEST_SIZE];
-  gcm_digest (self->gcmctx, self->gcmkey, self->ctx,
-             (nettle_cipher_func *) &{name}_encrypt, GCM_DIGEST_SIZE, digest);
-  return PyBytes_FromStringAndSize ((const char *) digest, GCM_DIGEST_SIZE);
-'''.format(name=name))
-
+        if twokeys:
+            keys = ['encrypt_key', 'decrypt_key']
         else:
-            # ecb
-            if twokeys:
-                keys = ['encrypt_key', 'decrypt_key']
-            else:
-                keys = ['key']
-            self.add_bufferparse_to_init(keys)
-            for key in keys:
-                self.add_to_init_body(
-                    self.key_len_check_and_set(
-                        key=key, keylen=keylen, cipher_name=name, init=True,
-                        varkey=varkey))
+            keys = ['key']
+        self.add_bufferparse_to_init(keys)
+        for key in keys:
+            self.add_to_init_body(
+                self.key_len_check_and_set(
+                    key=key, keylen=keylen, cipher_name=name, init=True,
+                    varkey=varkey))
 
         self.add_member(
             name='key_size',
@@ -317,10 +146,10 @@ class Cipher(CClass):
             #endif
               {nullify}
             #if PY_MAJOR_VERSION >= 3
-              if (!PyArg_ParseTupleAndKeywords
+              if (!PyArg_ParseTupleAndKeywords \\
                       (args, kwds, "{py3fmt}", kwlist, {py3pointers}))
             #else
-              if (!PyArg_ParseTupleAndKeywords
+              if (!PyArg_ParseTupleAndKeywords \\
                       (args, kwds, "{py2fmt}", kwlist, {py2pointers}))
             #endif
                 {{
@@ -339,26 +168,8 @@ class Cipher(CClass):
                                                for b in buffers])))
 
     def add_crypt_method(self, name, func):
-        if self.mode == 'cbc':
-            crypt = 'cbc_encrypt (self->ctx,' \
-                    ' (nettle_cipher_func *) &{name}_{{func}},'\
-                    ' {FAMILY}_BLOCK_SIZE,' \
-                    ' self->iv, buffer.len, dst, buffer.buf);\n'\
-                    .format(name=name, FAMILY=self.family.upper())
-        elif self.mode == 'ctr':
-            crypt = 'ctr_crypt (self->ctx,' \
-                    ' (nettle_cipher_func *) &{name}_{{func}},' \
-                    ' {FAMILY}_BLOCK_SIZE,'\
-                    ' self->ctr, buffer.len, dst, buffer.buf);'\
-                    .format(name=name, FAMILY=self.family.upper())
-        elif self.mode == 'gcm':
-            crypt = 'gcm_encrypt (self->gcmctx, self->gcmkey, self->ctx,' \
-                    ' (nettle_cipher_func *) &{name}_{{func}},' \
-                    ' buffer.len, dst, buffer.buf);'\
-                    .format(name=name)
-        else:
-            crypt = '{}_{{func}} (self->ctx, buffer.len, dst, buffer.buf);'\
-                    .format(name)
+        crypt = '{}_{{func}} (self->ctx, buffer.len, dst, buffer.buf);'\
+                .format(name)
 
         self.add_method(
             name=func,
@@ -397,12 +208,7 @@ class Cipher(CClass):
                              usage='crypt', mode='ecb',
                              cipher_name='', varkey=False):
         docs = 'Initialize the cipher'
-        if mode == 'gcm':
-            gsk = 'gcm_set_key (self->gcmkey, self->ctx,' \
-                  '(nettle_cipher_func *)&{name}_{usage});' \
-                  .format(name=name, usage=usage)
-        else:
-            gsk = ''
+        gsk = ''
 
         self.add_method(
             name='set_{}'.format(key),

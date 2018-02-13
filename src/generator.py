@@ -34,6 +34,7 @@ from CModule import CModule
 from CException import CException
 from Hash import Hash
 from Cipher import Cipher
+from CipherMode import CipherMode
 from MAC import MAC
 from PubKey import Yarrow, RSAKeyPair, RSAPubKey
 
@@ -103,32 +104,32 @@ ciphers = [
      'twofuncs': False, 'invert': False, 'variable_keylen': False},
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
-     'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
+     'lenparam': False,
      'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
      'variable_keylen': False},
     {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
-     'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
+     'lenparam': False,
      'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
      'variable_keylen': False},
     {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h', 'cbc.h',
                                                     'ctr.h', 'gcm.h'],
-     'modes': ['ecb', 'cbc', 'ctr', 'gcm'], 'lenparam': False,
+     'lenparam': False,
      'twokeys': True, 'twofuncs': True, 'invert': True, 'docstring': aesdocs,
      'variable_keylen': False},
     {'name': 'camellia128', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'gcm.h'],
+     'lenparam': False, 'twokeys': True,
      'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
      'variable_keylen': False},
     {'name': 'camellia192', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'gcm.h'],
+     'lenparam': False, 'twokeys': True,
      'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
      'variable_keylen': False},
     {'name': 'camellia256', 'family': 'camellia',
-     'headers': ['camellia.h', 'cbc.h', 'ctr.h'],
-     'modes': ['ecb', 'cbc', 'ctr'], 'lenparam': False, 'twokeys': True,
+     'headers': ['camellia.h', 'cbc.h', 'ctr.h', 'gcm.h'],
+     'lenparam': False, 'twokeys': True,
      'twofuncs': False, 'invert': True, 'docstring': camelliadocs,
      'variable_keylen': False},
     {'name': 'serpent', 'family': 'serpent',
@@ -140,6 +141,12 @@ ciphers = [
      'twofuncs': True, 'invert': False, 'docstring': twofishdocs,
      'variable_keylen': True},
 ]
+
+ciphermodes = [
+    {'name': 'CBC', 'docstring': 'Cipher Block Chaining'},
+    {'name': 'CTR', 'docstring': 'Counter Mode'},
+    {'name': 'GCM', 'docstring': 'Galois Counter Mode'},
+    ]
 
 hmacdocs = 'For an underlying hash function H, with digest size l and' \
      ' internalblock size b, HMAC-H is constructed as follows: From a' \
@@ -248,7 +255,7 @@ class Generator:
                 hashclass.write_to_file(f)
                 self.objects.append(hashclass)
 
-    def gen_cipher_file(self, cipherdata):
+    def gen_cipher_file(self, cipherdata, modedata):
         with open(self.cipher_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
@@ -260,32 +267,23 @@ class Generator:
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
-
-            for c in ciphers:
-                if 'modes' in c:
-                    for mode in c['modes']:
-                        cipherclass = Cipher(c['name'],
-                                             family=c['family'],
-                                             docs=c['docstring'],
-                                             lenparam=c['lenparam'],
-                                             twokeys=c['twokeys'],
-                                             twofuncs=c['twofuncs'],
-                                             invert=c['invert'],
-                                             varkey=c['variable_keylen'],
-                                             mode=mode)
-                        cipherclass.write_to_file(f)
-                        self.objects.append(cipherclass)
-                else:
-                    cipherclass = Cipher(c['name'],
-                                         family=c['family'],
-                                         docs=c['docstring'],
-                                         lenparam=c['lenparam'],
-                                         twokeys=c['twokeys'],
-                                         twofuncs=c['twofuncs'],
-                                         invert=c['invert'],
-                                         varkey=c['variable_keylen'])
-                    cipherclass.write_to_file(f)
-                    self.objects.append(cipherclass)
+            for c in cipherdata:
+                cipherclass = Cipher(c['name'],
+                                     family=c['family'],
+                                     docs=c['docstring'],
+                                     lenparam=c['lenparam'],
+                                     twokeys=c['twokeys'],
+                                     twofuncs=c['twofuncs'],
+                                     invert=c['invert'],
+                                     varkey=c['variable_keylen'])
+                cipherclass.write_to_file(f)
+                self.objects.append(cipherclass)
+            for m in modedata:
+                mode = CipherMode(m['name'], m['docstring'],
+                                  [c for c in cipherdata
+                                   if c['family'] == 'aes'])
+                mode.write_to_file(f)
+                self.objects.append(mode)
 
     def gen_mac_file(self, macdata):
         with open(self.mac_file, 'w') as f:
@@ -355,7 +353,7 @@ class Generator:
 
 gen = Generator()
 gen.gen_hash_file(hashes)
-gen.gen_cipher_file(ciphers)
+gen.gen_cipher_file(ciphers, ciphermodes)
 gen.gen_mac_file(macs)
 gen.gen_pubkey_file()
 gen.gen_exceptions(exceptions)
