@@ -1,6 +1,5 @@
 from unittest import TestCase
 import nettle
-import sys
 
 
 def SHEX(hexstring):
@@ -375,35 +374,6 @@ class ARCFOUR(TestCase):
         with self.assertRaises(nettle.KeyLenError):
             c = nettle.arcfour(key=key[:-1])
 
-        with self.assertRaises(nettle.NotInitializedError):
-            c = nettle.arcfour()
-            c.crypt(cleartext)
-
-    def test_arcfour(self):
-        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
-                   SHEX("01234567 89ABCDEF"),
-                   SHEX("69723659 1B5242B1"))
-
-
-class ARCFOUR(TestCase):
-
-    def _test(self, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.arcfour()
-        self.assertEqual(len(key), c.key_size)
-        c.set_key(key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c.set_key(key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
-
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
-
-        with self.assertRaises(nettle.KeyLenError):
-            c = nettle.arcfour(key=key[:-1])
-
         with self.assertRaises(nettle.KeyLenError):
             c = nettle.arcfour()
             c.set_key(key[:-1])
@@ -416,6 +386,7 @@ class ARCFOUR(TestCase):
         self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
                    SHEX("01234567 89ABCDEF"),
                    SHEX("69723659 1B5242B1"))
+
 
 class Serpent(TestCase):
 
@@ -438,22 +409,22 @@ class Serpent(TestCase):
 
     def test_serpent128(self):
         self._test(nettle.serpent,
-	      SHEX("0000000000000000 0000000000000000"),
-	      SHEX("D29D576FCEA3A3A7 ED9099F29273D78E"),
-	      SHEX("B2288B968AE8B086 48D1CE9606FD992D"))
-        
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("D29D576FCEA3A3A7 ED9099F29273D78E"),
+                   SHEX("B2288B968AE8B086 48D1CE9606FD992D"))
+
     def test_serpent192(self):
         self._test(nettle.serpent,
-	      SHEX("0000000000000000 0000000000000000 0000000000000000"),
-	      SHEX("D29D576FCEABA3A7 ED9899F2927BD78E"),
-	      SHEX("130E353E1037C224 05E8FAEFB2C3C3E9"))
+                   SHEX("0000000000000000 0000000000000000 0000000000000000"),
+                   SHEX("D29D576FCEABA3A7 ED9899F2927BD78E"),
+                   SHEX("130E353E1037C224 05E8FAEFB2C3C3E9"))
 
     def test_serpent256(self):
         self._test(nettle.serpent,
-	      SHEX("0000000000000000 0000000000000000"
-		   "0000000000000000 0000000000000000"),
-	      SHEX("D095576FCEA3E3A7 ED98D9F29073D78E"),
-	      SHEX("B90EE5862DE69168 F2BDD5125B45472B"))
+                   SHEX("0000000000000000 0000000000000000"
+                        "0000000000000000 0000000000000000"),
+                   SHEX("D095576FCEA3E3A7 ED98D9F29073D78E"),
+                   SHEX("B90EE5862DE69168 F2BDD5125B45472B"))
 
 
 class Twofish(TestCase):
@@ -477,21 +448,20 @@ class Twofish(TestCase):
 
     def test_twofish128(self):
         self._test(nettle.twofish,
-	      SHEX("0000000000000000 0000000000000000"),
-	      SHEX("0000000000000000 0000000000000000"),
-	      SHEX("9F589F5CF6122C32 B6BFEC2F2AE8C35A"))
-        
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("9F589F5CF6122C32 B6BFEC2F2AE8C35A"))
+
     def test_twofish192(self):
         self._test(nettle.twofish,
-	      SHEX("0123456789ABCDEF FEDCBA9876543210"
-		   "0011223344556677"),
-	      SHEX("0000000000000000 0000000000000000"),
-	      SHEX("CFD1D2E5A9BE9CDF 501F13B892BD2248"))
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"
+                        "0011223344556677"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("CFD1D2E5A9BE9CDF 501F13B892BD2248"))
 
     def test_twofish256(self):
         self._test(nettle.twofish,
-	      SHEX("0123456789ABCDEF FEDCBA9876543210"
-		   "0011223344556677 8899AABBCCDDEEFF"),
-	      SHEX("0000000000000000 0000000000000000"),
-	      SHEX("37527BE0052334B8 9F0CFCCAE87CFA20"))
-
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"
+                        "0011223344556677 8899AABBCCDDEEFF"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("37527BE0052334B8 9F0CFCCAE87CFA20"))

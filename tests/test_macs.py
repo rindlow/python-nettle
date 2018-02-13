@@ -1,6 +1,5 @@
 from unittest import TestCase
 import nettle
-import sys
 
 
 def SDATA(string):

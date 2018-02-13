@@ -1,7 +1,5 @@
 from unittest import TestCase
 import nettle
-import sys
-import os
 
 
 class PubKey(TestCase):
@@ -54,7 +52,7 @@ class PubKey(TestCase):
 
     def test_yarrow(self):
         yarrow = nettle.Yarrow()
-        random = yarrow.random(1)
+        return yarrow.random(1)
 
     def test_cert(self):
         certfile = '/tmp/cert.pem'
