@@ -497,7 +497,7 @@ make_integer_from_gmp (mpz_t integer)
 }
 
 asn1object *
-make_null ()
+make_null (void)
 {
   asn1object *obj;
 
