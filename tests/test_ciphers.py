@@ -2,6 +2,10 @@ from unittest import TestCase
 import nettle
 
 
+def SDATA(string):
+    return string.encode('ascii')
+
+
 def SHEX(hexstring):
     # return bytes.fromhex(hexstring) #Python 3 only. :-(
     b = bytearray()
@@ -299,6 +303,72 @@ class AES_GCM(TestCase):
                    SHEX("76fc6ece0f4e1768cddf8853bb2d551b"))
 
 
+class ARCFOUR(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.arcfour()
+        self.assertEqual(len(key), c.key_size)
+        c.set_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        with self.assertRaises(nettle.NotInitializedError):
+            c = nettle.arcfour()
+            c.crypt(cleartext)
+
+    def test_arcfour(self):
+        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
+                   SHEX("01234567 89ABCDEF"),
+                   SHEX("69723659 1B5242B1"))
+
+
+class ARCTWO(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.arctwo()
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = nettle.arctwo(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.arctwo(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_arctwo(self):
+        self._test(SHEX("ffffffff ffffffff"),
+                   SHEX("ffffffff ffffffff"),
+                   SHEX("278b27e4 2e2f0d49"))
+
+
+class Blowfish(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.blowfish()
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = nettle.blowfish(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.blowfish(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_blowfish(self):
+        self._test(SDATA("abcdefghijklmnopqrstuvwxyz"),
+                   SDATA("BLOWFISH"),
+                   SHEX("32 4E D0 FE F4 13 A2 03"))
+
+
 class Camellia_ECB(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext):
@@ -355,37 +425,25 @@ class Camellia_ECB(TestCase):
                                "08 57 06 56 48 ea be 43"))
 
 
-class ARCFOUR(TestCase):
+class CAST128(TestCase):
 
     def _test(self, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.arcfour()
-        self.assertEqual(len(key), c.key_size)
+        c = nettle.cast128()
         c.set_key(key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c.set_key(key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
 
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
+        c = nettle.cast128(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.cast128(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
 
-        with self.assertRaises(nettle.KeyLenError):
-            c = nettle.arcfour(key=key[:-1])
-
-        with self.assertRaises(nettle.KeyLenError):
-            c = nettle.arcfour()
-            c.set_key(key[:-1])
-
-        with self.assertRaises(nettle.NotInitializedError):
-            c = nettle.arcfour()
-            c.crypt(cleartext)
-
-    def test_arcfour(self):
-        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
-                   SHEX("01234567 89ABCDEF"),
-                   SHEX("69723659 1B5242B1"))
+    # def test_cast128(self):
+    #     self._test(SHEX("01 23 45 67 12 34 56 78"
+    #                     "23 45 67 89 34 56 78 9A"),
+    #                SHEX("01 23 45 67 89 AB CD EF"),
+    #                SHEX("23 8B 4F E5 84 7E 44 B2"))
 
 
 class Serpent(TestCase):

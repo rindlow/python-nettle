@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # CException.py
 #
 # Copyright (C) 2017, 2018 Henrik Rindlöw

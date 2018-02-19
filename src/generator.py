@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+# -*- coding: utf-8 -*-
+#
 # generator.py
 #
 # Copyright (C) 2017, 2018 Henrik Rindlöw
@@ -40,55 +41,81 @@ from PubKey import Yarrow, RSAKeyPair, RSAPubKey
 import docstrings
 
 hashes = [
-    {'name': 'sha1', 'headers': ['sha1.h'],
-     'docstring': 'SHA1 is a hash function specified by NIST (The U.S.'
-     ' National Institute for Standards and Technology).'},
-    {'name': 'sha224', 'headers': ['sha2.h'],
-     'docstring': 'SHA224 is a variant of SHA256, with a different initial'
-     ' state, and with the output truncated to 224 bits, or 28 octets.'},
-    {'name': 'sha256', 'headers': ['sha2.h'],
-     'docstring': 'SHA256 is a member of the SHA2 family. It outputs hash'
-     ' values of 256 bits, or 32 octets.'}
+    {'name': 'gosthash94', 'headers': ['gosthash94.h'],
+     'docstring': docstrings.gosthash94},
+    {'name': 'md2', 'headers': ['md2.h'], 'docstring': docstrings.md2},
+    {'name': 'md4', 'headers': ['md4.h'], 'docstring': docstrings.md4},
+    {'name': 'md5', 'headers': ['md5.h'], 'docstring': docstrings.md5},
+    {'name': 'ripemd160', 'headers': ['ripemd160.h'],
+     'docstring': docstrings.ripemd160},
+    {'name': 'sha1', 'headers': ['sha1.h'], 'docstring': docstrings.sha1},
+    {'name': 'sha224', 'headers': ['sha2.h'], 'docstring': docstrings.sha224},
+    {'name': 'sha256', 'headers': ['sha2.h'], 'docstring': docstrings.sha256},
+    {'name': 'sha512', 'headers': ['sha2.h'], 'docstring': docstrings.sha512},
+    {'name': 'sha384', 'headers': ['sha2.h'], 'docstring': docstrings.sha384},
+    {'name': 'sha512_224', 'headers': ['sha2.h'],
+     'docstring': docstrings.sha384},
+    {'name': 'sha512_256', 'headers': ['sha2.h'],
+     'docstring': docstrings.sha384},
+    {'name': 'sha3_224', 'headers': ['sha3.h'],
+     'docstring': docstrings.sha3_224},
+    {'name': 'sha3_256', 'headers': ['sha3.h'],
+     'docstring': docstrings.sha3_256},
+    {'name': 'sha3_384', 'headers': ['sha3.h'],
+     'docstring': docstrings.sha3_384},
+    {'name': 'sha3_512', 'headers': ['sha3.h'],
+     'docstring': docstrings.sha3_512},
 ]
 
 ciphers = [
-    {'name': 'arcfour', 'family': None, 'headers': ['arcfour.h'],
-     'docstring': docstrings.aesdocs, 'lenparam': True, 'twokeys': False,
-     'twofuncs': False, 'invert': False, 'variable_keylen': False},
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aesdocs,
+     'lenparam': False, 'docstring': docstrings.aes,
      'twokeys': True, 'twofuncs': True, 'invert': True,
      'variable_keylen': False},
     {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aesdocs,
-     'twokeys': True, 'twofuncs': True, 'invert': True, 
-     'variable_keylen': False},
-    {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aesdocs,
+     'lenparam': False, 'docstring': docstrings.aes,
      'twokeys': True, 'twofuncs': True, 'invert': True,
      'variable_keylen': False},
+    {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h'],
+     'lenparam': False, 'docstring': docstrings.aes,
+     'twokeys': True, 'twofuncs': True, 'invert': True,
+     'variable_keylen': False},
+    {'name': 'arcfour', 'family': None, 'headers': ['arcfour.h'],
+     'docstring': docstrings.arcfour, 'lenparam': True, 'twokeys': False,
+     'twofuncs': False, 'invert': False, 'variable_keylen': True},
+    {'name': 'arctwo', 'family': None, 'headers': ['arctwo.h'],
+     'docstring': docstrings.arctwo, 'lenparam': True, 'twokeys': False,
+     'twofuncs': True, 'invert': False, 'variable_keylen': True},
+    {'name': 'blowfish', 'family': 'blowfish',
+     'headers': ['blowfish.h'], 'lenparam': True, 'twokeys': False,
+     'twofuncs': True, 'invert': False, 'docstring': docstrings.blowfish,
+     'variable_keylen': True},
     {'name': 'camellia128', 'family': 'camellia',
      'headers': ['camellia.h'],
      'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camelliadocs,
+     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
      'variable_keylen': False},
     {'name': 'camellia192', 'family': 'camellia',
      'headers': ['camellia.h'],
      'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camelliadocs,
+     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
      'variable_keylen': False},
     {'name': 'camellia256', 'family': 'camellia',
      'headers': ['camellia.h'],
      'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camelliadocs,
+     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
      'variable_keylen': False},
+    # {'name': 'cast128', 'family': 'cast128',
+    #  'headers': ['cast128.h'], 'lenparam': True, 'twokeys': False,
+    #  'twofuncs': True, 'invert': False, 'docstring': docstrings.cast128,
+    #  'variable_keylen': True},
     {'name': 'serpent', 'family': 'serpent',
      'headers': ['serpent.h'], 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'docstring': docstrings.serpentdocs,
+     'twofuncs': True, 'invert': False, 'docstring': docstrings.serpent,
      'variable_keylen': True},
     {'name': 'twofish', 'family': 'twofish',
      'headers': ['twofish.h'], 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'docstring': docstrings.twofishdocs,
+     'twofuncs': True, 'invert': False, 'docstring': docstrings.twofish,
      'variable_keylen': True},
 ]
 
@@ -103,11 +130,11 @@ ciphermodes = [
 
 macs = [
     {'name': 'hmac_sha1', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmacdocs},
+     'docstring': docstrings.hmac},
     {'name': 'hmac_sha256', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmacdocs},
+     'docstring': docstrings.hmac},
     {'name': 'umac128', 'headers': ['umac.h'],
-     'docstring': docstrings.umacdocs},
+     'docstring': docstrings.umac},
 ]
 
 exceptions = [

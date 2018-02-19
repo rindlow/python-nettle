@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, Extension
-from unittest import TestLoader
 
 setup(name="nettle",
       version="1.0",

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # CClass.py
 #
 # Copyright (C) 2017, 2018 Henrik Rindlöw
