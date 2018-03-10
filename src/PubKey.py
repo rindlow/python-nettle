@@ -135,6 +135,7 @@ class Yarrow(CClass):
             'random',
             docs='Generate random bytes',
             args='METH_VARARGS',
+            docargs='len',
             body='''
                 int len;
                 uint8_t *data;
@@ -186,7 +187,7 @@ class Yarrow(CClass):
 class RSAKeyPair(CClass):
 
     def __init__(self):
-        CClass.__init__(self, 'RSAKeyPair', 'RSA Key Pair')
+        CClass.__init__(self, 'RSAKeyPair', 'RSA Key Pair', args='[yarrow]')
         self.to_be_subclassed = True
 
         self.add_member(
@@ -227,6 +228,7 @@ class RSAKeyPair(CClass):
             'genkey',
             docs='Generate a new RSA keypair',
             args='METH_VARARGS',
+            docargs='n_size, e_size',
             body='''
                 int res, n_size, e_size;
                 if (! PyArg_ParseTuple (args, "ii", &n_size, &e_size))
@@ -251,6 +253,7 @@ class RSAKeyPair(CClass):
             'from_pkcs1',
             docs='Read key (keypair) from buffer in PKCS#1 format',
             args='METH_VARARGS',
+            docargs='bytes',
             body='''
                 #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
@@ -275,6 +278,7 @@ class RSAKeyPair(CClass):
             'from_pkcs8',
             docs='Read key (keypair) from buffer in plain PKCS#8 format',
             args='METH_VARARGS',
+            docargs='bytes',
             body='''
                 #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
@@ -312,12 +316,14 @@ class RSAKeyPair(CClass):
             name='encrypt',
             args='METH_VARARGS',
             docs='Encrypt data',
+            docargs='bytes',
             body=encryptbody)
 
         self.add_method(
             name='decrypt',
             args='METH_VARARGS',
             docs='Decrypt data',
+            docargs='bytes',
             body='''
                 mpz_t ciphertext;
                 size_t datalen = 256;
@@ -348,6 +354,7 @@ class RSAKeyPair(CClass):
             name='sign',
             args='METH_VARARGS',
             docs='Sign a hash',
+            docargs='hash',
             body='''
                 mpz_t signature;
                 PyObject *obj;
@@ -372,6 +379,7 @@ class RSAKeyPair(CClass):
             name='verify',
             args='METH_VARARGS',
             docs='Verify a signature',
+            docargs='signature, hash',
             body=verifybody)
 
         self.add_richcompare(
@@ -420,9 +428,10 @@ class RSAKeyPair(CClass):
             'public_key',
             gbody='''
                 PyObject * module = PyImport_ImportModule("nettle");
-                PyObject *pk = PyObject_GetAttrString(module, "RSAPubKey");
+                PyObject * pk = PyObject_GetAttrString(module, "RSAPubKey");
+                PyObject * args = PyTuple_Pack(1, (PyObject *)self->yarrow);
                 pynettle_RSAPubKey *pubkey = (pynettle_RSAPubKey *) \\
-                   PyObject_CallObject (pk, NULL);
+                   PyObject_CallObject (pk, args);
                 mpz_set (pubkey->pub->n, self->pub->n);
                 mpz_set (pubkey->pub->e, self->pub->e);
                 if (! rsa_public_key_prepare (pubkey->pub))
@@ -431,7 +440,8 @@ class RSAKeyPair(CClass):
                     return NULL;
                   }
                 return (PyObject *)pubkey;
-            ''')
+            ''',
+            docs='The public part of the keypair')
 
     def write_python_subclass(self, f):
         # Do not write copying code, this class will be subclassed
@@ -441,7 +451,8 @@ class RSAKeyPair(CClass):
 class RSAPubKey(CClass):
 
     def __init__(self):
-        CClass.__init__(self, 'RSAPubKey', 'Public part of RSA Key Pair')
+        CClass.__init__(self, 'RSAPubKey', 'Public part of RSA Key Pair',
+                        args='[yarrow]')
 
         self.add_member(
             name='pub',
@@ -478,6 +489,7 @@ class RSAPubKey(CClass):
         self.add_method(
             'from_pkcs1',
             docs='Read key from buffer in PKCS#1 format',
+            docargs='bytes',
             args='METH_VARARGS',
             body='''
                 #if PY_MAJOR_VERSION >= 3
@@ -503,6 +515,7 @@ class RSAPubKey(CClass):
         self.add_method(
             'from_pkcs8',
             docs='Read key from buffer in PKCS#8 format',
+            docargs='bytes',
             args='METH_VARARGS',
             body='''
                 #if PY_MAJOR_VERSION >= 3
@@ -528,6 +541,7 @@ class RSAPubKey(CClass):
         self.add_method(
             'read_key_from_cert',
             docs='Read key from buffer containing X.509 certificate',
+            docargs='bytes',
             args='METH_VARARGS',
             body='''
                 #if PY_MAJOR_VERSION >= 3

@@ -233,6 +233,8 @@ class AES_GCM(TestCase):
         gcm.update(authtext)
         self.assertEqual(gcm.encrypt(cleartext), ciphertext)
         self.assertEqual(gcm.digest(), digest)
+        self.assertEqual(SHEX(gcm.hexdigest()), digest)
+        self.assertEqual(gcm.digest(), digest)
 
         with self.assertRaises(nettle.KeyLenError):
             c = cipher(encrypt_key=key+b'a')

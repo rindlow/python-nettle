@@ -31,7 +31,6 @@
 # not, see http://www.gnu.org/licenses/.
 
 from CClass import CClass
-from textwrap import dedent
 
 
 class Cipher(CClass):
@@ -81,8 +80,10 @@ class Cipher(CClass):
 
         if twokeys:
             keys = ['encrypt_key', 'decrypt_key']
+            self.args = 'encrypt_key=None, decrypt_key=None'
         else:
             keys = ['key']
+            self.args = 'key=None'
         self.add_bufferparse_to_init(keys)
         for key in keys:
             self.add_to_init_body(
@@ -133,41 +134,10 @@ class Cipher(CClass):
                 args='METH_NOARGS',
                 docs='On an instance initialized for encryption, initializes'
                 ' the context for decryption using the same key',
-                body=dedent('''
+                body='''
                     {name}_invert_key (self->ctx, self->ctx);
                     Py_RETURN_NONE;
-                    ''').format(name=name))
-
-    def add_bufferparse_to_init(self, buffers):
-        self.add_to_init_body(dedent('''
-              static char *kwlist[] = {kwlist};
-            #if PY_MAJOR_VERSION >= 3
-              Py_buffer {vars};
-            #else
-              nettle_py2buf {vars};
-            #endif
-              {nullify}
-            #if PY_MAJOR_VERSION >= 3
-              if (!PyArg_ParseTupleAndKeywords \\
-                      (args, kwds, "{py3fmt}", kwlist, {py3pointers}))
-            #else
-              if (!PyArg_ParseTupleAndKeywords \\
-                      (args, kwds, "{py2fmt}", kwlist, {py2pointers}))
-            #endif
-                {{
-                  return -1;
-                }}
-            ''').format(kwlist='{{ "{}", NULL }}'.format('", "'.join(buffers)),
-                        vars=', '.join(buffers),
-                        nullify='\n  '.join(['{}.buf = NULL;'.format(b)
-                                             for b in buffers]),
-                        py2fmt='|' + 't#' * len(buffers),
-                        py3fmt='|' + 'y*' * len(buffers),
-                        py2pointers=',\n\t\t\t\t    '.join(
-                            ['&{b}.buf, &{b}.len'.format(b=b)
-                             for b in buffers]),
-                        py3pointers=', '.join(['&{}'.format(b)
-                                               for b in buffers])))
+                    '''.format(name=name))
 
     def add_crypt_method(self, name, func):
         crypt = '{}_{{func}} (self->ctx, buffer.len, dst, buffer.buf);'\
@@ -178,7 +148,8 @@ class Cipher(CClass):
             args='METH_VARARGS',
             docs='{} data, the length of which must be an'
             ' integral multiple of the block size'.format(name.capitalize()),
-            body=dedent('''
+            docargs='bytes',
+            body='''
                   if (!self->is_initialized)
                     {{
                       PyErr_Format (NotInitializedError,
@@ -204,7 +175,7 @@ class Cipher(CClass):
                   {}
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
-                ''').format(crypt.format(func=func)))
+                '''.format(crypt.format(func=func)))
 
     def add_set_key_function(self, name, key='key', keylen='',
                              usage='crypt', mode='ecb',
@@ -216,7 +187,8 @@ class Cipher(CClass):
             name='set_{}'.format(key),
             args='METH_VARARGS',
             docs=docs,
-            body=dedent('''
+            docargs=key,
+            body='''
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer {key};
                   if (!PyArg_ParseTuple (args, "y*", &{key}))
@@ -228,7 +200,7 @@ class Cipher(CClass):
                       return NULL;
                     }}
                 {setkey}  Py_RETURN_NONE;
-            ''').format(key=key,
+            '''.format(key=key,
                         setkey=self.key_len_check_and_set(
                             key=key,
                             varkey=varkey,
@@ -270,3 +242,4 @@ class Cipher(CClass):
             '    }}\n' \
             .format(key=key, check=check, error=error, cipher_name=cipher_name,
                     keylen=keylen, errval=errval, key_init=key_init)
+    

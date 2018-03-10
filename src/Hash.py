@@ -31,13 +31,30 @@
 # not, see http://www.gnu.org/licenses/.
 
 from CClass import CClass
-from textwrap import dedent
 
 
 class Hash(CClass):
 
     def __init__(self, name, docs):
-        CClass.__init__(self, name, docs)
+        CClass.__init__(self, name, docs, args='[msg]')
+
+        self.add_to_init_body('''
+                #if PY_MAJOR_VERSION >= 3
+                  Py_buffer buffer;
+                  buffer.buf = NULL;
+                  if (! PyArg_ParseTuple (args, "|y*", &buffer)) {{
+                #else
+                  nettle_py2buf buffer;
+                  buffer.buf = NULL;
+                  if (! PyArg_ParseTuple (args, "|t#",
+                                          &buffer.buf, &buffer.len)) {{
+                #endif
+                    return -1;
+                  }}
+                  if (buffer.buf != NULL) {{
+                    {name}_update (self->ctx, buffer.len, buffer.buf);
+                  }}
+        '''.format(name=name))
 
         self.add_member(
             name='ctx',
@@ -67,7 +84,8 @@ class Hash(CClass):
             name='update',
             args='METH_VARARGS',
             docs='Hash some more data',
-            body=dedent('''
+            docargs='msg',
+            body='''
                 #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
 
@@ -81,15 +99,16 @@ class Hash(CClass):
                   }}
                   {name}_update (self->ctx, buffer.len, buffer.buf);
                   Py_RETURN_NONE;
-                ''').format(name=name))
+                '''.format(name=name))
 
         self.add_method(
             name='digest',
             args='METH_NOARGS',
             docs='Return the digest of the data passed to the update()'
             ' method so far. This is a bytes object of size digest_size'
-            ' which may contain bytes in the whole range from 0 to 255.',
-            body=dedent('''
+            ' which may contain bytes in the whole range from 0 to 255.'
+            ' Note that unlike the nettle c function, the state is not reset.',
+            body='''
                 uint8_t digest[{NAME}_DIGEST_SIZE];
                 struct {name}_ctx *ctx_copy;
                 if ((ctx_copy = PyMem_Malloc (sizeof
@@ -101,7 +120,7 @@ class Hash(CClass):
                 PyMem_Free(ctx_copy);
                 return PyBytes_FromStringAndSize ((const char *) digest,
                                                   {NAME}_DIGEST_SIZE);
-            '''.format(name=name, NAME=name.upper())))
+            '''.format(name=name, NAME=name.upper()))
 
         self.add_method(
             name='hexdigest',
@@ -109,13 +128,14 @@ class Hash(CClass):
             docs='Like digest() except the digest is returned as a string'
             ' object of double length, containing only hexadecimal'
             ' digits. This may be used to exchange the value safely'
-            ' in email or other non-binary environments.',
-            body=dedent('''
+            ' in email or other non-binary environments.'
+            ' Note that unlike the nettle c function, the state is not reset.',
+            body='''
                 uint8_t digest[{NAME}_DIGEST_SIZE];
                 char hex[{NAME}_DIGEST_SIZE * 2 + 1];
                 char *ptr = hex;
                 struct {name}_ctx *ctx_copy;
-                if ((ctx_copy = PyMem_Malloc (sizeof
+                if ((ctx_copy = PyMem_Malloc (sizeof \\
                       (struct {name}_ctx))) == NULL) {{
                   return PyErr_NoMemory ();
                 }}
@@ -131,7 +151,7 @@ class Hash(CClass):
               #else
                 return PyString_FromString ((const char *) hex);
               #endif
-            '''.format(name=name, NAME=name.upper())))
+            '''.format(name=name, NAME=name.upper()))
 
         self.add_method(
             name='copy',
@@ -139,11 +159,11 @@ class Hash(CClass):
             docs='Return a copy (\\"clone\\") of the hash object. This can'
             ' be used to efficiently compute the digests of data sharing'
             ' a common initial substring',
-            body=dedent('''
+            body='''
                 PyObject * module = PyImport_ImportModule("nettle");
                 PyObject * obj = PyObject_GetAttrString(module, "{name}");
                 pynettle_{name} * copy= (pynettle_{name} *) \\
                    PyObject_CallObject (obj, NULL);
                 memcpy(copy->ctx, self->ctx, sizeof (struct {name}_ctx));
                 return (PyObject *)copy;
-            '''.format(name=name)))
+            '''.format(name=name))

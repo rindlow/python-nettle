@@ -41,27 +41,36 @@ class CClass:
             (?P<code>
               (?P<nonwhite> \S) .*? ) )
           (?P<backslash> \\ \s* ) ?
+          (?P<doubleslash> // \s* ) ?
         $''', re.X)
 
-    def __init__(self, name, docs):
+    def __init__(self, name, docs, args=''):
         self.name = name
         self.docs = docs
         self.members = []
         self.methods = []
-        self.init_body = ''
+        self.init_body = []
         self.richcompare = None
         self.getsetters = []
+        self.args = args
         self.out = None
 
-    def writeindent(self, spaces, str):
+    def writeindent(self, spaces, str, emptylines=False):
         lines = str.split('\n')
         minindent = 9999
+        lastindent = spaces
+        doubleslash = False
         for line in lines:
             m = self.indent_re.search(line)
-            if m and m.group('pre') is None:
-                if m.start('nonwhite') < minindent:
-                    minindent = m.start('nonwhite')
+            if (m and
+                not doubleslash
+                and m.group('pre') is None
+                and m.start('nonwhite') < minindent):
+                minindent = m.start('nonwhite')
+            doubleslash = m and m.group('doubleslash') is not None
+
         cont = False
+        lastindent = None
         for line in lines:
             m = self.indent_re.search(line)
             if m:
@@ -73,12 +82,22 @@ class CClass:
                     if m.group('backslash') is not None:
                         self.out.write(m.group('line')[minindent:])
                         cont = True
+                    elif m.group('doubleslash') is not None: 
+                        lastindent = m.start('nonwhite') - minindent
+                        self.out.write(' ' * lastindent)
+                        self.out.write(m.group('code') + '\n')
                     else:
                         if cont:
                             self.out.write(m.group('code') + '\n')
+                        elif lastindent is not None:
+                            self.out.write(' ' * lastindent)
+                            self.out.write(m.group('code') + '\n')
+                            lastindent = None
                         else:
                             self.out.write(m.group('line')[minindent:] + '\n')
                         cont = False
+            elif emptylines:
+                self.out.write('\n')
 
     def write_python_subclass(self, f):
         f.write('{0} = _nettle.{0}\n'.format(self.name))
@@ -114,8 +133,8 @@ class CClass:
         for member in self.members:
             if member['init'] is not None:
                 self.writeindent(2, member['init'])
-        if self.init_body != '':
-            self.writeindent(2, self.init_body)
+        for part in self.init_body:
+            self.writeindent(2, part)
         self.writeindent(2, 'return 0;')
         self.writeindent(0, '}')
 
@@ -318,12 +337,13 @@ class CClass:
                              'init': init, 'alloc': alloc, 'dealloc': dealloc,
                              'type': type, 'flags': flags, 'public': public})
 
-    def add_method(self, name, body, docs, args):
+    def add_method(self, name, body, docs, args, docargs=''):
         self.methods.append({'name': name, 'body': body,
-                             'docs': docs, 'args': args})
+                             'docs': docs, 'args': args,
+                             'docargs': docargs})
 
     def add_to_init_body(self, code):
-        self.init_body += code
+        self.init_body.append(code)
 
     def add_richcompare(self, body):
         self.richcompare = body
@@ -340,3 +360,91 @@ class CClass:
         self.getsetters.append({'member': member, 'docs': docs,
                                 'getter': getter, 'gbody': gbody,
                                 'setter': setter, 'sbody': sbody})
+
+    def add_bufferparse_to_init(self, buffers):
+        self.add_to_init_body('''
+              static char *kwlist[] = {kwlist};
+            #if PY_MAJOR_VERSION >= 3
+              Py_buffer {vars};
+            #else
+              nettle_py2buf {vars};
+            #endif
+              {nullify}
+            #if PY_MAJOR_VERSION >= 3
+              if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py3fmt}", \\
+                                                 kwlist,
+                                                 {py3pointers}))
+            #else
+              if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py2fmt}", \\
+                                                 kwlist,
+                                                 {py2pointers}))
+            #endif
+                {{
+                  return -1;
+                }}
+            '''.format(kwlist='{{"{}", NULL}}'.format('", "'.join(buffers)),
+                       vars=', '.join(buffers),
+                       nullify='//\n'.join(['{b}.buf = NULL; {b}.len = 0;'
+                                            .format(b=b) for b in buffers]),
+                       py2fmt='|' + 't#' * len(buffers),
+                       py3fmt='|' + 'z*' * len(buffers),
+                       py2pointers=',//\n'.join(
+                           ['&{b}.buf, &{b}.len'.format(b=b)
+                            for b in buffers]),
+                       py3pointers=', '.join(['&{}'.format(b)
+                                              for b in buffers])))
+        
+    def write_docs_to_file(self, f):
+        self.out = f
+        self.writeindent(0, '''
+            :class:`{name}`
+            -------------------------------------------
+
+            {docs}
+
+
+            .. class:: {name}({args})
+
+        '''.format(name=self.name, docs=self.docs, args=self.args),
+                        emptylines=True)
+
+        if len([m for m in self.members if m['public']]) > 0:
+            self.writeindent(0, '''
+            
+                Class attributes are:
+            
+            ''')
+        
+        for member in self.members:
+            if member['public']:
+                self.writeindent(0, '''
+                .. attribute:: {name}.{mname}
+                
+                   {docs}
+    
+                '''.format(name=self.name, mname=member['name'],
+                           docs=member['docs']), emptylines=True)
+
+        for gs in self.getsetters:
+            self.writeindent(0, '''
+            .. attribute:: {name}.{mname}
+            
+               {docs}
+
+            '''.format(name=self.name, mname=gs['member'],
+                       docs=gs['docs']), emptylines=True)
+
+        self.writeindent(0, '''
+            Instance methods:
+
+        ''', emptylines=True)
+        
+        for method in self.methods:
+            self.writeindent(0, '''
+            .. method:: {name}.{mname}({args})
+            
+               {docs}
+
+            '''.format(name=self.name, mname=method['name'],
+                       args=method['docargs'],
+                       docs=method['docs']), emptylines=True)

@@ -22,6 +22,7 @@ class Hash(TestCase):
         h.update(msg)
         self.assertEqual(h.digest(), digest)
         self.assertEqual(SHEX(h.hexdigest()), digest)
+        self.assertEqual(hashfunc(msg).digest(), digest)
 
         h1 = hashfunc()
         h1.update(SDATA('a'))

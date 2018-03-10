@@ -31,7 +31,6 @@
 # not, see http://www.gnu.org/licenses/.
 
 from CClass import CClass
-from textwrap import dedent
 
 
 class CipherMode(CClass):
@@ -68,11 +67,13 @@ class CipherMode(CClass):
                 name='iv',
                 decl='uint8_t *iv',
                 init='self->iv = NULL;')
+            self.args='cipher, initial_iv'
         if name == 'CTR':
             self.add_member(
                 name='ctr',
                 decl='uint8_t *ctr',
                 init='self->ctr = NULL;')
+            self.args='cipher, initial_ctr'
         if name == 'GCM':
             self.add_member(
                 name='gcmctx',
@@ -94,8 +95,9 @@ class CipherMode(CClass):
                         return PyErr_NoMemory ();
                       }''',
                 dealloc='PyMem_Free (self->gcmkey);\nself->gcmkey = NULL;')
+            self.args='cipher, initial_iv'
 
-        self.add_to_init_body(dedent('''
+        self.add_to_init_body('''
             PyObject *obj = NULL;
             #if PY_MAJOR_VERSION >= 3
             Py_buffer buffer;
@@ -110,13 +112,13 @@ class CipherMode(CClass):
               }
             if (obj != NULL)
               {
-        '''))
+        ''')
         for c in ciphers:
-            self.add_to_init_body(dedent('''
+            self.add_to_init_body('''
                 if (PyObject_TypeCheck (obj, &pynettle_{name}_Type))
                   {{
                     self->block_size = {FAMILY}_BLOCK_SIZE;
-            ''').format(name=c['name'], FAMILY=c['family'].upper()))
+            '''.format(name=c['name'], FAMILY=c['family'].upper()))
             if name == 'CBC':
                 self.add_to_init_body('''   if ((self->iv = malloc({FAMILY}_BLOCK_SIZE)) == NULL)
                       {{
@@ -211,7 +213,8 @@ class CipherMode(CClass):
                 ' must be called before encrypt or decrypt. All but the last'
                 ' call for each message must use a length that is a multiple'
                 ' of the block size.',
-                body=dedent('''
+                docargs='bytes',
+                body='''
                     #if PY_MAJOR_VERSION >= 3
                     Py_buffer buffer;
                     if (!PyArg_ParseTuple (args, "y*", &buffer))
@@ -226,30 +229,66 @@ class CipherMode(CClass):
                     gcm_update (self->gcmctx, self->gcmkey, buffer.len,
                                 buffer.buf);
                     Py_RETURN_NONE;
-                '''))
+                ''')
 
             self.add_method(
                 name='digest',
                 args='METH_NOARGS',
                 docs='Extracts the message digest (also known as'
                 ' \'authentication tag\'). This is the final operation when'
-                ' processing a message. It’s strongly recommended that'
-                ' length is GCM_DIGEST_SIZE, but if you provide a smaller'
-                ' value, only the first length octets'
-                ' of the digest are written.',
+                ' processing a message. Note that unlike the nettle c'
+                ' function, the state is not reset.',
                 body='''
                     uint8_t digest[GCM_DIGEST_SIZE];
-                    gcm_digest (self->gcmctx, self->gcmkey, self->ctx, \\
+                    struct gcm_ctx *ctx_copy;
+                    if ((ctx_copy = PyMem_Malloc (sizeof \\
+                          (struct gcm_ctx))) == NULL) {{
+                      return PyErr_NoMemory ();
+                    }}
+                    memcpy(ctx_copy, self->gcmctx, sizeof (struct gcm_ctx));
+                    gcm_digest (ctx_copy, self->gcmkey, self->ctx, \\
                         self->encrypt_func, GCM_DIGEST_SIZE, digest);
                     return PyBytes_FromStringAndSize ((const char *) digest, \\
                         GCM_DIGEST_SIZE);
                 ''')
+
+            self.add_method(
+                name='hexdigest',
+                args='METH_NOARGS',
+                docs='Extracts the message digest (also known as'
+                ' \'authentication tag\') as a hexadecimal string.'
+                ' This is the final operation when processing a message.'
+                ' Note that unlike the nettle c function, the state is not'
+                ' reset.',
+                body='''
+                    uint8_t digest[GCM_DIGEST_SIZE];
+                    char hex[GCM_DIGEST_SIZE * 2 + 1];
+                    char *ptr = hex;
+                    struct gcm_ctx *ctx_copy;
+                    if ((ctx_copy = PyMem_Malloc (sizeof \\
+                          (struct gcm_ctx))) == NULL) {{
+                      return PyErr_NoMemory ();
+                    }}
+                    memcpy(ctx_copy, self->gcmctx, sizeof (struct gcm_ctx));
+                    gcm_digest (ctx_copy, self->gcmkey, self->ctx, \\
+                        self->encrypt_func, GCM_DIGEST_SIZE, digest);
+                    for (int i = 0; i < GCM_DIGEST_SIZE; i++) {{
+                      snprintf(ptr, 3, "%02X", digest[i]);
+                      ptr += 2;
+                    }}
+                  #if PY_MAJOR_VERSION >= 3
+                    return PyUnicode_FromString ((const char *) hex);
+                  #else
+                    return PyString_FromString ((const char *) hex);
+                  #endif
+                    ''')
 
         self.add_method(
             name='encrypt',
             args='METH_VARARGS',
             docs='Encrypts data, the length of which must be an'
             ' integral multiple of the block size',
+            docargs='msg',
             body='''
                 if (! *self->cipher_is_initialized_p)
                   {
@@ -282,6 +321,7 @@ class CipherMode(CClass):
             args='METH_VARARGS',
             docs='Decrypts data, the length of which must be an'
             ' integral multiple of the block size',
+            docargs='msg',
             body='''
                 if (! *self->cipher_is_initialized_p)
                   {
@@ -309,3 +349,4 @@ class CipherMode(CClass):
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
                 ''')
+        

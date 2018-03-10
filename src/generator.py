@@ -161,6 +161,11 @@ class Generator:
     mod_file = 'nettle.c'
     pubkey_file = 'nettle_pubkey.c'
     python_module = '../nettle/autogen.py'
+    cipher_doc_file = '../doc/source/ciphers.rst'
+    ciphermode_doc_file = '../doc/source/ciphermodes.rst'
+    hash_doc_file = '../doc/source/hashes.rst'
+    mac_doc_file = '../doc/source/macs.rst'
+    pubkey_doc_file = '../doc/source/pubkey.rst'
 
     def __init__(self):
         self.objects = []
@@ -174,7 +179,8 @@ class Generator:
                 '#endif\n')
 
     def gen_hash_file(self, hashdata):
-        with open(self.hash_file, 'w') as f:
+        with open(self.hash_file, 'w') as f, \
+             open(self.hash_doc_file, 'w') as d:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
@@ -186,13 +192,19 @@ class Generator:
             self.write_python2_buffer_struct(f)
             f.write('\n')
 
+            d.write('Hashes\n')
+            d.write('======\n\n')
+            
             for h in hashes:
                 hashclass = Hash(h['name'], h['docstring'])
                 hashclass.write_to_file(f)
+                hashclass.write_docs_to_file(d)
                 self.objects.append(hashclass)
 
     def gen_cipher_file(self, cipherdata, modedata):
-        with open(self.cipher_file, 'w') as f:
+        with open(self.cipher_file, 'w') as f, \
+             open(self.cipher_doc_file, 'w') as cd, \
+             open(self.ciphermode_doc_file, 'w') as md:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
@@ -205,6 +217,8 @@ class Generator:
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
+            cd.write('Ciphers\n')
+            cd.write('=======\n\n')
             for c in cipherdata:
                 cipherclass = Cipher(c['name'],
                                      family=c['family'],
@@ -215,16 +229,21 @@ class Generator:
                                      invert=c['invert'],
                                      varkey=c['variable_keylen'])
                 cipherclass.write_to_file(f)
+                cipherclass.write_docs_to_file(cd)
                 self.objects.append(cipherclass)
+            md.write('Cipher Modes\n')
+            md.write('============\n\n')
             for m in modedata:
                 mode = CipherMode(m['name'], m['docstring'],
                                   [c for c in cipherdata
                                    if c['family'] == 'aes'])
                 mode.write_to_file(f)
+                mode.write_docs_to_file(md)
                 self.objects.append(mode)
 
     def gen_mac_file(self, macdata):
-        with open(self.mac_file, 'w') as f:
+        with open(self.mac_file, 'w') as f, \
+             open(self.mac_doc_file, 'w') as d:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
@@ -235,14 +254,17 @@ class Generator:
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
-
+            d.write('Keyed Hash Functions\n')
+            d.write('====================\n\n')
             for m in macdata:
                 macclass = MAC(m['name'], m['docstring'])
                 macclass.write_to_file(f)
+                macclass.write_docs_to_file(d)
                 self.objects.append(macclass)
 
     def gen_pubkey_file(self):
-        with open(self.pubkey_file, 'w') as f:
+        with open(self.pubkey_file, 'w') as f, \
+             open(self.pubkey_doc_file, 'w') as d:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include <fcntl.h>\n')
@@ -251,8 +273,11 @@ class Generator:
             f.write('#include "nettle_asn1.h"\n')
             f.write('#include "{}"\n'.format(self.header_file))
             self.write_python2_buffer_struct(f)
-            for cls in [Yarrow(), RSAPubKey(), RSAKeyPair()]:
+            d.write('Public Key Encryption\n')
+            d.write('=====================\n\n')
+            for cls in [Yarrow(), RSAKeyPair(),  RSAPubKey()]:
                 cls.write_to_file(f)
+                cls.write_docs_to_file(d)
                 self.objects.append(cls)
 
     def gen_exceptions(self, exceptions):
@@ -287,7 +312,6 @@ class Generator:
             f.write('import _nettle\n')
             for object in sorted(self.objects, key=lambda o: o.name):
                 object.write_python_subclass(f)
-
 
 gen = Generator()
 gen.gen_hash_file(hashes)

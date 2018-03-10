@@ -8,17 +8,18 @@ class PubKey(TestCase):
         privfile = '/tmp/privkey.der'
         pubfile = '/tmp/pubkey.der'
 
-        kp = keypair()
+        yarrow = nettle.Yarrow()
+        kp = keypair(yarrow)
         kp.genkey(2048, 20)
         kp.write_key(privfile)
-        kp2 = keypair()
+        kp2 = keypair(yarrow)
         kp2.read_key(privfile)
         self.assertEqual(kp, kp2)
         del kp2
 
         pk = kp.public_key
         pk.write_key(pubfile)
-        pk2 = pubkey()
+        pk2 = pubkey(yarrow)
         pk2.read_key(pubfile)
         self.assertEqual(pk, pk2)
         del pk2
@@ -42,17 +43,11 @@ class PubKey(TestCase):
         h2.update(b'gibberish')
         self.assertFalse(pk.verify(signature, h2))
 
-        yarrow = nettle.Yarrow()
-        pk = pubkey(yarrow)
-
-        kp.yarrow.random(1)
+        self.assertNotEqual(kp.yarrow.random(1), b'17')
 
     def test_rsa(self):
         self._test(nettle.RSAKeyPair, nettle.RSAPubKey)
 
-    def test_yarrow(self):
-        yarrow = nettle.Yarrow()
-        return yarrow.random(1)
 
     def test_cert(self):
         certfile = '/tmp/cert.pem'
