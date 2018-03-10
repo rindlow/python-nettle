@@ -16,6 +16,11 @@ nettle_macs.c
 nettle_pubkey.c
 nettle.h
 nettle/autogen.py
+doc/source/ciphermodes.rst
+doc/source/ciphers.rst
+doc/source/hashes.rst
+doc/source/macs.rst
+doc/source/pubkey.rst
 
 # setuptools metadata
 nettle.egg-info/*
