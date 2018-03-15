@@ -67,13 +67,13 @@ class CipherMode(CClass):
                 name='iv',
                 decl='uint8_t *iv',
                 init='self->iv = NULL;')
-            self.args='cipher, initial_iv'
+            self.args = 'cipher, initial_iv'
         if name == 'CTR':
             self.add_member(
                 name='ctr',
                 decl='uint8_t *ctr',
                 init='self->ctr = NULL;')
-            self.args='cipher, initial_ctr'
+            self.args = 'cipher, initial_ctr'
         if name == 'GCM':
             self.add_member(
                 name='gcmctx',
@@ -95,7 +95,7 @@ class CipherMode(CClass):
                         return PyErr_NoMemory ();
                       }''',
                 dealloc='PyMem_Free (self->gcmkey);\nself->gcmkey = NULL;')
-            self.args='cipher, initial_iv'
+            self.args = 'cipher, initial_iv'
 
         self.add_to_init_body('''
             PyObject *obj = NULL;
@@ -151,6 +151,8 @@ class CipherMode(CClass):
                   }
               }
         ''')
+        encrypt = ''
+        decrypt = ''
         if name == 'CBC':
             self.add_to_init_body('''
                 if (buffer.len != self->block_size)
@@ -349,4 +351,3 @@ class CipherMode(CClass):
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
                 ''')
-        

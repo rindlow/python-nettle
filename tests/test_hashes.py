@@ -11,7 +11,7 @@ def SHEX(hexstring):
     b = bytearray()
     hexstring = ''.join(hexstring.split())
     for i in range(0, len(hexstring), 2):
-        b.append(int(hexstring[i:i+2], 16))
+        b.append(int(hexstring[i:i + 2], 16))
     return bytes(b)
 
 

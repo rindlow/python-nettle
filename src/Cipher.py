@@ -35,18 +35,16 @@ from CClass import CClass
 
 class Cipher(CClass):
 
-    def __init__(self, name, family=None, docs=None, lenparam=False,
-                 twofuncs=False, twokeys=False, invert=False, varkey=False,
-                 mode=None):
-        CClass.__init__(self, name, docs)
+    def __init__(self, param):
+        CClass.__init__(self, param['name'], param['docstring'])
 
-        self.name = name
-        self.family = family
-        if lenparam:
+        self.name = param['name']
+        self.family = param['family']
+        if param['lenparam']:
             keylen = 'key.len, '
         else:
             keylen = ''
-        if twofuncs:
+        if param['twofuncs']:
             encrypt_func = '{}_encrypt'.format(self.name)
             decrypt_func = '{}_decrypt'.format(self.name)
         else:
@@ -59,13 +57,13 @@ class Cipher(CClass):
             init='self->is_initialized = 0;')
         self.add_member(
             name='ctx',
-            decl='struct {}_ctx *ctx'.format(name),
+            decl='struct {}_ctx *ctx'.format(self.name),
             alloc='''
                 if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx))) \\
                     == NULL)
                   {{
                     return PyErr_NoMemory ();
-                  }}'''.format(name),
+                  }}'''.format(self.name),
             dealloc='PyMem_Free (self->ctx);\nself->ctx = NULL;')
         self.add_member(
             name='encrypt_func',
@@ -78,7 +76,7 @@ class Cipher(CClass):
             init='self->decrypt_func = (nettle_cipher_func *)&{};'
             .format(decrypt_func))
 
-        if twokeys:
+        if param['twokeys']:
             keys = ['encrypt_key', 'decrypt_key']
             self.args = 'encrypt_key=None, decrypt_key=None'
         else:
@@ -88,47 +86,46 @@ class Cipher(CClass):
         for key in keys:
             self.add_to_init_body(
                 self.key_len_check_and_set(
-                    key=key, keylen=keylen, cipher_name=name, init=True,
-                    varkey=varkey))
+                    key=key, keylen=keylen, cipher_name=self.name, init=True,
+                    varkey=param['variable_keylen']))
 
         self.add_member(
             name='key_size',
             decl='int key_size',
-            init='self->key_size = {}_KEY_SIZE;'.format(name.upper()),
-            docs='The size of a {} key'.format(name.upper()),
+            init='self->key_size = {}_KEY_SIZE;'.format(self.name.upper()),
+            docs='The size of a {} key'.format(self.name.upper()),
             flags='READONLY',
             type='T_INT',
             public=True)
 
-        if family is not None:
+        if self.family is not None:
             self.add_member(
                 name='block_size',
                 decl='int block_size',
-                init='self->block_size = {}_BLOCK_SIZE;'
-                .format(family.upper()),
-                docs='The internal block size of {}'.format(family.upper()),
+                init='self->block_size = {}_BLOCK_SIZE;'.format(
+                    self.family.upper()),
+                docs='The internal block size of {}'.format(
+                    self.family.upper()),
                 flags='READONLY',
                 type='T_INT',
                 public=True)
 
-        if twokeys:
-            self.add_set_key_function(name, key='encrypt_key', keylen=keylen,
-                                      mode=mode, usage='encrypt',
-                                      cipher_name=name, varkey=varkey)
-            self.add_set_key_function(name, key='decrypt_key', keylen=keylen,
-                                      mode=mode, usage='decrypt',
-                                      cipher_name=name, varkey=varkey)
+        if param['twokeys']:
+            self.add_set_key_function(self.name, key='encrypt_key',
+                                      keylen=keylen, varkey=param['variable_keylen'])
+            self.add_set_key_function(self.name, key='decrypt_key',
+                                      keylen=keylen, varkey=param['variable_keylen'])
         else:
-            self.add_set_key_function(name, keylen=keylen, mode=mode,
-                                      cipher_name=name, varkey=varkey)
+            self.add_set_key_function(self.name, keylen=keylen,
+                                      varkey=param['variable_keylen'])
 
-        if twofuncs:
-            self.add_crypt_method(name, 'encrypt')
-            self.add_crypt_method(name, 'decrypt')
+        if param['twofuncs']:
+            self.add_crypt_method(self.name, 'encrypt')
+            self.add_crypt_method(self.name, 'decrypt')
         else:
-            self.add_crypt_method(name, 'crypt')
+            self.add_crypt_method(self.name, 'crypt')
 
-        if invert:
+        if param['invert']:
             self.add_method(
                 name='invert_key',
                 args='METH_NOARGS',
@@ -137,11 +134,24 @@ class Cipher(CClass):
                 body='''
                     {name}_invert_key (self->ctx, self->ctx);
                     Py_RETURN_NONE;
-                    '''.format(name=name))
+                    '''.format(name=self.name))
 
     def add_crypt_method(self, name, func):
-        crypt = '{}_{{func}} (self->ctx, buffer.len, dst, buffer.buf);'\
-                .format(name)
+        crypt = '{}_{} (self->ctx, buffer.len, dst, buffer.buf);'\
+                .format(self.name, func)
+        if self.family is None:
+            blockcheck = ''
+        else:
+            blockcheck = '''
+                if (buffer.len % {family}_BLOCK_SIZE != 0)
+                  {{
+                    PyErr_Format (DataLenError, //
+                                  "Data length %d not a multiple of block" //
+                                  " size %d", //
+                                   buffer.len, {family}_BLOCK_SIZE);
+                    return NULL;
+                  }}
+            '''.format(family=self.family.upper())
 
         self.add_method(
             name=func,
@@ -168,18 +178,18 @@ class Cipher(CClass):
                     {{
                       return NULL;
                     }}
+                  {blockcheck}
                   if ((dst = PyMem_Malloc (buffer.len)) == NULL)
                     {{
                       return PyErr_NoMemory ();
                     }}
-                  {}
+                  {crypt}
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
-                '''.format(crypt.format(func=func)))
+                '''.format(crypt=crypt, blockcheck=blockcheck))
 
     def add_set_key_function(self, name, key='key', keylen='',
-                             usage='crypt', mode='ecb',
-                             cipher_name='', varkey=False):
+                             varkey=False):
         docs = 'Initialize the cipher'
         gsk = ''
 
@@ -201,14 +211,15 @@ class Cipher(CClass):
                     }}
                 {setkey}  Py_RETURN_NONE;
             '''.format(key=key,
-                        setkey=self.key_len_check_and_set(
-                            key=key,
-                            varkey=varkey,
-                            keylen=keylen,
-                            key_init=gsk,
-                            cipher_name=cipher_name)))
+                       setkey=self.key_len_check_and_set(
+                           key=key,
+                           varkey=varkey,
+                           keylen=keylen,
+                           key_init=gsk,
+                           cipher_name=name)))
 
-    def key_len_check_and_set(self, key, varkey=False, keylen='',
+    @staticmethod
+    def key_len_check_and_set(key, varkey=False, keylen='',
                               cipher_name='', key_init='', init=False):
         if init:
             errval = -1
@@ -242,4 +253,3 @@ class Cipher(CClass):
             '    }}\n' \
             .format(key=key, check=check, error=error, cipher_name=cipher_name,
                     keylen=keylen, errval=errval, key_init=key_init)
-    

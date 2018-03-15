@@ -61,7 +61,7 @@ class MAC(CClass):
                                   '      self->is_initialized = 1;\n'
                                   '    }}\n'
                                   .format(name=name))
-            self.args='key=None'
+            self.args = 'key=None'
         else:
             digestsize = '{}_DIGEST_SIZE'.format(name.upper())
             keylen = ''
@@ -70,7 +70,7 @@ class MAC(CClass):
             else:
                 blocksize = 'AES_BLOCK_SIZE'
             self.add_bufferparse_to_init(['key', 'nonce'])
-            self.args='key=None, nonce=None'
+            self.args = 'key=None, nonce=None'
             self.add_to_init_body('''
                 if (key.buf != NULL)
                   {{
@@ -187,14 +187,60 @@ class MAC(CClass):
             args='METH_NOARGS',
             docs='Performs final processing and extracts the message digest',
             body='''
-  uint8_t digest[{DIGESTSIZE}];
+                uint8_t digest[{DIGESTSIZE}];
+                struct {name}_ctx *ctx_copy;
 
-  if (!self->is_initialized)
-    {{
-      PyErr_Format (NotInitializedError,
-                    "Cipher not initialized. Set key first!");
-      return NULL;
-    }}
-  {name}_digest (self->ctx, {DIGESTSIZE}, digest);
-  return PyBytes_FromStringAndSize ((const char *) digest, {DIGESTSIZE});
-'''.format(name=name, DIGESTSIZE=digestsize))
+                if (!self->is_initialized)
+                  {{
+                    PyErr_Format (NotInitializedError,
+                                  "Cipher not initialized. Set key first!");
+                    return NULL;
+                  }}
+                if ((ctx_copy = PyMem_Malloc (sizeof \\
+                     (struct {name}_ctx))) == NULL)
+                  {{
+                    return PyErr_NoMemory ();
+                  }}
+                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
+                {name}_digest (ctx_copy, {DIGESTSIZE}, digest);
+                PyMem_Free(ctx_copy);
+                return PyBytes_FromStringAndSize ((const char *) digest, \\
+                                                  {DIGESTSIZE});
+            '''.format(name=name, DIGESTSIZE=digestsize))
+
+        self.add_method(
+            name='hexdigest',
+            args='METH_NOARGS',
+            docs='Performs final processing and extracts the message digest'
+            ' as a string of hexadecimal characters',
+            body='''
+                uint8_t digest[{DIGESTSIZE}];
+                char hex[{DIGESTSIZE} * 2 + 1];
+                char *ptr = hex;
+                struct {name}_ctx *ctx_copy;
+
+                if (!self->is_initialized)
+                  {{
+                    PyErr_Format (NotInitializedError,
+                                  "Cipher not initialized. Set key first!");
+                    return NULL;
+                  }}
+                if ((ctx_copy = PyMem_Malloc (sizeof \\
+                     (struct {name}_ctx))) == NULL)
+                  {{
+                    return PyErr_NoMemory ();
+                  }}
+                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
+                {name}_digest (ctx_copy, {DIGESTSIZE}, digest);
+                PyMem_Free(ctx_copy);
+                for (int i = 0; i < {DIGESTSIZE}; i++)
+                  {{
+                    snprintf(ptr, 3, "%02X", digest[i]);
+                    ptr += 2;
+                  }}
+              #if PY_MAJOR_VERSION >= 3
+                return PyUnicode_FromString ((const char *) hex);
+              #else
+                return PyString_FromString ((const char *) hex);
+              #endif
+            '''.format(name=name, DIGESTSIZE=digestsize))

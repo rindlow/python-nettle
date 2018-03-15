@@ -33,6 +33,7 @@
 import re
 
 
+# noinspection PyPep8
 class CClass:
 
     indent_re = re.compile(r'''
@@ -58,14 +59,13 @@ class CClass:
     def writeindent(self, spaces, str, emptylines=False):
         lines = str.split('\n')
         minindent = 9999
-        lastindent = spaces
         doubleslash = False
         for line in lines:
             m = self.indent_re.search(line)
             if (m and
-                not doubleslash
-                and m.group('pre') is None
-                and m.start('nonwhite') < minindent):
+                not doubleslash and
+                m.group('pre') is None and
+                m.start('nonwhite') < minindent):
                 minindent = m.start('nonwhite')
             doubleslash = m and m.group('doubleslash') is not None
 
@@ -82,7 +82,7 @@ class CClass:
                     if m.group('backslash') is not None:
                         self.out.write(m.group('line')[minindent:])
                         cont = True
-                    elif m.group('doubleslash') is not None: 
+                    elif m.group('doubleslash') is not None:
                         lastindent = m.start('nonwhite') - minindent
                         self.out.write(' ' * lastindent)
                         self.out.write(m.group('code') + '\n')
@@ -393,10 +393,11 @@ class CClass:
                             for b in buffers]),
                        py3pointers=', '.join(['&{}'.format(b)
                                               for b in buffers])))
-        
+
     def write_docs_to_file(self, f):
         self.out = f
-        self.writeindent(0, '''
+        self.writeindent(0,
+                         '''
             :class:`{name}`
             -------------------------------------------
 
@@ -405,30 +406,37 @@ class CClass:
 
             .. class:: {name}({args})
 
-        '''.format(name=self.name, docs=self.docs, args=self.args),
-                        emptylines=True)
+        '''
+                         .format(name=self.name, docs=self.docs,
+                                 args=self.args),
+                         emptylines=True)
 
         if len([m for m in self.members if m['public']]) > 0:
             self.writeindent(0, '''
-            
+
+
                 Class attributes are:
-            
+
+
             ''')
-        
+
         for member in self.members:
             if member['public']:
                 self.writeindent(0, '''
                 .. attribute:: {name}.{mname}
-                
+
+
                    {docs}
-    
+
+
                 '''.format(name=self.name, mname=member['name'],
                            docs=member['docs']), emptylines=True)
 
         for gs in self.getsetters:
             self.writeindent(0, '''
             .. attribute:: {name}.{mname}
-            
+
+
                {docs}
 
             '''.format(name=self.name, mname=gs['member'],
@@ -438,11 +446,11 @@ class CClass:
             Instance methods:
 
         ''', emptylines=True)
-        
+
         for method in self.methods:
             self.writeindent(0, '''
             .. method:: {name}.{mname}({args})
-            
+
                {docs}
 
             '''.format(name=self.name, mname=method['name'],

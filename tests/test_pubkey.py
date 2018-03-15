@@ -48,7 +48,6 @@ class PubKey(TestCase):
     def test_rsa(self):
         self._test(nettle.RSAKeyPair, nettle.RSAPubKey)
 
-
     def test_cert(self):
         certfile = '/tmp/cert.pem'
         with open(certfile, 'w') as f:

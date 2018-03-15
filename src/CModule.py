@@ -64,8 +64,8 @@ class CModule:
                   '    return MOD_ERR_VAL;\n'
                   '  }}\n'.format(name=self.name, doc=self.doc))
 
-        for object in sorted(self.objects, key=lambda o: o.name):
-            object.write_reg_to_file(out)
+        for obj in sorted(self.objects, key=lambda o: o.name):
+            obj.write_reg_to_file(out)
 
         out.write('#if PY_MAJOR_VERSION >= 3\n'
                   '  return m;\n'

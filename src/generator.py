@@ -31,6 +31,7 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
+from collections import defaultdict
 from CModule import CModule
 from CException import CException
 from Hash import Hash
@@ -39,6 +40,11 @@ from CipherMode import CipherMode
 from MAC import MAC
 from PubKey import Yarrow, RSAKeyPair, RSAPubKey
 import docstrings
+
+
+def none_factory():
+    return lambda: None
+
 
 hashes = [
     {'name': 'gosthash94', 'headers': ['gosthash94.h'],
@@ -69,54 +75,45 @@ hashes = [
 
 ciphers = [
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aes,
-     'twokeys': True, 'twofuncs': True, 'invert': True,
-     'variable_keylen': False},
+     'docstring': docstrings.aes,
+     'twokeys': True, 'twofuncs': True, 'invert': True},
     {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aes,
-     'twokeys': True, 'twofuncs': True, 'invert': True,
-     'variable_keylen': False},
+     'docstring': docstrings.aes,
+     'twokeys': True, 'twofuncs': True, 'invert': True},
     {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h'],
-     'lenparam': False, 'docstring': docstrings.aes,
-     'twokeys': True, 'twofuncs': True, 'invert': True,
-     'variable_keylen': False},
-    {'name': 'arcfour', 'family': None, 'headers': ['arcfour.h'],
-     'docstring': docstrings.arcfour, 'lenparam': True, 'twokeys': False,
-     'twofuncs': False, 'invert': False, 'variable_keylen': True},
-    {'name': 'arctwo', 'family': None, 'headers': ['arctwo.h'],
-     'docstring': docstrings.arctwo, 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'variable_keylen': True},
+     'docstring': docstrings.aes,
+     'twokeys': True, 'twofuncs': True, 'invert': True},
+    {'name': 'arcfour', 'headers': ['arcfour.h'],
+     'docstring': docstrings.arcfour,
+     'lenparam': True, 'variable_keylen': True},
+    {'name': 'arctwo', 'headers': ['arctwo.h'],
+     'docstring': docstrings.arctwo, 'lenparam': True,
+     'twofuncs': True, 'variable_keylen': True},
     {'name': 'blowfish', 'family': 'blowfish',
-     'headers': ['blowfish.h'], 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'docstring': docstrings.blowfish,
-     'variable_keylen': True},
-    {'name': 'camellia128', 'family': 'camellia',
-     'headers': ['camellia.h'],
-     'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
-     'variable_keylen': False},
-    {'name': 'camellia192', 'family': 'camellia',
-     'headers': ['camellia.h'],
-     'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
-     'variable_keylen': False},
-    {'name': 'camellia256', 'family': 'camellia',
-     'headers': ['camellia.h'],
-     'lenparam': False, 'twokeys': True,
-     'twofuncs': False, 'invert': True, 'docstring': docstrings.camellia,
-     'variable_keylen': False},
-    # {'name': 'cast128', 'family': 'cast128',
-    #  'headers': ['cast128.h'], 'lenparam': True, 'twokeys': False,
-    #  'twofuncs': True, 'invert': False, 'docstring': docstrings.cast128,
-    #  'variable_keylen': True},
-    {'name': 'serpent', 'family': 'serpent',
-     'headers': ['serpent.h'], 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'docstring': docstrings.serpent,
-     'variable_keylen': True},
-    {'name': 'twofish', 'family': 'twofish',
-     'headers': ['twofish.h'], 'lenparam': True, 'twokeys': False,
-     'twofuncs': True, 'invert': False, 'docstring': docstrings.twofish,
-     'variable_keylen': True},
+     'headers': ['blowfish.h'],
+     'docstring': docstrings.blowfish,
+     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
+    {'name': 'camellia128', 'family': 'camellia', 'headers': ['camellia.h'],
+     'docstring': docstrings.camellia,
+     'twokeys': True, 'invert': True},
+    {'name': 'camellia192', 'family': 'camellia', 'headers': ['camellia.h'],
+     'docstring': docstrings.camellia,
+     'twokeys': True, 'invert': True},
+    {'name': 'camellia256', 'family': 'camellia', 'headers': ['camellia.h'],
+     'docstring': docstrings.camellia,
+     'twokeys': True, 'invert': True},
+    {'name': 'cast128', 'family': 'cast128', 'headers': ['cast128.h'],
+     'docstring': docstrings.cast128,
+     'twofuncs': True},
+    {'name': 'chacha', 'family': 'chacha', 'headers': ['chacha.h'],
+     'docstring': docstrings.cast128,
+     'nonce': True},
+    {'name': 'serpent', 'family': 'serpent', 'headers': ['serpent.h'],
+     'docstring': docstrings.serpent,
+     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
+    {'name': 'twofish', 'family': 'twofish', 'headers': ['twofish.h'],
+     'docstring': docstrings.twofish,
+     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
 ]
 
 ciphermodes = [
@@ -126,7 +123,7 @@ ciphermodes = [
      'headers': ['ctr.h']},
     {'name': 'GCM', 'docstring': 'Galois Counter Mode',
      'headers': ['gcm.h']},
-    ]
+]
 
 macs = [
     {'name': 'hmac_sha1', 'headers': ['hmac.h'],
@@ -142,6 +139,8 @@ exceptions = [
      'docs': 'Generic Nettle Exception'},
     {'name': 'KeyLenError', 'base': 'BaseException',
      'docs': 'Key Length is not as expected'},
+    {'name': 'DataLenError', 'base': 'BaseException',
+     'docs': 'Data length is not a multiple of the block size'},
     {'name': 'NotInitializedError', 'base': 'BaseException',
      'docs': 'Object must be initialized before calling this method'},
     {'name': 'RandomError', 'base': 'BaseException',
@@ -153,6 +152,7 @@ exceptions = [
 ]
 
 
+# noinspection PyArgumentList
 class Generator:
     cipher_file = 'nettle_ciphers.c'
     hash_file = 'nettle_hashes.c'
@@ -170,7 +170,8 @@ class Generator:
     def __init__(self):
         self.objects = []
 
-    def write_python2_buffer_struct(self, f):
+    @staticmethod
+    def write_python2_buffer_struct(f):
         f.write('#if PY_MAJOR_VERSION < 3\n'
                 'typedef struct py2buf_struct\n{\n'
                 '  const uint8_t *buf;\n'
@@ -179,92 +180,106 @@ class Generator:
                 '#endif\n')
 
     def gen_hash_file(self, hashdata):
-        with open(self.hash_file, 'w') as f, \
-             open(self.hash_doc_file, 'w') as d:
+        headers = set([f for h in hashdata for f in h['headers']])
+        classes = [Hash(h['name'], h['docstring']) for h in hashdata]
+        self.objects.extend(classes)
+
+        with open(self.hash_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            headers = set()
-            for h in hashdata:
-                headers.update(set(h['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
+            for cls in classes:
+                cls.write_to_file(f)
 
-            d.write('Hashes\n')
-            d.write('======\n\n')
-            
-            for h in hashes:
-                hashclass = Hash(h['name'], h['docstring'])
-                hashclass.write_to_file(f)
-                hashclass.write_docs_to_file(d)
-                self.objects.append(hashclass)
+        with open(self.hash_doc_file, 'w') as f:
+            f.write('Hashes\n')
+            f.write('======\n\n')
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(docstrings.hash_example)
+            f.write('\n\n')
+            for cls in classes:
+                cls.write_docs_to_file(f)
 
     def gen_cipher_file(self, cipherdata, modedata):
-        with open(self.cipher_file, 'w') as f, \
-             open(self.cipher_doc_file, 'w') as cd, \
-             open(self.ciphermode_doc_file, 'w') as md:
+        headers = set([h for m in cipherdata + modedata for h in m['headers']])
+        ciphers = [Cipher(defaultdict(none_factory(), c)) for c in cipherdata]
+        modes = [CipherMode(m['name'], m['docstring'],
+                            [c for c in cipherdata
+                             if c.get('family') in ('aes', 'camellia')])
+                 for m in modedata]
+        classes = ciphers + modes
+        self.objects.extend(classes)
+
+        with open(self.cipher_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            headers = set()
-            for c in cipherdata:
-                headers.update(set(c['headers']))
-            for m in modedata:
-                headers.update(set(m['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
-            cd.write('Ciphers\n')
-            cd.write('=======\n\n')
-            for c in cipherdata:
-                cipherclass = Cipher(c['name'],
-                                     family=c['family'],
-                                     docs=c['docstring'],
-                                     lenparam=c['lenparam'],
-                                     twokeys=c['twokeys'],
-                                     twofuncs=c['twofuncs'],
-                                     invert=c['invert'],
-                                     varkey=c['variable_keylen'])
-                cipherclass.write_to_file(f)
-                cipherclass.write_docs_to_file(cd)
-                self.objects.append(cipherclass)
-            md.write('Cipher Modes\n')
-            md.write('============\n\n')
-            for m in modedata:
-                mode = CipherMode(m['name'], m['docstring'],
-                                  [c for c in cipherdata
-                                   if c['family'] == 'aes'])
-                mode.write_to_file(f)
-                mode.write_docs_to_file(md)
-                self.objects.append(mode)
+            for cls in classes:
+                cls.write_to_file(f)
+
+        with open(self.cipher_doc_file, 'w') as f:
+            f.write('Ciphers\n')
+            f.write('========\n\n')
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(docstrings.cipher_example)
+            f.write('\n\n')
+            for cls in ciphers:
+                cls.write_docs_to_file(f)
+
+        with open(self.ciphermode_doc_file, 'w') as f:
+            f.write('Cipher Modes\n')
+            f.write('============\n\n')
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(docstrings.ciphermode_example)
+            f.write('\n\n')
+            for cls in modes:
+                cls.write_docs_to_file(f)
 
     def gen_mac_file(self, macdata):
-        with open(self.mac_file, 'w') as f, \
-             open(self.mac_doc_file, 'w') as d:
+        headers = set([h for m in macdata for h in m['headers']])
+        classes = [MAC(m['name'], m['docstring']) for m in macdata]
+
+        with open(self.mac_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            headers = set()
-            for m in macdata:
-                headers.update(set(m['headers']))
             for header in sorted(headers):
                 f.write('#include <nettle/{}>\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
-            d.write('Keyed Hash Functions\n')
-            d.write('====================\n\n')
-            for m in macdata:
-                macclass = MAC(m['name'], m['docstring'])
-                macclass.write_to_file(f)
-                macclass.write_docs_to_file(d)
-                self.objects.append(macclass)
+            for cls in classes:
+                cls.write_to_file(f)
+                self.objects.append(cls)
+
+        with open(self.mac_doc_file, 'w') as f:
+            f.write('Keyed Hash Functions\n')
+            f.write('====================\n\n')
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(docstrings.mac_example)
+            f.write('\n\n')
+            for cls in classes:
+                cls.write_docs_to_file(f)
 
     def gen_pubkey_file(self):
-        with open(self.pubkey_file, 'w') as f, \
-             open(self.pubkey_doc_file, 'w') as d:
+        classes = [Yarrow(), RSAKeyPair(), RSAPubKey()]
+
+        with open(self.pubkey_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include <fcntl.h>\n')
@@ -273,12 +288,20 @@ class Generator:
             f.write('#include "nettle_asn1.h"\n')
             f.write('#include "{}"\n'.format(self.header_file))
             self.write_python2_buffer_struct(f)
-            d.write('Public Key Encryption\n')
-            d.write('=====================\n\n')
-            for cls in [Yarrow(), RSAKeyPair(),  RSAPubKey()]:
+            for cls in classes:
                 cls.write_to_file(f)
-                cls.write_docs_to_file(d)
                 self.objects.append(cls)
+
+        with open(self.pubkey_doc_file, 'w') as f:
+            f.write('Public Key Encryption\n')
+            f.write('=====================\n\n')
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(docstrings.pubkey_example)
+            f.write('\n\n')
+            for cls in classes:
+                cls.write_docs_to_file(f)
 
     def gen_exceptions(self, exceptions):
         for e in exceptions:
@@ -291,27 +314,28 @@ class Generator:
             f.write('#include <nettle/aes.h>\n')
             f.write('#include <nettle/camellia.h>\n')
             f.write('#include <nettle/sha2.h>\n')
-            for object in self.objects:
-                object.write_decl_to_file(f, extern=True)
+            for obj in self.objects:
+                obj.write_decl_to_file(f, extern=True)
             f.write('#endif /* _NETTLE_H_ */\n')
 
     def gen_mod_file(self):
         with open(self.mod_file, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            for object in sorted(self.objects, key=lambda o: o.name):
-                object.write_decl_to_file(f, extern=False)
+            for obj in sorted(self.objects, key=lambda o: o.name):
+                obj.write_decl_to_file(f, extern=False)
 
             module = CModule(name='_nettle', objects=self.objects,
                              doc='An interface to the Nettle'
-                             ' low level cryptographic library')
+                                 ' low level cryptographic library')
             module.write_to_file(f)
 
     def gen_python_file(self):
         with open(self.python_module, 'w') as f:
             f.write('import _nettle\n')
-            for object in sorted(self.objects, key=lambda o: o.name):
-                object.write_python_subclass(f)
+            for obj in sorted(self.objects, key=lambda o: o.name):
+                obj.write_python_subclass(f)
+
 
 gen = Generator()
 gen.gen_hash_file(hashes)

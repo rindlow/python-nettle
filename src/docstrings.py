@@ -205,3 +205,64 @@ umac = 'UMAC is a message authentication code based on universal' \
     ' than 1024 bytes of subkeys. This makes the size of the context' \
     ' struct quite a bit larger than other hash functions and MAC' \
     ' algorithms in Nettle.'
+
+hash_example = '''
+   >>> import nettle
+   >>> sha = nettle.sha256()
+   >>> sha.update(b'abc')
+   >>> sha.hexdigest()
+   'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'
+   >>> nettle.sha256(b'abc').digest()
+   b'\\xbax\\x16\\xbf\\x8f\\x01\\xcf\\xeaAA@\\xde]\\xae"#\\xb0\\x03a\\xa3\\x96\\x17z\\x9c\\xb4\\x10\\xffa\\xf2\\x00\\x15\\xad'
+   >>> nettle.sha256(b'abc').hexdigest()
+   'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'
+'''
+
+# noinspection PyPep8
+cipher_example = '''
+   >>> import nettle
+   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> encryptor.encrypt(b'Secret Message!')
+   Traceback (most recent call last):
+     File "<stdin>", line 1, in <module>
+   nettle.DataLenError: Data length 15 not a multiple of block size 16
+   >>> encryptor.encrypt(b'Secret Message!\\0')
+   b'\\x1a\\xcb8,}!\\x0f\\xa7\\x80\\xbb\\xd8e\\x98.\\x93\\x04'
+   >>> decryptor.decrypt(b'\\x1a\\xcb8,}!\\x0f\\xa7\\x80\\xbb\\xd8e\\x98.\\x93\\x04')
+   b'Secret Message!\\x00'
+'''
+
+mac_example = '''
+   >>> import nettle
+   >>> hmac = nettle.hmac_sha256(b'Secret key')
+   >>> hmac.update(b'Hi There!')
+   >>> hmac.hexdigest()
+   '17194E73033A1BED403216150E8DA0CA1D0772C2F5A7A1BF36CB72D7173A4980'
+'''
+
+ciphermode_example = '''
+   >>> import nettle
+   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> cbc = nettle.CBC(encryptor, b'abababababababab')
+   >>> cbc.encrypt(b'Secret Message!\\0')
+   b'\\x94O,\\xed\\xae\\xc0\\x82\\xe1\\x8c\\xb0-\\xca\\xf7\\xdb\\x8a\\xfd'
+   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> cbc = nettle.CBC(decryptor, b'abababababababab')
+   >>> cbc.decrypt(b'\\x94O,\\xed\\xae\\xc0\\x82\\xe1\\x8c\\xb0-\\xca\\xf7\\xdb\\x8a\\xfd')
+   b'Secret Message!\\x00'
+'''
+
+pubkey_example = '''
+   >>> import nettle
+   >>> keypair = nettle.RSAKeyPair()
+   >>> keypair.genkey(2048, 20)
+   >>> pubkey = keypair.public_key
+   >>> ciphertext = pubkey.encrypt(b'Secret Message!')
+   >>> keypair.decrypt(ciphertext)
+   b'Secret Message!'
+   >>> hash = nettle.sha256(b'Data to be signed')
+   >>> signature = keypair.sign(hash)
+   >>> pubkey.verify(signature, nettle.sha256(b'Data to be signed'))
+   True
+'''
