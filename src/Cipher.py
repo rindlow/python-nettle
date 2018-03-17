@@ -82,6 +82,10 @@ class Cipher(CClass):
         else:
             keys = ['key']
             self.args = 'key=None'
+        if param['nonce']:
+            keys.append('nonce')
+            self.args += ', nonce=None'
+
         self.add_bufferparse_to_init(keys)
         for key in keys:
             self.add_to_init_body(
@@ -118,6 +122,8 @@ class Cipher(CClass):
         else:
             self.add_set_key_function(self.name, keylen=keylen,
                                       varkey=param['variable_keylen'])
+        if param['nonce']:
+            self.add_set_key_function(self.name, key='nonce')
 
         if param['twofuncs']:
             self.add_crypt_method(self.name, 'encrypt')
@@ -135,6 +141,49 @@ class Cipher(CClass):
                     {name}_invert_key (self->ctx, self->ctx);
                     Py_RETURN_NONE;
                     '''.format(name=self.name))
+
+        if param['parity']:
+            self.add_method(
+                name='check_parity',
+                args='METH_VARARGS',
+                docs='Checks that the given key has correct, odd, parity. Returns True'
+                     ' for correct parity, and False for bad parity.',
+                docargs='key',
+                body='''
+                    #if PY_MAJOR_VERSION >= 3
+                      Py_buffer key;
+                      if (!PyArg_ParseTuple (args, "y*", &key))
+                    #else
+                      nettle_py2buf key;
+                      if (!PyArg_ParseTuple (args, "t#", &key.buf, &key.len))
+                    #endif
+                        {{
+                          return NULL;
+                        }}
+                      return PyBool_FromLong ({}_check_parity(key.len, key.buf));
+                '''.format(self.family))
+            self.add_method(
+                name='fix_parity',
+                args='METH_VARARGS',
+                docs='Adjusts the parity bits to match requirements. You'
+                     ' need this function if you have created a'
+                     ' random-looking string by a key agreement protocol,'
+                     ' and want to use it as a key',
+                docargs='key',
+                body='''
+                    #if PY_MAJOR_VERSION >= 3
+                      Py_buffer key;
+                      if (!PyArg_ParseTuple (args, "y*", &key))
+                    #else
+                      nettle_py2buf key;
+                      if (!PyArg_ParseTuple (args, "t#", &key.buf, &key.len))
+                    #endif
+                        {{
+                          return NULL;
+                        }}
+                    {}_fix_parity(key.len, key.buf, key.buf);
+                    return PyBytes_FromStringAndSize ((const char *)key.buf, key.len);
+                '''.format(self.family))
 
     def add_crypt_method(self, name, func):
         crypt = '{}_{} (self->ctx, buffer.len, dst, buffer.buf);'\
@@ -209,7 +258,8 @@ class Cipher(CClass):
                     {{
                       return NULL;
                     }}
-                {setkey}  Py_RETURN_NONE;
+                {setkey}
+                Py_RETURN_NONE;
             '''.format(key=key,
                        setkey=self.key_len_check_and_set(
                            key=key,
@@ -225,20 +275,24 @@ class Cipher(CClass):
             errval = -1
         else:
             errval = 'NULL'
-        if varkey:
-            check = '{key}.len < {cipher_name}_MIN_KEY_SIZE || ' \
-                    '{key}.len > {cipher_name}_MAX_KEY_SIZE' \
-                    .format(key=key, cipher_name=cipher_name.upper())
-            error = '"Invalid key length %d, expected between %d and %d.",' \
-                    '{key}.len, {cipher_name}_MIN_KEY_SIZE, ' \
-                    '{cipher_name}_MAX_KEY_SIZE' \
-                    .format(key=key, cipher_name=cipher_name.upper())
+        if key == 'nonce':
+            KEY = 'NONCE'
         else:
-            check = '{key}.len != {cipher_name}_KEY_SIZE' \
-                    .format(key=key, cipher_name=cipher_name.upper())
+            KEY='KEY'
+        if varkey:
+            check = '{key}.len < {cipher_name}_MIN_{KEY}_SIZE || ' \
+                    '{key}.len > {cipher_name}_MAX_{KEY}_SIZE' \
+                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
+            error = '"Invalid key length %d, expected between %d and %d.",' \
+                    '{key}.len, {cipher_name}_MIN_{KEY}_SIZE, ' \
+                    '{cipher_name}_MAX_{KEY}_SIZE' \
+                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
+        else:
+            check = '{key}.len != {cipher_name}_{KEY}_SIZE' \
+                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
             error = '"Invalid key length %d, expected %d.",' \
-                    '{key}.len, {cipher_name}_KEY_SIZE' \
-                    .format(key=key, cipher_name=cipher_name.upper())
+                    '{key}.len, {cipher_name}_{KEY}_SIZE' \
+                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
         return \
             '  if ({key}.buf != NULL)\n' \
             '    {{\n' \

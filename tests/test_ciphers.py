@@ -478,6 +478,70 @@ class CAST128(TestCase):
                    SHEX("23 8B 4F E5 84 7E 44 B2"))
 
 
+class CHACHA(TestCase):
+
+    def _test(self, key, nonce, expected):
+        self.assertEqual(len(key), 32)
+        data = bytearray(len(expected))
+        c = nettle.chacha(key=key, nonce=nonce)
+        self.assertEqual(c.crypt(data), expected)
+
+        c = nettle.chacha()
+        c.set_key(key)
+        c.set_nonce(nonce)
+        self.assertEqual(c.crypt(data), expected)
+
+    def test_chacha(self):
+        self._test(SHEX("0000000000000000 0000000000000000"
+                        "0000000000000000 0000000000000000"),
+                   SHEX("0000000000000000"),
+                   SHEX("76b8e0ada0f13d90 405d6ae55386bd28"
+                        "bdd219b8a08ded1a a836efcc8b770dc7"
+                        "da41597c5157488d 7724e03fb8d84a37"
+                        "6a43b8f41518a11c c387b669b2ee6586"
+
+                        "9f07e7be5551387a 98ba977c732d080d"
+                        "cb0f29a048e36569 12c6533e32ee7aed"
+                        "29b721769ce64e43 d57133b074d839d5"
+                        "31ed1f28510afb45 ace10a1f4b794d6f"))
+
+
+class DES(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        self.assertTrue(c.check_parity(key))
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = cipher(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = cipher(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        key2 = bytearray(key)
+        key2[-1] ^= 1
+        self.assertFalse(c.check_parity(key2))
+        self.assertTrue(c.check_parity(c.fix_parity(key2)))
+
+
+    def test_des(self):
+        self._test(nettle.des,
+                   SHEX("01234567 89ABCDEF"),
+                   SHEX("01234567 89ABCDE7"),
+                   SHEX("C9574425 6A5ED31D"))
+
+    def test_des3(self):
+        self._test(nettle.des3,
+                   SHEX("3e 0b 10 b0 5d 49 c2 54"
+                        "6b 46 e0 75 8a 91 61 85"
+                        "cb 04 07 d3 20 16 cb a2"),
+                   SDATA("Now is t"),
+                   SHEX("0a 5d b5 2d 85 74 d1 c9"))
+
+
 class Serpent(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext):

@@ -148,6 +148,43 @@ blowfish = 'BLOWFISH is a block cipher designed by Bruce Schneier. It uses' \
 cast128 = 'CAST-128 is a block cipher, specified in RFC 2144. It uses a 64' \
     ' bit (8 octets) block size, and a variable key size of up to 128 bits. '
 
+chacha = 'ChaCha is a variant of the stream cipher Salsa20. When using' \
+    ' ChaCha to process a message, one specifies both a key and a' \
+    ' nonce, the latter playing a similar role to the initialization' \
+    ' vector (IV) used with CBC or CTR mode. One can use the same key' \
+    ' for several messages, provided one uses a unique random nonce for' \
+    ' each message. The nonce is 64 bits (8 octets). The block counter' \
+    ' is initialized to zero for each message, and is also 64 bits (8 octets).'
+
+des = 'DES is the old Data Encryption Standard, specified by NIST. It uses' \
+    ' a block size of 64 bits (8 octets), and a key size of 56 bits.' \
+    ' However, the key bits are distributed over 8 octets, where the least' \
+    ' significant bit of each octet may be used for parity. A common way to' \
+    ' use DES is to generate 8 random octets in some way, then set the least' \
+    ' significant bit of each octet to get odd parity, and initialize DES with' \
+    ' the resulting key. The key size of DES is so small that keys can be' \
+    ' found by brute force, using specialized hardware or lots of ordinary work' \
+    ' stations in parallel. One shouldn’t be using plain DES at all today, if' \
+    ' one uses DES at all one should be using \\"triple DES\\", see DES3 below. '
+
+des3 = 'The standard way to increase DES’s key size is to use three DES boxes.' \
+    ' The mode of operation is a little peculiar: the middle DES box is wired' \
+    ' in the reverse direction. To encrypt a block with DES3, you encrypt it' \
+    ' using the first 56 bits of the key, then decrypt it using the middle 56' \
+    ' bits of the key, and finally encrypt it again using the last 56 bits of' \
+    ' the key. This is known as \\"ede\\" triple-DES, for \\"encrypt-decrypt-encrypt\\".' \
+    ' The \\"ede\\" construction provides some backward compatibility, as you get' \
+    ' plain single DES simply by feeding the same key to all three boxes. That' \
+    ' should help keeping down the gate count, and the price, of hardware' \
+    ' circuits implementing both plain DES and DES3. DES3 has a key size of 168' \
+    ' bits, but just like plain DES, useless parity bits are inserted, so that' \
+    ' keys are represented as 24 octets (192 bits). As a 112 bit key is large' \
+    ' enough to make brute force attacks impractical, some applications uses a' \
+    ' \\"two-key\\" variant of triple-DES. In this mode, the same key bits are used' \
+    ' for the first and the last DES box in the pipe, while the middle box is' \
+    ' keyed independently. The two-key variant is believed to be secure, i.e.' \
+    ' there are no known attacks significantly better than brute force. '
+
 serpent = 'SERPENT is one of the AES finalists, designed by Ross' \
     ' Anderson, Eli Biham and Lars Knudsen. Thus, the interface and' \
     ' properties are similar to AES\'. One peculiarity is that it is' \
