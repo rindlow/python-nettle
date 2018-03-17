@@ -340,6 +340,8 @@ class ARCFOUR(TestCase):
     def _test(self, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = nettle.arcfour()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(cleartext)
         self.assertEqual(len(key), c.key_size)
         c.set_key(key)
         self.assertEqual(c.crypt(cleartext), ciphertext)
@@ -366,6 +368,8 @@ class ARCTWO(TestCase):
     def _test(self, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = nettle.arctwo()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
@@ -386,6 +390,8 @@ class Blowfish(TestCase):
     def _test(self, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = nettle.blowfish()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
@@ -406,6 +412,8 @@ class Camellia_ECB(TestCase):
     def _test(self, cipher, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(cleartext)
         self.assertEqual(len(key), c.key_size)
         c.set_encrypt_key(key)
         self.assertEqual(c.crypt(cleartext), ciphertext)
@@ -462,6 +470,8 @@ class CAST128(TestCase):
     def _test(self, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = nettle.cast128()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
@@ -487,7 +497,11 @@ class CHACHA(TestCase):
         self.assertEqual(c.crypt(data), expected)
 
         c = nettle.chacha()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(data)
         c.set_key(key)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(data)
         c.set_nonce(nonce)
         self.assertEqual(c.crypt(data), expected)
 
@@ -512,6 +526,8 @@ class DES(TestCase):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher()
         self.assertTrue(c.check_parity(key))
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
@@ -549,6 +565,8 @@ class Serpent(TestCase):
         c = cipher()
         # SERPENT_KEY_SIZE is only the default key size
         # self.assertEqual(len(key), c.key_size)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)
@@ -585,6 +603,8 @@ class Twofish(TestCase):
         c = cipher()
         # TWOFISH_KEY_SIZE is only the default key size
         # self.assertEqual(len(key), c.key_size)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
         c.set_key(key)
         self.assertEqual(c.encrypt(cleartext), ciphertext)
         self.assertEqual(c.decrypt(ciphertext), cleartext)

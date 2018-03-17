@@ -40,6 +40,8 @@ class Cipher(CClass):
 
         self.name = param['name']
         self.family = param['family']
+        self.required = 1
+
         if param['lenparam']:
             keylen = 'key.len, '
         else:
@@ -123,6 +125,7 @@ class Cipher(CClass):
             self.add_set_key_function(self.name, keylen=keylen,
                                       varkey=param['variable_keylen'])
         if param['nonce']:
+            self.required += 1
             self.add_set_key_function(self.name, key='nonce')
 
         if param['twofuncs']:
@@ -209,7 +212,7 @@ class Cipher(CClass):
             ' integral multiple of the block size'.format(name.capitalize()),
             docargs='bytes',
             body='''
-                  if (!self->is_initialized)
+                  if (self->is_initialized < {required})
                     {{
                       PyErr_Format (NotInitializedError,
                                     "Cipher not initialized. Set key first!");
@@ -235,7 +238,8 @@ class Cipher(CClass):
                   {crypt}
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
-                '''.format(crypt=crypt, blockcheck=blockcheck))
+                '''.format(crypt=crypt, blockcheck=blockcheck,
+                           required=self.required))
 
     def add_set_key_function(self, name, key='key', keylen='',
                              varkey=False):
@@ -303,7 +307,7 @@ class Cipher(CClass):
             '        }}\n' \
             '      {cipher_name}_set_{key} (self->ctx, {keylen}{key}.buf);\n' \
             '      {key_init}\n' \
-            '      self->is_initialized = 1;\n' \
+            '      self->is_initialized += 1;\n' \
             '    }}\n' \
             .format(key=key, check=check, error=error, cipher_name=cipher_name,
                     keylen=keylen, errval=errval, key_init=key_init)
