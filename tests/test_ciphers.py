@@ -542,7 +542,6 @@ class DES(TestCase):
         self.assertFalse(c.check_parity(key2))
         self.assertTrue(c.check_parity(c.fix_parity(key2)))
 
-
     def test_des(self):
         self._test(nettle.des,
                    SHEX("01234567 89ABCDEF"),

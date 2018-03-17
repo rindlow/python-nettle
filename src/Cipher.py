@@ -118,9 +118,11 @@ class Cipher(CClass):
 
         if param['twokeys']:
             self.add_set_key_function(self.name, key='encrypt_key',
-                                      keylen=keylen, varkey=param['variable_keylen'])
+                                      keylen=keylen,
+                                      varkey=param['variable_keylen'])
             self.add_set_key_function(self.name, key='decrypt_key',
-                                      keylen=keylen, varkey=param['variable_keylen'])
+                                      keylen=keylen,
+                                      varkey=param['variable_keylen'])
         else:
             self.add_set_key_function(self.name, keylen=keylen,
                                       varkey=param['variable_keylen'])
@@ -149,8 +151,9 @@ class Cipher(CClass):
             self.add_method(
                 name='check_parity',
                 args='METH_VARARGS',
-                docs='Checks that the given key has correct, odd, parity. Returns True'
-                     ' for correct parity, and False for bad parity.',
+                docs='Checks that the given key has correct, odd, parity.'
+                     ' Returns True for correct parity, and False for bad'
+                     ' parity.',
                 docargs='key',
                 body='''
                     #if PY_MAJOR_VERSION >= 3
@@ -163,7 +166,8 @@ class Cipher(CClass):
                         {{
                           return NULL;
                         }}
-                      return PyBool_FromLong ({}_check_parity(key.len, key.buf));
+                      return PyBool_FromLong ({}_check_parity(key.len, \\
+                          key.buf));
                 '''.format(self.family))
             self.add_method(
                 name='fix_parity',
@@ -185,7 +189,8 @@ class Cipher(CClass):
                           return NULL;
                         }}
                     {}_fix_parity(key.len, key.buf, key.buf);
-                    return PyBytes_FromStringAndSize ((const char *)key.buf, key.len);
+                    return PyBytes_FromStringAndSize ((const char *)key.buf, \\
+                        key.len);
                 '''.format(self.family))
 
     def add_crypt_method(self, name, func):
@@ -282,7 +287,7 @@ class Cipher(CClass):
         if key == 'nonce':
             KEY = 'NONCE'
         else:
-            KEY='KEY'
+            KEY = 'KEY'
         if varkey:
             check = '{key}.len < {cipher_name}_MIN_{KEY}_SIZE || ' \
                     '{key}.len > {cipher_name}_MAX_{KEY}_SIZE' \

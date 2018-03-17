@@ -186,34 +186,18 @@ class Generator:
                 '#endif\n')
 
     def gen_hash_file(self, hashdata):
-        headers = set([f for h in hashdata for f in h['headers']])
+        headers = set(['nettle/' + f for h in hashdata for f in h['headers']])
         classes = [Hash(h['name'], h['docstring']) for h in hashdata]
         self.objects.extend(classes)
 
-        with open(self.hash_file, 'w') as f:
-            f.write('#include <Python.h>\n')
-            f.write('#include <structmember.h>\n')
-            f.write('#include "{}"\n'.format(self.header_file))
-            for header in sorted(headers):
-                f.write('#include <nettle/{}>\n'.format(header))
-            self.write_python2_buffer_struct(f)
-            f.write('\n')
-            for cls in classes:
-                cls.write_to_file(f)
-
-        with open(self.hash_doc_file, 'w') as f:
-            f.write('Hashes\n')
-            f.write('======\n\n')
-            f.write('Example\n')
-            f.write('-------\n')
-            f.write('.. doctest::\n\n')
-            f.write(docstrings.hash_example)
-            f.write('\n\n')
-            for cls in classes:
-                cls.write_docs_to_file(f)
+        self.write_class_file(self.hash_file, classes, headers)
+        self.write_doc_file(self.hash_doc_file, "Hashes",
+                            docstrings.hash_example, classes)
 
     def gen_cipher_file(self, cipherdata, modedata):
-        headers = set([h for m in cipherdata + modedata for h in m['headers']])
+        headers = set(['nettle/' + h
+                       for m in cipherdata + modedata
+                       for h in m['headers']])
         ciphers = [Cipher(defaultdict(none_factory(), c)) for c in cipherdata]
         modes = [CipherMode(m['name'], m['docstring'],
                             [c for c in cipherdata
@@ -222,92 +206,31 @@ class Generator:
         classes = ciphers + modes
         self.objects.extend(classes)
 
-        with open(self.cipher_file, 'w') as f:
-            f.write('#include <Python.h>\n')
-            f.write('#include <structmember.h>\n')
-            f.write('#include "{}"\n'.format(self.header_file))
-            for header in sorted(headers):
-                f.write('#include <nettle/{}>\n'.format(header))
-            self.write_python2_buffer_struct(f)
-            f.write('\n')
-            for cls in classes:
-                cls.write_to_file(f)
-
-        with open(self.cipher_doc_file, 'w') as f:
-            f.write('Ciphers\n')
-            f.write('========\n\n')
-            f.write('Example\n')
-            f.write('-------\n')
-            f.write('.. doctest::\n\n')
-            f.write(docstrings.cipher_example)
-            f.write('\n\n')
-            for cls in ciphers:
-                cls.write_docs_to_file(f)
-
-        with open(self.ciphermode_doc_file, 'w') as f:
-            f.write('Cipher Modes\n')
-            f.write('============\n\n')
-            f.write('Example\n')
-            f.write('-------\n')
-            f.write('.. doctest::\n\n')
-            f.write(docstrings.ciphermode_example)
-            f.write('\n\n')
-            for cls in modes:
-                cls.write_docs_to_file(f)
+        self.write_class_file(self.cipher_file, classes, headers)
+        self.write_doc_file(self.cipher_doc_file, "Ciphers",
+                            docstrings.cipher_example, ciphers)
+        self.write_doc_file(self.ciphermode_doc_file, "Cipher Modes",
+                            docstrings.ciphermode_example, modes)
 
     def gen_mac_file(self, macdata):
-        headers = set([h for m in macdata for h in m['headers']])
+        headers = set(['nettle/' + h for m in macdata for h in m['headers']])
         classes = [MAC(m['name'], m['docstring']) for m in macdata]
+        self.objects.extend(classes)
 
-        with open(self.mac_file, 'w') as f:
-            f.write('#include <Python.h>\n')
-            f.write('#include <structmember.h>\n')
-            f.write('#include "{}"\n'.format(self.header_file))
-            for header in sorted(headers):
-                f.write('#include <nettle/{}>\n'.format(header))
-            self.write_python2_buffer_struct(f)
-            f.write('\n')
-            for cls in classes:
-                cls.write_to_file(f)
-                self.objects.append(cls)
-
-        with open(self.mac_doc_file, 'w') as f:
-            f.write('Keyed Hash Functions\n')
-            f.write('====================\n\n')
-            f.write('Example\n')
-            f.write('-------\n')
-            f.write('.. doctest::\n\n')
-            f.write(docstrings.mac_example)
-            f.write('\n\n')
-            for cls in classes:
-                cls.write_docs_to_file(f)
+        self.write_class_file(self.mac_file, classes, headers)
+        self.write_doc_file(self.mac_doc_file, 'Keyed Hash Functions',
+                            docstrings.mac_example, classes)
 
     def gen_pubkey_file(self):
         classes = [Yarrow(), RSAKeyPair(), RSAPubKey()]
+        headers = ['fcntl.h', 'nettle/yarrow.h', 'nettle/rsa.h']
+        self.objects.extend(classes)
 
-        with open(self.pubkey_file, 'w') as f:
-            f.write('#include <Python.h>\n')
-            f.write('#include <structmember.h>\n')
-            f.write('#include <fcntl.h>\n')
-            f.write('#include <nettle/yarrow.h>\n')
-            f.write('#include <nettle/rsa.h>\n')
-            f.write('#include "nettle_asn1.h"\n')
-            f.write('#include "{}"\n'.format(self.header_file))
-            self.write_python2_buffer_struct(f)
-            for cls in classes:
-                cls.write_to_file(f)
-                self.objects.append(cls)
+        self.write_class_file(self.pubkey_file, classes, headers,
+                              pynettle_headers=['nettle_asn1.h'])
 
-        with open(self.pubkey_doc_file, 'w') as f:
-            f.write('Public Key Encryption\n')
-            f.write('=====================\n\n')
-            f.write('Example\n')
-            f.write('-------\n')
-            f.write('.. doctest::\n\n')
-            f.write(docstrings.pubkey_example)
-            f.write('\n\n')
-            for cls in classes:
-                cls.write_docs_to_file(f)
+        self.write_doc_file(self.pubkey_doc_file, 'Public Key Encryption',
+                            docstrings.pubkey_example, classes)
 
     def gen_exceptions(self, exceptions):
         for e in exceptions:
@@ -317,7 +240,6 @@ class Generator:
     def gen_header_file(self):
         with open(self.header_file, 'w') as f:
             f.write('#ifndef _NETTLE_H_\n#define _NETTLE_H_\n\n')
-            f.write('#include <nettle/aes.h>\n')
             f.write('#include <nettle/camellia.h>\n')
             f.write('#include <nettle/sha2.h>\n')
             for obj in self.objects:
@@ -341,6 +263,33 @@ class Generator:
             f.write('import _nettle\n')
             for obj in sorted(self.objects, key=lambda o: o.name):
                 obj.write_python_subclass(f)
+
+    def write_class_file(self, filename, classes, nettle_headers,
+                         pynettle_headers=[]):
+        with open(filename, 'w') as f:
+            f.write('#include <Python.h>\n')
+            f.write('#include <structmember.h>\n')
+            f.write('#include "{}"\n'.format(self.header_file))
+            for header in sorted(nettle_headers):
+                f.write('#include <{}>\n'.format(header))
+            for header in sorted(pynettle_headers):
+                f.write('#include "{}"\n'.format(header))
+            self.write_python2_buffer_struct(f)
+            f.write('\n')
+            for cls in classes:
+                cls.write_to_file(f)
+
+    def write_doc_file(self, filename, title, example, classes):
+        with open(filename, 'w') as f:
+            f.write('{}\n'.format(title))
+            f.write('{}\n\n'.format('=' * len(title)))
+            f.write('Example\n')
+            f.write('-------\n')
+            f.write('.. doctest::\n\n')
+            f.write(example)
+            f.write('\n\n')
+            for cls in classes:
+                cls.write_docs_to_file(f)
 
 
 gen = Generator()
