@@ -14,15 +14,6 @@ def SHEX(hexstring):
         b.append(int(hexstring[i:i + 2], 16))
     return bytes(b)
 
-def hexdump(b):
-    for i in range(len(b)):
-        if i % 16 == 0:
-            print('\n{:02X}: '.format(i), end=' ')
-        if i % 8 == 0:
-            print('', end=' ')
-        print('{:02X}'.format(b[i]), end=' ')
-    print()
-
 
 class AES(TestCase):
 
@@ -252,7 +243,7 @@ class Salsa(TestCase):
 
     def _test(self, cipher, key, nonce, expected):
         self.assertEqual(len(key), 32)
-        data = bytearray(len(expected))
+        data = b'\0' * len(expected)
         c = cipher(key=key, nonce=nonce)
         self.assertEqual(c.crypt(data), expected)
 
@@ -307,8 +298,8 @@ class DES(TestCase):
 
         key2 = bytearray(key)
         key2[-1] ^= 1
-        self.assertFalse(c.check_parity(key2))
-        self.assertTrue(c.check_parity(c.fix_parity(key2)))
+        self.assertFalse(c.check_parity(bytes(key2)))
+        self.assertTrue(c.check_parity(c.fix_parity(bytes(key2))))
 
     def test_des(self):
         self._test(nettle.des,
@@ -665,8 +656,6 @@ class EAX(TestCase):
         if authtext:
             eax.update(authtext)
         self.assertEqual(eax.encrypt(cleartext), ciphertext)
-        tag = eax.digest()
-        hexdump(tag)
         self.assertEqual(eax.digest(), digest)
         self.assertEqual(SHEX(eax.hexdigest()), digest)
         self.assertEqual(eax.digest(), digest)
@@ -691,12 +680,12 @@ class EAX(TestCase):
 
     def test_aes128_eax(self):
         self._test(nettle.aes128,
-	           SHEX("01F74AD64077F2E704C0F60ADA3DD523"),
-	           SHEX("234A3463C1264AC6"),
-	           SHEX("1A47CB4933"),
-	           SHEX("D851D5BAE0"),
-	           SHEX("70C3DB4F0D26368400A10ED05D2BFF5E"),
-	           SHEX("3A59F238A23E39199DC9266626C40F80"))
+                   SHEX("01F74AD64077F2E704C0F60ADA3DD523"),
+                   SHEX("234A3463C1264AC6"),
+                   SHEX("1A47CB4933"),
+                   SHEX("D851D5BAE0"),
+                   SHEX("70C3DB4F0D26368400A10ED05D2BFF5E"),
+                   SHEX("3A59F238A23E39199DC9266626C40F80"))
         self._test(nettle.aes128,
                    SHEX("233952DEE4D5ED5F9B9C6D6FF80FF478"),
                    SHEX("6BFB914FD07EAE6B"),

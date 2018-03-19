@@ -187,7 +187,7 @@ class Generator:
     def write_python2_buffer_struct(f):
         f.write('#if PY_MAJOR_VERSION < 3\n'
                 'typedef struct py2buf_struct\n{\n'
-                '  const uint8_t *buf;\n'
+                '  uint8_t *buf;\n'
                 '  int len;\n'
                 '} nettle_py2buf;\n'
                 '#endif\n')

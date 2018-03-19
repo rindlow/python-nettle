@@ -36,7 +36,8 @@ from CClass import CClass
 class CipherMode(CClass):
 
     def __init__(self, param, ciphers):
-        CClass.__init__(self, name=param['name'], docs=param['docs'])
+        CClass.__init__(self, name=param['name'], docs=param['docstring'])
+        self.docs = param['docstring']
 
         name = param['name']
         lname = name.lower()
@@ -90,14 +91,13 @@ class CipherMode(CClass):
                 dealloc='''
                     PyMem_Free (self->{lname}key);
                     self->{lname}key = NULL;'''.format(lname=lname))
-            self.args = 'cipher, initial_{iv}'.format(iv=param['iv'])
         else:
             self.add_member(
                 name=param['iv'],
                 decl='uint8_t * {}'.format(param['iv']),
                 init='self->{} = NULL;'.format(param['iv']))
-            self.args = 'cipher, initial_{}'.format(param['iv'])
 
+        self.args = 'cipher, {iv}'.format(iv=param['iv'])
 
         self.add_to_init_body('''
             PyObject *obj = NULL;

@@ -40,6 +40,7 @@ class Cipher(CClass):
 
         self.name = param['name']
         self.family = param['family']
+        self.docs = param['docstring']
         self.required = 1
 
         if param['lenparam']:
