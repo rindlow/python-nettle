@@ -90,9 +90,13 @@ class Cipher(CClass):
 
         self.add_bufferparse_to_init(keys)
         for key in keys:
+            if key == 'nonce':
+                kl = ''
+            else:
+                kl = keylen
             self.add_to_init_body(
                 self.key_len_check_and_set(
-                    key=key, keylen=keylen, cipher_name=self.name, init=True,
+                    key=key, keylen=kl, cipher_name=self.name, init=True,
                     varkey=param['variable_keylen']))
 
         self.add_member(
@@ -128,7 +132,7 @@ class Cipher(CClass):
                                       varkey=param['variable_keylen'])
         if param['nonce']:
             self.required += 1
-            self.add_set_key_function(self.name, key='nonce')
+            self.add_set_key_function(self.name, keylen='', key='nonce')
 
         if param['twofuncs']:
             self.add_crypt_method(self.name, 'encrypt')
@@ -292,14 +296,14 @@ class Cipher(CClass):
             check = '{key}.len < {cipher_name}_MIN_{KEY}_SIZE || ' \
                     '{key}.len > {cipher_name}_MAX_{KEY}_SIZE' \
                     .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
-            error = '"Invalid key length %d, expected between %d and %d.",' \
+            error = '"Invalid {key} length %d, expected between %d and %d.",' \
                     '{key}.len, {cipher_name}_MIN_{KEY}_SIZE, ' \
                     '{cipher_name}_MAX_{KEY}_SIZE' \
                     .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
         else:
             check = '{key}.len != {cipher_name}_{KEY}_SIZE' \
                     .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
-            error = '"Invalid key length %d, expected %d.",' \
+            error = '"Invalid {key} length %d, expected %d.",' \
                     '{key}.len, {cipher_name}_{KEY}_SIZE' \
                     .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
         return \

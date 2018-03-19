@@ -156,6 +156,14 @@ chacha = 'ChaCha is a variant of the stream cipher Salsa20. When using' \
     ' each message. The nonce is 64 bits (8 octets). The block counter' \
     ' is initialized to zero for each message, and is also 64 bits (8 octets).'
 
+salsa20 = 'When using' \
+    ' salsa20 to process a message, one specifies both a key and a' \
+    ' nonce, the latter playing a similar role to the initialization' \
+    ' vector (IV) used with CBC or CTR mode. One can use the same key' \
+    ' for several messages, provided one uses a unique random nonce for' \
+    ' each message. The nonce is 64 bits (8 octets). The block counter' \
+    ' is initialized to zero for each message, and is also 64 bits (8 octets).'
+
 des = 'DES is the old Data Encryption Standard, specified by NIST. It uses' \
     ' a block size of 64 bits (8 octets), and a key size of 56 bits.' \
     ' However, the key bits are distributed over 8 octets, where the least' \

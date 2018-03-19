@@ -14,9 +14,17 @@ def SHEX(hexstring):
         b.append(int(hexstring[i:i + 2], 16))
     return bytes(b)
 
+def hexdump(b):
+    for i in range(len(b)):
+        if i % 16 == 0:
+            print('\n{:02X}: '.format(i), end=' ')
+        if i % 8 == 0:
+            print('', end=' ')
+        print('{:02X}'.format(b[i]), end=' ')
+    print()
 
-# noinspection PyUnusedLocal
-class AES_ECB(TestCase):
+
+class AES(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext):
         self.assertEqual(len(cleartext), len(ciphertext))
@@ -60,34 +68,344 @@ class AES_ECB(TestCase):
         c.invert_key()
         self.assertEqual(c.decrypt(ciphertext), cleartext)
 
-    def test_aes128_ecb(self):
+    def test_aes128(self):
         self._test(nettle.aes128,
                    SHEX("0001020305060708 0A0B0C0D0F101112"),
                    SHEX("506812A45F08C889 B97F5980038B8359"),
                    SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
 
-    def test_aes192_ecb(self):
+    def test_aes192(self):
         self._test(nettle.aes192,
                    SHEX("0001020305060708 0A0B0C0D0F101112"
                         "14151617191A1B1C"),
                    SHEX("2D33EEF2C0430A8A 9EBF45E809C40BB6"),
                    SHEX("DFF4945E0336DF4C 1C56BC700EFF837F"))
 
-    def test_aes256_ecb(self):
+    def test_aes256(self):
         self._test(nettle.aes256,
                    SHEX("0001020305060708 0A0B0C0D0F101112"
                         "14151617191A1B1C 1E1F202123242526"),
                    SHEX("834EADFCCAC7E1B30664B1ABA44815AB"),
                    SHEX("1946DABF6A03A2A2 C3D0B05080AED6FC"))
 
-    def test_aes128_ecb_invert(self):
+    def test_aes128_invert(self):
         self._test_invert(nettle.aes128,
                           SHEX("0001020305060708 0A0B0C0D0F101112"),
                           SHEX("506812A45F08C889 B97F5980038B8359"),
                           SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
 
 
-class AES_CTR(TestCase):
+class ARCFOUR(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.arcfour()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(cleartext)
+        self.assertEqual(len(key), c.key_size)
+        c.set_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = nettle.arcfour(key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        with self.assertRaises(nettle.NotInitializedError):
+            c = nettle.arcfour()
+            c.crypt(cleartext)
+
+    def test_arcfour(self):
+        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
+                   SHEX("01234567 89ABCDEF"),
+                   SHEX("69723659 1B5242B1"))
+
+
+class ARCTWO(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.arctwo()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = nettle.arctwo(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.arctwo(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_arctwo(self):
+        self._test(SHEX("ffffffff ffffffff"),
+                   SHEX("ffffffff ffffffff"),
+                   SHEX("278b27e4 2e2f0d49"))
+
+
+class Blowfish(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.blowfish()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = nettle.blowfish(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.blowfish(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_blowfish(self):
+        self._test(SDATA("abcdefghijklmnopqrstuvwxyz"),
+                   SDATA("BLOWFISH"),
+                   SHEX("32 4E D0 FE F4 13 A2 03"))
+
+
+class Camellia(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(cleartext)
+        self.assertEqual(len(key), c.key_size)
+        c.set_encrypt_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_decrypt_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = cipher(decrypt_key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
+
+    def _test_invert(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.invert_key()
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+    def test_camellia128(self):
+        self._test(nettle.camellia128,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"))
+
+    def test_camellia192(self):
+        self._test(nettle.camellia192,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                        "00 11 22 33 44 55 66 77"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"))
+
+    def test_camellia256(self):
+        self._test(nettle.camellia256,
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                        "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"),
+                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+                   SHEX("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"))
+
+    def test_camellia128_invert(self):
+        self._test_invert(nettle.camellia128,
+                          SHEX("01 23 45 67 89 ab cd ef"
+                               "fe dc ba 98 76 54 32 10"),
+                          SHEX("01 23 45 67 89 ab cd ef"
+                               "fe dc ba 98 76 54 32 10"),
+                          SHEX("67 67 31 38 54 96 69 73"
+                               "08 57 06 56 48 ea be 43"))
+
+
+class CAST128(TestCase):
+
+    def _test(self, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = nettle.cast128()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = nettle.cast128(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = nettle.cast128(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_cast128(self):
+        self._test(SHEX("01 23 45 67 12 34 56 78"
+                        "23 45 67 89 34 56 78 9A"),
+                   SHEX("01 23 45 67 89 AB CD EF"),
+                   SHEX("23 8B 4F E5 84 7E 44 B2"))
+
+
+class Salsa(TestCase):
+
+    def _test(self, cipher, key, nonce, expected):
+        self.assertEqual(len(key), 32)
+        data = bytearray(len(expected))
+        c = cipher(key=key, nonce=nonce)
+        self.assertEqual(c.crypt(data), expected)
+
+        c = cipher()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(data)
+        c.set_key(key)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(data)
+        c.set_nonce(nonce)
+        self.assertEqual(c.crypt(data), expected)
+
+    def test_salsa20(self):
+        self._test(nettle.salsa20,
+                   SHEX("80000000 00000000 00000000 00000000"
+                        "00000000 00000000 00000000 00000000"),
+                   SHEX("00000000 00000000"),
+                   SHEX("E3BE8FDD 8BECA2E3"))
+
+    def test_chacha(self):
+        self._test(nettle.chacha,
+                   SHEX("0000000000000000 0000000000000000"
+                        "0000000000000000 0000000000000000"),
+                   SHEX("0000000000000000"),
+                   SHEX("76b8e0ada0f13d90 405d6ae55386bd28"
+                        "bdd219b8a08ded1a a836efcc8b770dc7"
+                        "da41597c5157488d 7724e03fb8d84a37"
+                        "6a43b8f41518a11c c387b669b2ee6586"
+
+                        "9f07e7be5551387a 98ba977c732d080d"
+                        "cb0f29a048e36569 12c6533e32ee7aed"
+                        "29b721769ce64e43 d57133b074d839d5"
+                        "31ed1f28510afb45 ace10a1f4b794d6f"))
+
+
+class DES(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        self.assertTrue(c.check_parity(key))
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = cipher(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = cipher(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        key2 = bytearray(key)
+        key2[-1] ^= 1
+        self.assertFalse(c.check_parity(key2))
+        self.assertTrue(c.check_parity(c.fix_parity(key2)))
+
+    def test_des(self):
+        self._test(nettle.des,
+                   SHEX("01234567 89ABCDEF"),
+                   SHEX("01234567 89ABCDE7"),
+                   SHEX("C9574425 6A5ED31D"))
+
+    def test_des3(self):
+        self._test(nettle.des3,
+                   SHEX("3e 0b 10 b0 5d 49 c2 54"
+                        "6b 46 e0 75 8a 91 61 85"
+                        "cb 04 07 d3 20 16 cb a2"),
+                   SDATA("Now is t"),
+                   SHEX("0a 5d b5 2d 85 74 d1 c9"))
+
+
+class Serpent(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        # SERPENT_KEY_SIZE is only the default key size
+        # self.assertEqual(len(key), c.key_size)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = cipher(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = cipher(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+    def test_serpent128(self):
+        self._test(nettle.serpent,
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("D29D576FCEA3A3A7 ED9099F29273D78E"),
+                   SHEX("B2288B968AE8B086 48D1CE9606FD992D"))
+
+    def test_serpent192(self):
+        self._test(nettle.serpent,
+                   SHEX("0000000000000000 0000000000000000 0000000000000000"),
+                   SHEX("D29D576FCEABA3A7 ED9899F2927BD78E"),
+                   SHEX("130E353E1037C224 05E8FAEFB2C3C3E9"))
+
+    def test_serpent256(self):
+        self._test(nettle.serpent,
+                   SHEX("0000000000000000 0000000000000000"
+                        "0000000000000000 0000000000000000"),
+                   SHEX("D095576FCEA3E3A7 ED98D9F29073D78E"),
+                   SHEX("B90EE5862DE69168 F2BDD5125B45472B"))
+
+
+class Twofish(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        # TWOFISH_KEY_SIZE is only the default key size
+        # self.assertEqual(len(key), c.key_size)
+        with self.assertRaises(nettle.NotInitializedError):
+            c.encrypt(cleartext)
+        c.set_key(key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        c = cipher(key=key)
+        self.assertEqual(c.encrypt(cleartext), ciphertext)
+        c = cipher(key=key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
+
+        # with self.assertRaises(nettle.KeyLenError):
+        #     c = cipher(key=key[:-1])
+
+    def test_twofish128(self):
+        self._test(nettle.twofish,
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("9F589F5CF6122C32 B6BFEC2F2AE8C35A"))
+
+    def test_twofish192(self):
+        self._test(nettle.twofish,
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"
+                        "0011223344556677"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("CFD1D2E5A9BE9CDF 501F13B892BD2248"))
+
+    def test_twofish256(self):
+        self._test(nettle.twofish,
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"
+                        "0011223344556677 8899AABBCCDDEEFF"),
+                   SHEX("0000000000000000 0000000000000000"),
+                   SHEX("37527BE0052334B8 9F0CFCCAE87CFA20"))
+
+
+class CTR(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext, ctr):
         self.assertEqual(len(cleartext), len(ciphertext))
@@ -154,7 +472,7 @@ class AES_CTR(TestCase):
                    SHEX("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"))
 
 
-class AES_CBC(TestCase):
+class CBC(TestCase):
 
     def _test(self, cipher, key, cleartext, ciphertext, iv):
         self.assertEqual(len(cleartext), len(ciphertext))
@@ -335,303 +653,54 @@ class GCM(TestCase):
                    SHEX("4e4b178d8fe26fdc95e2e7246dd94bec"))
 
 
-class ARCFOUR(TestCase):
+class EAX(TestCase):
 
-    def _test(self, key, cleartext, ciphertext):
+    def _test(self, cipher, key, authtext, cleartext, ciphertext,
+              nonce, digest):
         self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.arcfour()
-        with self.assertRaises(nettle.NotInitializedError):
-            c.crypt(cleartext)
-        self.assertEqual(len(key), c.key_size)
-        c.set_key(key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c.set_key(key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
 
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c = nettle.arcfour(key=key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
-
-        with self.assertRaises(nettle.NotInitializedError):
-            c = nettle.arcfour()
-            c.crypt(cleartext)
-
-    def test_arcfour(self):
-        self._test(SHEX("01234567 89ABCDEF 00000000 00000000"),
-                   SHEX("01234567 89ABCDEF"),
-                   SHEX("69723659 1B5242B1"))
-
-
-class ARCTWO(TestCase):
-
-    def _test(self, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.arctwo()
-        with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = nettle.arctwo(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = nettle.arctwo(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-    def test_arctwo(self):
-        self._test(SHEX("ffffffff ffffffff"),
-                   SHEX("ffffffff ffffffff"),
-                   SHEX("278b27e4 2e2f0d49"))
-
-
-class Blowfish(TestCase):
-
-    def _test(self, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.blowfish()
-        with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = nettle.blowfish(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = nettle.blowfish(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-    def test_blowfish(self):
-        self._test(SDATA("abcdefghijklmnopqrstuvwxyz"),
-                   SDATA("BLOWFISH"),
-                   SHEX("32 4E D0 FE F4 13 A2 03"))
-
-
-class Camellia_ECB(TestCase):
-
-    def _test(self, cipher, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher()
-        with self.assertRaises(nettle.NotInitializedError):
-            c.crypt(cleartext)
-        self.assertEqual(len(key), c.key_size)
-        c.set_encrypt_key(key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c.set_decrypt_key(key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
-
-        c = cipher(encrypt_key=key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c = cipher(decrypt_key=key)
-        self.assertEqual(c.crypt(ciphertext), cleartext)
+        c = cipher(key)
+        self.assertEqual(c.key_size, len(key))
+        eax = nettle.EAX(c, nonce)
+        if authtext:
+            eax.update(authtext)
+        self.assertEqual(eax.encrypt(cleartext), ciphertext)
+        tag = eax.digest()
+        hexdump(tag)
+        self.assertEqual(eax.digest(), digest)
+        self.assertEqual(SHEX(eax.hexdigest()), digest)
+        self.assertEqual(eax.digest(), digest)
 
         with self.assertRaises(nettle.KeyLenError):
-            c = cipher(encrypt_key=key[:-1])
+            c = cipher(encrypt_key=key + b'a')
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher()
+            c.set_encrypt_key(key[:-1])
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher()
+            c.set_decrypt_key(key[:-1])
 
-    def _test_invert(self, cipher, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher(encrypt_key=key)
-        self.assertEqual(c.crypt(cleartext), ciphertext)
-        c.invert_key()
-        self.assertEqual(c.crypt(ciphertext), cleartext)
-
-    def test_camellia128_ecb(self):
-        self._test(nettle.camellia128,
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-                   SHEX("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"))
-
-    def test_camellia192_ecb(self):
-        self._test(nettle.camellia192,
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
-                        "00 11 22 33 44 55 66 77"),
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-                   SHEX("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"))
-
-    def test_camellia256_ecb(self):
-        self._test(nettle.camellia256,
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
-                        "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"),
-                   SHEX("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-                   SHEX("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"))
-
-    def test_camellia128_ecb_invert(self):
-        self._test_invert(nettle.camellia128,
-                          SHEX("01 23 45 67 89 ab cd ef"
-                               "fe dc ba 98 76 54 32 10"),
-                          SHEX("01 23 45 67 89 ab cd ef"
-                               "fe dc ba 98 76 54 32 10"),
-                          SHEX("67 67 31 38 54 96 69 73"
-                               "08 57 06 56 48 ea be 43"))
-
-
-class CAST128(TestCase):
-
-    def _test(self, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = nettle.cast128()
         with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = nettle.cast128(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = nettle.cast128(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-    def test_cast128(self):
-        self._test(SHEX("01 23 45 67 12 34 56 78"
-                        "23 45 67 89 34 56 78 9A"),
-                   SHEX("01 23 45 67 89 AB CD EF"),
-                   SHEX("23 8B 4F E5 84 7E 44 B2"))
-
-
-class CHACHA(TestCase):
-
-    def _test(self, key, nonce, expected):
-        self.assertEqual(len(key), 32)
-        data = bytearray(len(expected))
-        c = nettle.chacha(key=key, nonce=nonce)
-        self.assertEqual(c.crypt(data), expected)
-
-        c = nettle.chacha()
+            c = cipher()
+            eax = nettle.EAX(c, nonce)
+            eax.encrypt(cleartext)
         with self.assertRaises(nettle.NotInitializedError):
-            c.crypt(data)
-        c.set_key(key)
-        with self.assertRaises(nettle.NotInitializedError):
-            c.crypt(data)
-        c.set_nonce(nonce)
-        self.assertEqual(c.crypt(data), expected)
+            c = cipher()
+            eax = nettle.EAX(c, nonce)
+            eax.decrypt(cleartext)
 
-    def test_chacha(self):
-        self._test(SHEX("0000000000000000 0000000000000000"
-                        "0000000000000000 0000000000000000"),
-                   SHEX("0000000000000000"),
-                   SHEX("76b8e0ada0f13d90 405d6ae55386bd28"
-                        "bdd219b8a08ded1a a836efcc8b770dc7"
-                        "da41597c5157488d 7724e03fb8d84a37"
-                        "6a43b8f41518a11c c387b669b2ee6586"
-
-                        "9f07e7be5551387a 98ba977c732d080d"
-                        "cb0f29a048e36569 12c6533e32ee7aed"
-                        "29b721769ce64e43 d57133b074d839d5"
-                        "31ed1f28510afb45 ace10a1f4b794d6f"))
-
-
-class DES(TestCase):
-
-    def _test(self, cipher, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher()
-        self.assertTrue(c.check_parity(key))
-        with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = cipher(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = cipher(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        key2 = bytearray(key)
-        key2[-1] ^= 1
-        self.assertFalse(c.check_parity(key2))
-        self.assertTrue(c.check_parity(c.fix_parity(key2)))
-
-    def test_des(self):
-        self._test(nettle.des,
-                   SHEX("01234567 89ABCDEF"),
-                   SHEX("01234567 89ABCDE7"),
-                   SHEX("C9574425 6A5ED31D"))
-
-    def test_des3(self):
-        self._test(nettle.des3,
-                   SHEX("3e 0b 10 b0 5d 49 c2 54"
-                        "6b 46 e0 75 8a 91 61 85"
-                        "cb 04 07 d3 20 16 cb a2"),
-                   SDATA("Now is t"),
-                   SHEX("0a 5d b5 2d 85 74 d1 c9"))
-
-
-class Serpent(TestCase):
-
-    def _test(self, cipher, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher()
-        # SERPENT_KEY_SIZE is only the default key size
-        # self.assertEqual(len(key), c.key_size)
-        with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = cipher(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = cipher(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-    def test_serpent128(self):
-        self._test(nettle.serpent,
-                   SHEX("0000000000000000 0000000000000000"),
-                   SHEX("D29D576FCEA3A3A7 ED9099F29273D78E"),
-                   SHEX("B2288B968AE8B086 48D1CE9606FD992D"))
-
-    def test_serpent192(self):
-        self._test(nettle.serpent,
-                   SHEX("0000000000000000 0000000000000000 0000000000000000"),
-                   SHEX("D29D576FCEABA3A7 ED9899F2927BD78E"),
-                   SHEX("130E353E1037C224 05E8FAEFB2C3C3E9"))
-
-    def test_serpent256(self):
-        self._test(nettle.serpent,
-                   SHEX("0000000000000000 0000000000000000"
-                        "0000000000000000 0000000000000000"),
-                   SHEX("D095576FCEA3E3A7 ED98D9F29073D78E"),
-                   SHEX("B90EE5862DE69168 F2BDD5125B45472B"))
-
-
-class Twofish(TestCase):
-
-    def _test(self, cipher, key, cleartext, ciphertext):
-        self.assertEqual(len(cleartext), len(ciphertext))
-        c = cipher()
-        # TWOFISH_KEY_SIZE is only the default key size
-        # self.assertEqual(len(key), c.key_size)
-        with self.assertRaises(nettle.NotInitializedError):
-            c.encrypt(cleartext)
-        c.set_key(key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        c = cipher(key=key)
-        self.assertEqual(c.encrypt(cleartext), ciphertext)
-        c = cipher(key=key)
-        self.assertEqual(c.decrypt(ciphertext), cleartext)
-
-        # with self.assertRaises(nettle.KeyLenError):
-        #     c = cipher(key=key[:-1])
-
-    def test_twofish128(self):
-        self._test(nettle.twofish,
-                   SHEX("0000000000000000 0000000000000000"),
-                   SHEX("0000000000000000 0000000000000000"),
-                   SHEX("9F589F5CF6122C32 B6BFEC2F2AE8C35A"))
-
-    def test_twofish192(self):
-        self._test(nettle.twofish,
-                   SHEX("0123456789ABCDEF FEDCBA9876543210"
-                        "0011223344556677"),
-                   SHEX("0000000000000000 0000000000000000"),
-                   SHEX("CFD1D2E5A9BE9CDF 501F13B892BD2248"))
-
-    def test_twofish256(self):
-        self._test(nettle.twofish,
-                   SHEX("0123456789ABCDEF FEDCBA9876543210"
-                        "0011223344556677 8899AABBCCDDEEFF"),
-                   SHEX("0000000000000000 0000000000000000"),
-                   SHEX("37527BE0052334B8 9F0CFCCAE87CFA20"))
+    def test_aes128_eax(self):
+        self._test(nettle.aes128,
+	           SHEX("01F74AD64077F2E704C0F60ADA3DD523"),
+	           SHEX("234A3463C1264AC6"),
+	           SHEX("1A47CB4933"),
+	           SHEX("D851D5BAE0"),
+	           SHEX("70C3DB4F0D26368400A10ED05D2BFF5E"),
+	           SHEX("3A59F238A23E39199DC9266626C40F80"))
+        self._test(nettle.aes128,
+                   SHEX("233952DEE4D5ED5F9B9C6D6FF80FF478"),
+                   SHEX("6BFB914FD07EAE6B"),
+                   SHEX(""),
+                   SHEX(""),
+                   SHEX("62EC67F9C3A4A407FCB2A8C49031A8B3"),
+                   SHEX("E037830E8389F27B025A2D6527E79D01"))

@@ -108,6 +108,9 @@ ciphers = [
     {'name': 'chacha', 'headers': ['chacha.h'],
      'docstring': docstrings.chacha,
      'nonce': True},
+    {'name': 'salsa20', 'headers': ['salsa20.h'],
+     'docstring': docstrings.salsa20,
+     'lenparam': True, 'nonce': True},
     {'name': 'des', 'family': 'des', 'headers': ['des.h'],
      'docstring': docstrings.des,
      'twofuncs': True, 'parity': True},
@@ -124,11 +127,15 @@ ciphers = [
 
 ciphermodes = [
     {'name': 'CBC', 'docstring': 'Cipher Block Chaining',
-     'headers': ['cbc.h']},
+     'headers': ['cbc.h'], 'iv': 'iv', 'twofuncs': True},
     {'name': 'CTR', 'docstring': 'Counter Mode',
-     'headers': ['ctr.h']},
+     'headers': ['ctr.h'], 'iv': 'ctr'},
     {'name': 'GCM', 'docstring': 'Galois Counter Mode',
-     'headers': ['gcm.h']},
+     'headers': ['gcm.h'], 'iv': 'iv', 'aead': True},
+    {'name': 'EAX', 'docstring': 'The EAX mode is an AEAD mode which'
+     ' combines CTR mode encryption, with a message authentication'
+     ' based on CBC', 'headers': ['eax.h'],
+     'iv': 'nonce', 'aead': True, 'cipher_param': True},
 ]
 
 macs = [
@@ -186,8 +193,8 @@ class Generator:
                 '#endif\n')
 
     def gen_hash_file(self, hashdata):
-        headers = set(['nettle/' + f for h in hashdata for f in h['headers']])
-        classes = [Hash(h['name'], h['docstring']) for h in hashdata]
+        headers = set([f for h in hashdata for f in h['headers']])
+        classes = [Hash(p['name'], p['docstring']) for p in hashdata]
         self.objects.extend(classes)
 
         self.write_class_file(self.hash_file, classes, headers)
@@ -195,11 +202,9 @@ class Generator:
                             docstrings.hash_example, classes)
 
     def gen_cipher_file(self, cipherdata, modedata):
-        headers = set(['nettle/' + h
-                       for m in cipherdata + modedata
-                       for h in m['headers']])
+        headers = set([h for m in cipherdata + modedata for h in m['headers']])
         ciphers = [Cipher(defaultdict(none_factory(), c)) for c in cipherdata]
-        modes = [CipherMode(m['name'], m['docstring'],
+        modes = [CipherMode(defaultdict(none_factory(), m),
                             [c for c in cipherdata
                              if c.get('family') in ('aes', 'camellia')])
                  for m in modedata]
@@ -213,7 +218,7 @@ class Generator:
                             docstrings.ciphermode_example, modes)
 
     def gen_mac_file(self, macdata):
-        headers = set(['nettle/' + h for m in macdata for h in m['headers']])
+        headers = set([h for m in macdata for h in m['headers']])
         classes = [MAC(m['name'], m['docstring']) for m in macdata]
         self.objects.extend(classes)
 
@@ -223,10 +228,11 @@ class Generator:
 
     def gen_pubkey_file(self):
         classes = [Yarrow(), RSAKeyPair(), RSAPubKey()]
-        headers = ['fcntl.h', 'nettle/yarrow.h', 'nettle/rsa.h']
+        headers = ['yarrow.h', 'rsa.h']
         self.objects.extend(classes)
 
         self.write_class_file(self.pubkey_file, classes, headers,
+                              system_headers=['fcntl.h'],
                               pynettle_headers=['nettle_asn1.h'])
 
         self.write_doc_file(self.pubkey_doc_file, 'Public Key Encryption',
@@ -265,13 +271,15 @@ class Generator:
                 obj.write_python_subclass(f)
 
     def write_class_file(self, filename, classes, nettle_headers,
-                         pynettle_headers=[]):
+                         system_headers=[], pynettle_headers=[]):
         with open(filename, 'w') as f:
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            for header in sorted(nettle_headers):
+            for header in sorted(system_headers):
                 f.write('#include <{}>\n'.format(header))
+            for header in sorted(nettle_headers):
+                f.write('#include <nettle/{}>\n'.format(header))
             for header in sorted(pynettle_headers):
                 f.write('#include "{}"\n'.format(header))
             self.write_python2_buffer_struct(f)

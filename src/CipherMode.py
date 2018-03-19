@@ -35,9 +35,11 @@ from CClass import CClass
 
 class CipherMode(CClass):
 
-    def __init__(self, name, docs, ciphers):
-        CClass.__init__(self, name=name, docs=docs)
+    def __init__(self, param, ciphers):
+        CClass.__init__(self, name=param['name'], docs=param['docs'])
 
+        name = param['name']
+        lname = name.lower()
         self.add_member(
             name='cipher',
             decl='PyObject * cipher',
@@ -62,40 +64,40 @@ class CipherMode(CClass):
             name='decrypt_func',
             decl='nettle_cipher_func *decrypt_func',
             init='self->decrypt_func = NULL;')
-        if name == 'CBC':
+
+        if param['aead']:
             self.add_member(
-                name='iv',
-                decl='uint8_t *iv',
-                init='self->iv = NULL;')
-            self.args = 'cipher, initial_iv'
-        if name == 'CTR':
-            self.add_member(
-                name='ctr',
-                decl='uint8_t *ctr',
-                init='self->ctr = NULL;')
-            self.args = 'cipher, initial_ctr'
-        if name == 'GCM':
-            self.add_member(
-                name='gcmctx',
-                decl='struct gcm_ctx *gcmctx',
+                name='{lname}ctx'.format(lname=lname),
+                decl='struct {lname}_ctx *{lname}ctx'.format(lname=lname),
                 alloc='''
-                if ((self->gcmctx = PyMem_Malloc (sizeof (struct \\
-                     gcm_ctx))) == NULL)
-                  {
-                    return PyErr_NoMemory ();
-                  }''',
-                dealloc='PyMem_Free (self->gcmctx);\nself->gcmctx = NULL;')
-            self.add_member(
-                name='gcmkey',
-                decl='struct gcm_key *gcmkey',
-                alloc='''
-                    if ((self->gcmkey = PyMem_Malloc (sizeof (struct \\
-                         gcm_key))) == NULL)
-                      {
+                    if ((self->{lname}ctx = PyMem_Malloc (sizeof (struct \\
+                         {lname}_ctx))) == NULL)
+                      {{
                         return PyErr_NoMemory ();
-                      }''',
-                dealloc='PyMem_Free (self->gcmkey);\nself->gcmkey = NULL;')
-            self.args = 'cipher, initial_iv'
+                      }}'''.format(lname=lname),
+                dealloc='''
+                    PyMem_Free (self->{lname}ctx);
+                    self->{lname}ctx = NULL;'''.format(lname=lname))
+            self.add_member(
+                name='{lname}key',
+                decl='struct {lname}_key *{lname}key'.format(lname=lname),
+                alloc='''
+                    if ((self->{lname}key = PyMem_Malloc (sizeof (struct \\
+                         {lname}_key))) == NULL)
+                      {{
+                        return PyErr_NoMemory ();
+                      }}'''.format(lname=lname),
+                dealloc='''
+                    PyMem_Free (self->{lname}key);
+                    self->{lname}key = NULL;'''.format(lname=lname))
+            self.args = 'cipher, initial_{iv}'.format(iv=param['iv'])
+        else:
+            self.add_member(
+                name=param['iv'],
+                decl='uint8_t * {}'.format(param['iv']),
+                init='self->{} = NULL;'.format(param['iv']))
+            self.args = 'cipher, initial_{}'.format(param['iv'])
+
 
         self.add_to_init_body('''
             PyObject *obj = NULL;
@@ -119,18 +121,13 @@ class CipherMode(CClass):
                   {{
                     self->block_size = {FAMILY}_BLOCK_SIZE;
             '''.format(name=c['name'], FAMILY=c['family'].upper()))
-            if name == 'CBC':
-                self.add_to_init_body('''   if ((self->iv = malloc({FAMILY}_BLOCK_SIZE)) == NULL)
+            if not param['aead']:
+                self.add_to_init_body('''
+                    if ((self->{iv} = malloc({FAMILY}_BLOCK_SIZE)) == NULL)
                       {{
                         PyErr_NoMemory();
                         return -1;
-                      }}'''.format(FAMILY=c['family'].upper()))
-            elif name == 'CTR':
-                self.add_to_init_body('''   if ((self->ctr = malloc({FAMILY}_BLOCK_SIZE)) == NULL)
-                      {{
-                        PyErr_NoMemory();
-                        return -1;
-                      }}'''.format(FAMILY=c['family'].upper()))
+                      }}'''.format(iv=param['iv'], FAMILY=c['family'].upper()))
 
             self.add_to_init_body('''
                     self->ctx = ((pynettle_{name} *) obj)->ctx;
@@ -153,61 +150,27 @@ class CipherMode(CClass):
         ''')
         encrypt = ''
         decrypt = ''
-        if name == 'CBC':
+        if param['aead']:
+            if param['cipher_param']:
+                cipher = 'self->ctx, self->encrypt_func, '
+            else:
+                cipher = ''
             self.add_to_init_body('''
-                if (buffer.len != self->block_size)
-                  {
-                    PyErr_Format(KeyLenError, "IV is not a block long");
-                  }
-                if (buffer.buf != NULL)
-                  {
-                    memcpy (self->iv, buffer.buf, buffer.len);
-                  }
-            ''')
+              {lname}_set_key (self->{lname}key, self->ctx, \\
+                               self->encrypt_func);
+              {lname}_set_{iv} (self->{lname}ctx, self->{lname}key, \\
+                              {cipher}buffer.len, buffer.buf);
+            '''.format(lname=lname, iv=param['iv'], cipher=cipher))
             encrypt = '''
-                  cbc_encrypt(self->ctx, self->encrypt_func, \\
-                              self->block_size, self->iv, \\
-                              buffer.len, dst, buffer.buf);
-            '''
-            decrypt = '''
-                  cbc_decrypt(self->ctx, self->decrypt_func, \\
-                              self->block_size, self->iv, \\
-                              buffer.len, dst, buffer.buf);
-            '''
-        elif name == 'CTR':
-            self.add_to_init_body('''
-                if (buffer.len != self->block_size)
-                  {
-                    PyErr_Format(KeyLenError, "CTR is not a block long");
-                  }
-                if (buffer.buf != NULL)
-                  {
-                   memcpy (self->ctr, buffer.buf, buffer.len);
-                  }
-            ''')
-            encrypt = '''
-                  ctr_crypt(self->ctx, self->encrypt_func, \\
-                              self->block_size, self->ctr, \\
-                              buffer.len, dst, buffer.buf);
-            '''
-            decrypt = '''
-                  ctr_crypt(self->ctx, self->decrypt_func, \\
-                              self->block_size, self->ctr, \\
-                              buffer.len, dst, buffer.buf);
-            '''
-        elif name == 'GCM':
-            self.add_to_init_body('''
-              gcm_set_iv (self->gcmctx, self->gcmkey, buffer.len, buffer.buf);
-              gcm_set_key (self->gcmkey, self->ctx, self->encrypt_func);
-            ''')
-            encrypt = '''
-                  gcm_encrypt(self->gcmctx, self->gcmkey, self->ctx, \\
+                  {lname}_encrypt(self->{lname}ctx, self->{lname}key, \\
+                                  self->ctx, \\
                   self->encrypt_func, buffer.len, dst, buffer.buf);
-            '''
+            '''.format(lname=lname)
             decrypt = '''
-                  gcm_decrypt(self->gcmctx, self->gcmkey, self->ctx, \\
+                  {lname}_decrypt(self->{lname}ctx, self->{lname}key, \\
+                                  self->ctx, \\
                   self->decrypt_func, buffer.len, dst, buffer.buf);
-            '''
+            '''.format(lname=lname)
             self.add_method(
                 name='update',
                 args='METH_VARARGS',
@@ -225,13 +188,13 @@ class CipherMode(CClass):
                     if (!PyArg_ParseTuple (args, "t#", \\
                         &buffer.buf, &buffer.len))
                     #endif
-                      {
+                      {{
                         return NULL;
-                      }
-                    gcm_update (self->gcmctx, self->gcmkey, buffer.len,
-                                buffer.buf);
+                      }}
+                    {lname}_update (self->{lname}ctx, self->{lname}key, \\
+                                {cipher}buffer.len, buffer.buf);
                     Py_RETURN_NONE;
-                ''')
+                '''.format(lname=lname, cipher=cipher))
 
             self.add_method(
                 name='digest',
@@ -241,18 +204,19 @@ class CipherMode(CClass):
                 ' processing a message. Note that unlike the nettle c'
                 ' function, the state is not reset.',
                 body='''
-                    uint8_t digest[GCM_DIGEST_SIZE];
-                    struct gcm_ctx *ctx_copy;
+                    uint8_t digest[{name}_DIGEST_SIZE];
+                    struct {lname}_ctx *ctx_copy;
                     if ((ctx_copy = PyMem_Malloc (sizeof \\
-                          (struct gcm_ctx))) == NULL) {{
+                          (struct {lname}_ctx))) == NULL) {{
                       return PyErr_NoMemory ();
                     }}
-                    memcpy(ctx_copy, self->gcmctx, sizeof (struct gcm_ctx));
-                    gcm_digest (ctx_copy, self->gcmkey, self->ctx, \\
-                        self->encrypt_func, GCM_DIGEST_SIZE, digest);
+                    memcpy(ctx_copy, self->{lname}ctx, sizeof (struct \\
+                           {lname}_ctx));
+                    {lname}_digest (ctx_copy, self->{lname}key, self->ctx, \\
+                        self->encrypt_func, {name}_DIGEST_SIZE, digest);
                     return PyBytes_FromStringAndSize ((const char *) digest, \\
-                        GCM_DIGEST_SIZE);
-                ''')
+                        {name}_DIGEST_SIZE);
+                '''.format(name=name, lname=lname))
 
             self.add_method(
                 name='hexdigest',
@@ -263,18 +227,19 @@ class CipherMode(CClass):
                 ' Note that unlike the nettle c function, the state is not'
                 ' reset.',
                 body='''
-                    uint8_t digest[GCM_DIGEST_SIZE];
-                    char hex[GCM_DIGEST_SIZE * 2 + 1];
+                    uint8_t digest[{name}_DIGEST_SIZE];
+                    char hex[{name}_DIGEST_SIZE * 2 + 1];
                     char *ptr = hex;
-                    struct gcm_ctx *ctx_copy;
+                    struct {lname}_ctx *ctx_copy;
                     if ((ctx_copy = PyMem_Malloc (sizeof \\
-                          (struct gcm_ctx))) == NULL) {{
+                          (struct {lname}_ctx))) == NULL) {{
                       return PyErr_NoMemory ();
                     }}
-                    memcpy(ctx_copy, self->gcmctx, sizeof (struct gcm_ctx));
-                    gcm_digest (ctx_copy, self->gcmkey, self->ctx, \\
-                        self->encrypt_func, GCM_DIGEST_SIZE, digest);
-                    for (int i = 0; i < GCM_DIGEST_SIZE; i++) {{
+                    memcpy(ctx_copy, self->{lname}ctx, sizeof \\
+                           (struct {lname}_ctx));
+                    {lname}_digest (ctx_copy, self->{lname}key, self->ctx, \\
+                        self->encrypt_func, {name}_DIGEST_SIZE, digest);
+                    for (int i = 0; i < {name}_DIGEST_SIZE; i++) {{
                       snprintf(ptr, 3, "%02X", digest[i]);
                       ptr += 2;
                     }}
@@ -283,7 +248,34 @@ class CipherMode(CClass):
                   #else
                     return PyString_FromString ((const char *) hex);
                   #endif
-                    ''')
+                    '''.format(name=name, lname=lname))
+        else:
+            self.add_to_init_body('''
+                if (buffer.len != self->block_size)
+                  {{
+                    PyErr_Format(KeyLenError, "{IV} is not a block long");
+                  }}
+                if (buffer.buf != NULL)
+                  {{
+                    memcpy (self->{iv}, buffer.buf, buffer.len);
+                  }}
+            '''.format(iv=param['iv'], IV=param['iv'].upper()))
+            if param['twofuncs']:
+                en = 'en'
+                de = 'de'
+            else:
+                en = ''
+                de = ''
+            encrypt = '''
+                  {lname}_{en}crypt(self->ctx, self->encrypt_func, \\
+                              self->block_size, self->{iv}, \\
+                              buffer.len, dst, buffer.buf);
+            '''.format(lname=lname, iv=param['iv'], en=en, de=de)
+            decrypt = '''
+                  {lname}_{de}crypt(self->ctx, self->decrypt_func, \\
+                              self->block_size, self->{iv}, \\
+                              buffer.len, dst, buffer.buf);
+            '''.format(lname=lname, iv=param['iv'], en=en, de=de)
 
         self.add_method(
             name='encrypt',
