@@ -169,29 +169,32 @@ des = 'DES is the old Data Encryption Standard, specified by NIST. It uses' \
     ' However, the key bits are distributed over 8 octets, where the least' \
     ' significant bit of each octet may be used for parity. A common way to' \
     ' use DES is to generate 8 random octets in some way, then set the least' \
-    ' significant bit of each octet to get odd parity, and initialize DES with' \
-    ' the resulting key. The key size of DES is so small that keys can be' \
-    ' found by brute force, using specialized hardware or lots of ordinary work' \
-    ' stations in parallel. One shouldn’t be using plain DES at all today, if' \
-    ' one uses DES at all one should be using \\"triple DES\\", see DES3 below. '
+    ' significant bit of each octet to get odd parity, and initialize DES' \
+    ' with the resulting key. The key size of DES is so small that keys can' \
+    ' be found by brute force, using specialized hardware or lots of' \
+    ' ordinary work stations in parallel. One shouldn’t be using plain DES' \
+    ' at all today, if one uses DES at all one should be using \\"triple' \
+    ' DES\\", see DES3 below. '
 
-des3 = 'The standard way to increase DES’s key size is to use three DES boxes.' \
-    ' The mode of operation is a little peculiar: the middle DES box is wired' \
-    ' in the reverse direction. To encrypt a block with DES3, you encrypt it' \
-    ' using the first 56 bits of the key, then decrypt it using the middle 56' \
-    ' bits of the key, and finally encrypt it again using the last 56 bits of' \
-    ' the key. This is known as \\"ede\\" triple-DES, for \\"encrypt-decrypt-encrypt\\".' \
-    ' The \\"ede\\" construction provides some backward compatibility, as you get' \
-    ' plain single DES simply by feeding the same key to all three boxes. That' \
+des3 = 'The standard way to increase DES’s key size is to use three DES' \
+    ' boxes. The mode of operation is a little peculiar: the middle DES' \
+    ' box is wired in the reverse direction. To encrypt a block with DES3,' \
+    ' you encrypt it using the first 56 bits of the key, then decrypt it' \
+    ' using the middle 56 bits of the key, and finally encrypt it again' \
+    ' using the last 56 bits of the key. This is known as \\"ede\\"' \
+    ' triple-DES, for \\"encrypt-decrypt-encrypt\\". The \\"ede\\"' \
+    ' construction provides some backward compatibility, as you get plain' \
+    ' single DES simply by feeding the same key to all three boxes. That' \
     ' should help keeping down the gate count, and the price, of hardware' \
-    ' circuits implementing both plain DES and DES3. DES3 has a key size of 168' \
-    ' bits, but just like plain DES, useless parity bits are inserted, so that' \
-    ' keys are represented as 24 octets (192 bits). As a 112 bit key is large' \
-    ' enough to make brute force attacks impractical, some applications uses a' \
-    ' \\"two-key\\" variant of triple-DES. In this mode, the same key bits are used' \
-    ' for the first and the last DES box in the pipe, while the middle box is' \
-    ' keyed independently. The two-key variant is believed to be secure, i.e.' \
-    ' there are no known attacks significantly better than brute force. '
+    ' circuits implementing both plain DES and DES3. DES3 has a key size' \
+    ' of 168 bits, but just like plain DES, useless parity bits are' \
+    ' inserted, so that keys are represented as 24 octets (192 bits). As' \
+    ' a 112 bit key is large enough to make brute force attacks impractical,' \
+    ' some applications uses a \\"two-key\\" variant of triple-DES. In this' \
+    ' mode, the same key bits are used for the first and the last DES box' \
+    ' in the pipe, while the middle box is keyed independently. The two-key' \
+    ' variant is believed to be secure, i.e. there are no known attacks' \
+    ' significantly better than brute force.'
 
 serpent = 'SERPENT is one of the AES finalists, designed by Ross' \
     ' Anderson, Eli Biham and Lars Knudsen. Thus, the interface and' \
@@ -258,7 +261,8 @@ hash_example = '''
    >>> sha.hexdigest()
    'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'
    >>> nettle.sha256(b'abc').digest()
-   b'\\xbax\\x16\\xbf\\x8f\\x01\\xcf\\xeaAA@\\xde]\\xae"#\\xb0\\x03a\\xa3\\x96\\x17z\\x9c\\xb4\\x10\\xffa\\xf2\\x00\\x15\\xad'
+   b'\\xbax\\x16\\xbf\\x8f\\x01\\xcf\\xeaAA@\\xde]\\xae"#\\xb0\\x03a\\xa3''' \
++ '''\\x96\\x17z\\x9c\\xb4\\x10\\xffa\\xf2\\x00\\x15\\xad'
    >>> nettle.sha256(b'abc').hexdigest()
    'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'
 '''
@@ -266,15 +270,14 @@ hash_example = '''
 # noinspection PyPep8
 cipher_example = '''
    >>> import nettle
-   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
-   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
-   >>> encryptor.encrypt(b'Secret Message!')
-   Traceback (most recent call last):
-     File "<stdin>", line 1, in <module>
-   nettle.DataLenError: Data length 15 not a multiple of block size 16
+   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05''' \
++ '''\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05''' \
++ '''\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
    >>> encryptor.encrypt(b'Secret Message!\\0')
    b'\\x1a\\xcb8,}!\\x0f\\xa7\\x80\\xbb\\xd8e\\x98.\\x93\\x04'
-   >>> decryptor.decrypt(b'\\x1a\\xcb8,}!\\x0f\\xa7\\x80\\xbb\\xd8e\\x98.\\x93\\x04')
+   >>> decryptor.decrypt(b'\\x1a\\xcb8,}!\\x0f\\xa7\\x80\\xbb\\xd8e\\x98''' \
++ '''.\\x93\\x04')
    b'Secret Message!\\x00'
 '''
 
@@ -288,13 +291,16 @@ mac_example = '''
 
 ciphermode_example = '''
    >>> import nettle
-   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> encryptor = nettle.aes128(encrypt_key=b'\\x00\\x01\\x02\\x03\\x05''' \
++ '''\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
    >>> cbc = nettle.CBC(encryptor, b'abababababababab')
    >>> cbc.encrypt(b'Secret Message!\\0')
    b'\\x94O,\\xed\\xae\\xc0\\x82\\xe1\\x8c\\xb0-\\xca\\xf7\\xdb\\x8a\\xfd'
-   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
+   >>> decryptor = nettle.aes128(decrypt_key=b'\\x00\\x01\\x02\\x03\\x05''' \
++ '''\\x06\\x07\\x08\\n\\x0b\\x0c\\r\\x0f\\x10\\x11\\x12')
    >>> cbc = nettle.CBC(decryptor, b'abababababababab')
-   >>> cbc.decrypt(b'\\x94O,\\xed\\xae\\xc0\\x82\\xe1\\x8c\\xb0-\\xca\\xf7\\xdb\\x8a\\xfd')
+   >>> cbc.decrypt(b'\\x94O,\\xed\\xae\\xc0\\x82\\xe1\\x8c\\xb0-\\xca\\xf7''' \
++ '''\\xdb\\x8a\\xfd')
    b'Secret Message!\\x00'
 '''
 

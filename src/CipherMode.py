@@ -65,6 +65,19 @@ class CipherMode(CClass):
             name='decrypt_func',
             decl='nettle_cipher_func *decrypt_func',
             init='self->decrypt_func = NULL;')
+        if param['know_len']:
+            self.add_member(
+                name='authlen',
+                decl='int authlen',
+                init='self->authlen = 0;')
+            self.add_member(
+                name='msglen',
+                decl='int msglen',
+                init='self->msglen = 0;')
+            self.add_member(
+                name='taglen',
+                decl='int taglen',
+                init='self->taglen = 0;')
 
         if param['aead']:
             self.add_member(
@@ -79,42 +92,63 @@ class CipherMode(CClass):
                 dealloc='''
                     PyMem_Free (self->{lname}ctx);
                     self->{lname}ctx = NULL;'''.format(lname=lname))
-            self.add_member(
-                name='{lname}key',
-                decl='struct {lname}_key *{lname}key'.format(lname=lname),
-                alloc='''
-                    if ((self->{lname}key = PyMem_Malloc (sizeof (struct \\
-                         {lname}_key))) == NULL)
-                      {{
-                        return PyErr_NoMemory ();
-                      }}'''.format(lname=lname),
-                dealloc='''
-                    PyMem_Free (self->{lname}key);
-                    self->{lname}key = NULL;'''.format(lname=lname))
+            if param['mode_key']:
+                self.add_member(
+                    name='{lname}key',
+                    decl='struct {lname}_key *{lname}key'.format(lname=lname),
+                    alloc='''
+                        if ((self->{lname}key = PyMem_Malloc (sizeof (struct \\
+                             {lname}_key))) == NULL)
+                          {{
+                            return PyErr_NoMemory ();
+                          }}'''.format(lname=lname),
+                    dealloc='''
+                        PyMem_Free (self->{lname}key);
+                        self->{lname}key = NULL;'''.format(lname=lname))
         else:
             self.add_member(
                 name=param['iv'],
                 decl='uint8_t * {}'.format(param['iv']),
                 init='self->{} = NULL;'.format(param['iv']))
 
-        self.args = 'cipher, {iv}'.format(iv=param['iv'])
-
-        self.add_to_init_body('''
-            PyObject *obj = NULL;
-            #if PY_MAJOR_VERSION >= 3
-            Py_buffer buffer;
-            if (!PyArg_ParseTuple (args, "Oy*", &obj, &buffer))
-            #else
-            nettle_py2buf buffer;
-            if (!PyArg_ParseTuple (args, "Ot#", &obj, &buffer.buf, \\
-                &buffer.len))
-            #endif
-              {
-                return -1;
-              }
-            if (obj != NULL)
-              {
-        ''')
+        if param['know_len']:
+            self.args = 'cipher, {iv}, authlen, msglen, taglen' \
+                .format(iv=param['iv'])
+            self.add_to_init_body('''
+                PyObject *obj = NULL;
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (!PyArg_ParseTuple (args, "Oy*iii", &obj, &buffer, \\
+                    &self->authlen, &self->msglen, &self->taglen))
+                #else
+                nettle_py2buf buffer;
+                if (!PyArg_ParseTuple (args, "Ot#iii", &obj, &buffer.buf, \\
+                    &buffer.len, &self->authlen, &self->msglen, &self->taglen))
+                #endif
+                  {
+                    return -1;
+                  }
+                if (obj != NULL)
+                  {
+            ''')
+        else:
+            self.args = 'cipher, {iv}'.format(iv=param['iv'])
+            self.add_to_init_body('''
+                PyObject *obj = NULL;
+                #if PY_MAJOR_VERSION >= 3
+                Py_buffer buffer;
+                if (!PyArg_ParseTuple (args, "Oy*", &obj, &buffer))
+                #else
+                nettle_py2buf buffer;
+                if (!PyArg_ParseTuple (args, "Ot#", &obj, &buffer.buf, \\
+                    &buffer.len))
+                #endif
+                  {
+                    return -1;
+                  }
+                if (obj != NULL)
+                  {
+            ''')
         for c in ciphers:
             self.add_to_init_body('''
                 if (PyObject_TypeCheck (obj, &pynettle_{name}_Type))
@@ -151,26 +185,57 @@ class CipherMode(CClass):
         encrypt = ''
         decrypt = ''
         if param['aead']:
-            if param['cipher_param']:
-                cipher = 'self->ctx, self->encrypt_func, '
+            if param['update_cipher_param']:
+                update_cipher = 'self->ctx, self->encrypt_func, '
             else:
-                cipher = ''
+                update_cipher = ''
+            if param['digest_cipher_param']:
+                digest_cipher = 'self->ctx, self->encrypt_func, '
+            else:
+                digest_cipher = ''
+            if param['set_cipher_param']:
+                set_cipher = 'self->ctx, self->encrypt_func, '
+            else:
+                set_cipher = ''
+            if param['know_len']:
+                know_len = ', self->authlen, self->msglen, self->taglen'
+            else:
+                know_len = ''
+            if param['mode_key']:
+                mode_key = 'self->{lname}key, '.format(lname=lname)
+                self.add_to_init_body('''
+                    {lname}_set_key (self->{lname}key, self->ctx, \\
+                                     self->encrypt_func);
+                '''.format(lname=lname))
+            else:
+                mode_key = ''
             self.add_to_init_body('''
-              {lname}_set_key (self->{lname}key, self->ctx, \\
-                               self->encrypt_func);
-              {lname}_set_{iv} (self->{lname}ctx, self->{lname}key, \\
-                              {cipher}buffer.len, buffer.buf);
-            '''.format(lname=lname, iv=param['iv'], cipher=cipher))
+                {lname}_set_{iv} (self->{lname}ctx, {mode_key} \\
+                                  {cipher}buffer.len, buffer.buf{know_len});
+            '''.format(lname=lname, iv=param['iv'], mode_key=mode_key,
+                       cipher=set_cipher, know_len=know_len))
             encrypt = '''
-                  {lname}_encrypt(self->{lname}ctx, self->{lname}key, \\
+                  {lname}_encrypt(self->{lname}ctx, {mode_key} \\
                                   self->ctx, \\
                   self->encrypt_func, buffer.len, dst, buffer.buf);
-            '''.format(lname=lname)
+            '''.format(lname=lname, mode_key=mode_key)
             decrypt = '''
-                  {lname}_decrypt(self->{lname}ctx, self->{lname}key, \\
+                  {lname}_decrypt(self->{lname}ctx, {mode_key} \\
                                   self->ctx, \\
                   self->decrypt_func, buffer.len, dst, buffer.buf);
-            '''.format(lname=lname)
+            '''.format(lname=lname, mode_key=mode_key)
+            if param['know_len']:
+                check_len = '''
+                    if (buffer.len != self->authlen)
+                      {
+                        PyErr_Format (LenMismatch, "Authdata length (%d)" \\
+                                      " not as specified earlier (%d)", \\
+                                      buffer.len, self->authlen);
+                        return NULL;
+                      }
+                '''
+            else:
+                check_len = ''
             self.add_method(
                 name='update',
                 args='METH_VARARGS',
@@ -191,11 +256,17 @@ class CipherMode(CClass):
                       {{
                         return NULL;
                       }}
-                    {lname}_update (self->{lname}ctx, self->{lname}key, \\
-                                {cipher}buffer.len, buffer.buf);
+                    {check_len}
+                    {lname}_update (self->{lname}ctx, \\
+                                {mode_key}{cipher}buffer.len, buffer.buf);
                     Py_RETURN_NONE;
-                '''.format(lname=lname, cipher=cipher))
+                '''.format(lname=lname, mode_key=mode_key,
+                           cipher=update_cipher, check_len=check_len))
 
+            if param['know_len']:
+                taglen = 'self->taglen'
+            else:
+                taglen = '{name}_DIGEST_SIZE'.format(name=name)
             self.add_method(
                 name='digest',
                 args='METH_NOARGS',
@@ -212,11 +283,12 @@ class CipherMode(CClass):
                     }}
                     memcpy(ctx_copy, self->{lname}ctx, sizeof (struct \\
                            {lname}_ctx));
-                    {lname}_digest (ctx_copy, self->{lname}key, self->ctx, \\
-                        self->encrypt_func, {name}_DIGEST_SIZE, digest);
+                    {lname}_digest (ctx_copy, \\
+                        {mode_key}{cipher}{name}_DIGEST_SIZE, digest);
                     return PyBytes_FromStringAndSize ((const char *) digest, \\
-                        {name}_DIGEST_SIZE);
-                '''.format(name=name, lname=lname))
+                        {taglen});
+                '''.format(name=name, lname=lname, mode_key=mode_key,
+                           cipher=digest_cipher, taglen=taglen))
 
             self.add_method(
                 name='hexdigest',
@@ -237,9 +309,9 @@ class CipherMode(CClass):
                     }}
                     memcpy(ctx_copy, self->{lname}ctx, sizeof \\
                            (struct {lname}_ctx));
-                    {lname}_digest (ctx_copy, self->{lname}key, self->ctx, \\
-                        self->encrypt_func, {name}_DIGEST_SIZE, digest);
-                    for (int i = 0; i < {name}_DIGEST_SIZE; i++) {{
+                    {lname}_digest (ctx_copy, {mode_key}{cipher}\\
+                                    {name}_DIGEST_SIZE, digest);
+                    for (int i = 0; i < {taglen}; i++) {{
                       snprintf(ptr, 3, "%02X", digest[i]);
                       ptr += 2;
                     }}
@@ -248,7 +320,8 @@ class CipherMode(CClass):
                   #else
                     return PyString_FromString ((const char *) hex);
                   #endif
-                    '''.format(name=name, lname=lname))
+                    '''.format(name=name, lname=lname, mode_key=mode_key,
+                               cipher=digest_cipher, taglen=taglen))
         else:
             self.add_to_init_body('''
                 if (buffer.len != self->block_size)
@@ -277,6 +350,18 @@ class CipherMode(CClass):
                               buffer.len, dst, buffer.buf);
             '''.format(lname=lname, iv=param['iv'], en=en, de=de)
 
+        if param['know_len']:
+            check_len = '''
+                if (buffer.len != self->msglen)
+                  {
+                    PyErr_Format (LenMismatch, "Message length (%d) not" \\
+                                  " as specified earlier (%d)", \\
+                                  buffer.len, self->msglen);
+                    return NULL;
+                  }
+            '''
+        else:
+            check_len = ''
         self.add_method(
             name='encrypt',
             args='METH_VARARGS',
@@ -287,7 +372,7 @@ class CipherMode(CClass):
                 if (! *self->cipher_is_initialized_p)
                   {
                     PyErr_Format (NotInitializedError,
-                                    "Cipher not initialized. Set key first!");
+                                  "Cipher not initialized. Set key first!");
                     return NULL;
                   }
                 uint8_t *dst;
@@ -306,7 +391,7 @@ class CipherMode(CClass):
                     {
                       return PyErr_NoMemory ();
                     }
-            ''' + encrypt + '''
+            ''' + check_len + encrypt + '''
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
             ''')
@@ -339,7 +424,7 @@ class CipherMode(CClass):
                     {
                       return PyErr_NoMemory ();
                     }
-            ''' + decrypt + '''
+            ''' + check_len + decrypt + '''
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
                 ''')

@@ -131,11 +131,19 @@ ciphermodes = [
     {'name': 'CTR', 'docstring': 'Counter Mode',
      'headers': ['ctr.h'], 'iv': 'ctr'},
     {'name': 'GCM', 'docstring': 'Galois Counter Mode',
-     'headers': ['gcm.h'], 'iv': 'iv', 'aead': True},
+     'headers': ['gcm.h'], 'iv': 'iv', 'aead': True,
+     'mode_key': True, 'digest_cipher_param': True, },
     {'name': 'EAX', 'docstring': 'The EAX mode is an AEAD mode which'
      ' combines CTR mode encryption, with a message authentication'
      ' based on CBC', 'headers': ['eax.h'],
-     'iv': 'nonce', 'aead': True, 'cipher_param': True},
+     'iv': 'nonce', 'aead': True, 'mode_key': True,
+     'update_cipher_param': True, 'digest_cipher_param': True,
+     'set_cipher_param': True},
+    {'name': 'CCM', 'docstring': 'Counter with Cipher Block Chaining'
+     '-Message Authentication Code', 'headers': ['ccm.h'],
+     'iv': 'nonce', 'aead': True, 'know_len': True,
+     'update_cipher_param': True, 'digest_cipher_param': True,
+     'set_cipher_param': True},
 ]
 
 macs = [
@@ -154,6 +162,8 @@ exceptions = [
      'docs': 'Key Length is not as expected'},
     {'name': 'DataLenError', 'base': 'BaseException',
      'docs': 'Data length is not a multiple of the block size'},
+    {'name': 'LenMismatch', 'base': 'BaseException',
+     'docs': 'Data length is not as specified earlier'},
     {'name': 'NotInitializedError', 'base': 'BaseException',
      'docs': 'Object must be initialized before calling this method'},
     {'name': 'RandomError', 'base': 'BaseException',

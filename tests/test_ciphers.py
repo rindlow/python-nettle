@@ -653,8 +653,8 @@ class EAX(TestCase):
         c = cipher(key)
         self.assertEqual(c.key_size, len(key))
         eax = nettle.EAX(c, nonce)
-        if authtext:
-            eax.update(authtext)
+        eax.update(authtext)
+
         self.assertEqual(eax.encrypt(cleartext), ciphertext)
         self.assertEqual(eax.digest(), digest)
         self.assertEqual(SHEX(eax.hexdigest()), digest)
@@ -693,3 +693,73 @@ class EAX(TestCase):
                    SHEX(""),
                    SHEX("62EC67F9C3A4A407FCB2A8C49031A8B3"),
                    SHEX("E037830E8389F27B025A2D6527E79D01"))
+
+
+class CCM(TestCase):
+
+    def _test(self, cipher, key, nonce, authtext, cleartext, cipherdigest):
+        clen = len(cleartext)
+        ciphertext = cipherdigest[:clen]
+        digest = cipherdigest[clen:]
+        self.assertEqual(len(cleartext), len(ciphertext))
+
+        c = cipher(key)
+        self.assertEqual(c.key_size, len(key))
+        ccm = nettle.CCM(c, nonce, len(authtext), len(cleartext), len(digest))
+        ccm.update(authtext)
+
+        self.assertEqual(ccm.encrypt(cleartext), ciphertext)
+        self.assertEqual(ccm.digest(), digest)
+        self.assertEqual(SHEX(ccm.hexdigest()), digest)
+        self.assertEqual(ccm.digest(), digest)
+
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key + b'a')
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher()
+            c.set_encrypt_key(key[:-1])
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher()
+            c.set_decrypt_key(key[:-1])
+
+        with self.assertRaises(nettle.NotInitializedError):
+            c = cipher()
+            ccm = nettle.CCM(c, nonce, len(authtext), len(cleartext),
+                             len(digest))
+            ccm.encrypt(cleartext)
+        with self.assertRaises(nettle.NotInitializedError):
+            c = cipher()
+            ccm = nettle.CCM(c, nonce, len(authtext), len(cleartext),
+                             len(digest))
+            ccm.decrypt(cleartext)
+
+        with self.assertRaises(nettle.LenMismatch):
+            c = cipher(key)
+            ccm = nettle.CCM(c, nonce, len(authtext), len(cleartext) - 1,
+                             len(digest))
+            ccm.update(authtext)
+            ccm.encrypt(cleartext)
+
+        with self.assertRaises(nettle.LenMismatch):
+            c = cipher(key)
+            ccm = nettle.CCM(c, nonce, len(authtext) - 1, len(cleartext),
+                             len(digest))
+            ccm.update(authtext)
+            ccm.encrypt(cleartext)
+
+    def test_aes128_ccm(self):
+        self._test(nettle.aes128,
+                   SHEX("404142434445464748494a4b4c4d4e4f"),
+                   SHEX("10111213141516"),
+                   SHEX("0001020304050607"),
+                   SHEX("20212223"),
+                   SHEX("7162015b 4dac255d"))
+        self._test(nettle.aes256,
+                   SHEX("000000000000000000000000"
+                        "000000000000000000000000"
+                        "0000000000000000"),
+                   SHEX("000000000000000000000000"),
+                   SHEX(""),
+                   SHEX("00000000000000000000000000000000"),
+                   SHEX("c1944044c8e7aa95d2de9513c7f3dd8c"
+                        "4b0a3e5e51f151eb0ffae7c43d010fdb"))
