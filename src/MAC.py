@@ -35,8 +35,9 @@ from CClass import CClass
 
 class MAC(CClass):
 
-    def __init__(self, name, docs):
-        CClass.__init__(self, name, docs)
+    def __init__(self, param):
+        CClass.__init__(self, param['name'], param['docstring'])
+        name = param['name']
 
         self.add_member(
             name='is_initialized',
@@ -50,9 +51,8 @@ class MAC(CClass):
             .format(self.name),
             dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
 
-        if name[:4] == 'hmac':
+        if 'nonce' not in param:
             digestsize = '{}_DIGEST_SIZE'.format(name[5:].upper())
-            blocksize = '{}_BLOCK_SIZE'.format(name[5:].upper())
             keylen = 'key.len, '
             self.add_bufferparse_to_init(['key'])
             self.add_to_init_body('  if (key.buf != NULL)\n    {{\n'
@@ -65,10 +65,10 @@ class MAC(CClass):
         else:
             digestsize = '{}_DIGEST_SIZE'.format(name.upper())
             keylen = ''
-            if name[:4] == 'umac':
-                blocksize = 'UMAC_BLOCK_SIZE'
+            if param['nonce'] == 'fixed':
+                nonce_len = ''
             else:
-                blocksize = 'AES_BLOCK_SIZE'
+                nonce_len = 'nonce.len, '
             self.add_bufferparse_to_init(['key', 'nonce'])
             self.args = 'key=None, nonce=None'
             self.add_to_init_body('''
@@ -86,9 +86,9 @@ class MAC(CClass):
                                        Set key first!");
                         return -1;
                       }}
-                    {name}_set_nonce (self->ctx, nonce.len, nonce.buf);
+                    {name}_set_nonce (self->ctx, {nonce_len}nonce.buf);
                   }}
-            '''.format(name=name))
+            '''.format(name=name, nonce_len=nonce_len))
             self.add_method(
                 name='set_nonce',
                 args='METH_VARARGS',
@@ -113,23 +113,15 @@ class MAC(CClass):
                         {{
                           return NULL;
                         }}
-                      {name}_set_nonce (self->ctx, nonce.len, nonce.buf);
+                      {name}_set_nonce (self->ctx, {nonce_len}nonce.buf);
                       Py_RETURN_NONE;
-                    '''.format(name=name))
+                    '''.format(name=name, nonce_len=nonce_len))
 
         self.add_member(
             name='digest_size',
             decl='int digest_size',
             init='self->digest_size = {};'.format(digestsize),
             docs='The size of a {} digest'.format(name.upper()),
-            flags='READONLY',
-            type='T_INT',
-            public=True)
-        self.add_member(
-            name='block_size',
-            decl='int block_size',
-            init='self->block_size = {};'.format(blocksize),
-            docs='The internal block size of {}'.format(name.upper()),
             flags='READONLY',
             type='T_INT',
             public=True)

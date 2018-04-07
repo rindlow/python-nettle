@@ -254,6 +254,24 @@ umac = 'UMAC is a message authentication code based on universal' \
     ' struct quite a bit larger than other hash functions and MAC' \
     ' algorithms in Nettle.'
 
+poly1305 = 'Poly1305-AES is a message authentication code designed by' \
+    ' D. J. Bernstein. It treats the message as a polynomial modulo the' \
+    ' prime number 2^130 - 5. The key, 256 bits, consists of two parts,' \
+    ' where the first half is an AES-128 key, and the second half specifies' \
+    ' the point where the polynomial is evaluated. Of the latter half, 22' \
+    ' bits are set to zero, to enable high-performance implementation,' \
+    ' leaving 106 bits for specifying an evaluation point r. For each' \
+    ' message, one must also provide a 128-bit nonce. The nonce is' \
+    ' encrypted using the AES key, and that’s the only thing AES is used' \
+    ' for. The message is split into 128-bit chunks (with final chunk' \
+    ' possibly being shorter), each read as a little-endian integer. Each' \
+    ' chunk has a one-bit appended at the high end. The resulting integers' \
+    ' are treated as polynomial coefficients modulo 2^130 - 5, and the' \
+    ' polynomial is evaluated at the point r. Finally, this value is' \
+    ' reduced modulo 2^128, and added (also modulo 2^128) to the encrypted' \
+    ' nonce, to produce an 128-bit authenticator for the message. See' \
+    ' http://cr.yp.to/mac/poly1305-20050329.pdf for further details.'
+
 hash_example = '''
    >>> import nettle
    >>> sha = nettle.sha256()

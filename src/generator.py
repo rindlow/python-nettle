@@ -148,11 +148,26 @@ ciphermodes = [
 
 macs = [
     {'name': 'hmac_sha1', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmac},
+     'docstring': docstrings.hmac,
+     'digest': 'SHA1'},
     {'name': 'hmac_sha256', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmac},
+     'docstring': docstrings.hmac,
+     'digest': 'SHA256'},
+    {'name': 'umac32', 'headers': ['umac.h'],
+     'docstring': docstrings.umac,
+     'nonce': 'variable'},
+    {'name': 'umac64', 'headers': ['umac.h'],
+     'docstring': docstrings.umac,
+     'nonce': 'variable'},
+    {'name': 'umac96', 'headers': ['umac.h'],
+     'docstring': docstrings.umac,
+     'nonce': 'variable'},
     {'name': 'umac128', 'headers': ['umac.h'],
-     'docstring': docstrings.umac},
+     'docstring': docstrings.umac,
+     'nonce': 'variable'},
+    {'name': 'poly1305_aes', 'headers': ['poly1305.h'],
+     'docstring': docstrings.umac,
+     'nonce': 'fixed'},
 ]
 
 exceptions = [
@@ -229,7 +244,7 @@ class Generator:
 
     def gen_mac_file(self, macdata):
         headers = set([h for m in macdata for h in m['headers']])
-        classes = [MAC(m['name'], m['docstring']) for m in macdata]
+        classes = [MAC(m) for m in macdata]
         self.objects.extend(classes)
 
         self.write_class_file(self.mac_file, classes, headers)

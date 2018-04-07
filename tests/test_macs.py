@@ -51,9 +51,38 @@ class MAC(TestCase):
                    SHEX("b0344c61d8db38535ca8afceaf0bf12b"
                         "881dc200c9833da726e9376c2e32cff7"))
 
+    def test_umac32(self):
+        self._test(nettle.umac32,
+                   key=SDATA("abcdefghijklmnop"),
+                   msg=SDATA(""),
+                   digest=SHEX("113145FB"),
+                   nonce=SDATA("bcdefghi"))
+
+    def test_umac64(self):
+        self._test(nettle.umac64,
+                   key=SDATA("abcdefghijklmnop"),
+                   msg=SDATA(""),
+                   digest=SHEX("6E155FAD26900BE1"),
+                   nonce=SDATA("bcdefghi"))
+
+    def test_umac96(self):
+        self._test(nettle.umac96,
+                   key=SDATA("abcdefghijklmnop"),
+                   msg=SDATA(""),
+                   digest=SHEX("32fedb100c79ad58f07ff764"),
+                   nonce=SDATA("bcdefghi"))
+
     def test_umac128(self):
         self._test(nettle.umac128,
                    key=SDATA("abcdefghijklmnop"),
                    msg=SDATA(""),
                    digest=SHEX("32fedb100c79ad58f07ff7643cc60465"),
                    nonce=SDATA("bcdefghi"))
+
+    def test_poly1305_aes(self):
+        self._test(nettle.poly1305_aes,
+                   key=SHEX("75deaa25c09f208e1dc4ce6b5cad3fbf"
+                            "a0f3080000f46400d0c7e9076c834403"),
+                   nonce=SHEX("61ee09218d29b0aaed7e154a2c5509cc"),
+                   msg=SHEX(""),
+                   digest=SHEX("dd3fab2251f11ac759f0887129cc2ee7"))
