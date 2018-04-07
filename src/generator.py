@@ -166,7 +166,7 @@ macs = [
      'docstring': docstrings.umac,
      'nonce': 'variable'},
     {'name': 'poly1305_aes', 'headers': ['poly1305.h'],
-     'docstring': docstrings.umac,
+     'docstring': docstrings.poly1305,
      'nonce': 'fixed'},
 ]
 
