@@ -91,7 +91,9 @@ parse_header (uint8_t * data, int offset)
       lenlen = b & 0x7f;
       if (lenlen > 4)
 	{
-	  // We should never get a length that won't fit in an int
+	  PyErr_Format (ASN1Error,
+			"ASN.1: Header length field larger than 4 at byte %d\n",
+			offset + i);
 	  return NULL;
 	}
       h->len = 0;
