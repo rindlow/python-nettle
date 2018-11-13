@@ -50,6 +50,7 @@ class CClass:
         self.docs = docs
         self.members = []
         self.methods = []
+        self.method_aliases = []
         self.init_body = []
         self.richcompare = None
         self.getsetters = []
@@ -166,6 +167,13 @@ class CClass:
                 {{ "{method}", (PyCFunction) pynettle_{name}_{method}, \\
                    {args}, "{docstring}" }},
                 '''.format(name=self.name, method=method['name'],
+                           args=method['args'], docstring=method['docs']))
+        for method in self.method_aliases:
+            self.writeindent(2, '''
+                {{ "{alias}", (PyCFunction) pynettle_{name}_{method}, \\
+                   {args}, "{docstring}" }},
+                '''.format(name=self.name, alias=method['alias'],
+                           method=method['method'],
                            args=method['args'], docstring=method['docs']))
         self.writeindent(2, '{ NULL }')
         self.writeindent(0, '};')
@@ -342,6 +350,11 @@ class CClass:
                              'docs': docs, 'args': args,
                              'docargs': docargs})
 
+    def add_method_alias(self, method, alias, docs, args, docargs=''):
+        self.method_aliases.append({'method': method, 'alias': alias,
+                             'docs': docs, 'args': args,
+                             'docargs': docargs})
+
     def add_to_init_body(self, code):
         self.init_body.append(code)
 
@@ -454,5 +467,14 @@ class CClass:
                {docs}
 
             '''.format(name=self.name, mname=method['name'],
+                       args=method['docargs'],
+                       docs=method['docs']), emptylines=True)
+        for method in self.method_aliases:
+            self.writeindent(0, '''
+            .. method:: {name}.{mname}({args})
+
+               {docs}
+
+            '''.format(name=self.name, mname=method['alias'],
                        args=method['docargs'],
                        docs=method['docs']), emptylines=True)
