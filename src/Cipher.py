@@ -109,14 +109,27 @@ class Cipher(CClass):
             type='T_INT',
             public=True)
 
-        if self.family is not None:
+        if 'stream' not in param:
+            if self.family is not None:
+                s = self.family.upper()
+            else:
+                s = self.name.upper()
             self.add_member(
                 name='block_size',
                 decl='int block_size',
-                init='self->block_size = {}_BLOCK_SIZE;'.format(
-                    self.family.upper()),
-                docs='The internal block size of {}'.format(
-                    self.family.upper()),
+                init='self->block_size = {}_BLOCK_SIZE;'.format(s),
+                docs='The internal block size of {}'.format(s),
+                flags='READONLY',
+                type='T_INT',
+                public=True)
+
+        if param['nonce']:
+            self.add_member(
+                name='nonce_size',
+                decl='int nonce_size',
+                init='self->nonce_size = {}_NONCE_SIZE;'
+                    .format(self.name.upper()),
+                docs='The size of a {} nonce'.format(self.name),
                 flags='READONLY',
                 type='T_INT',
                 public=True)
@@ -131,6 +144,12 @@ class Cipher(CClass):
         else:
             self.add_set_key_function(self.name, keylen=keylen,
                                       varkey=param['variable_keylen'])
+            self.add_method_alias(alias='set_encrypt_key', method='set_key',
+                                  args='METH_VARARGS', docargs='key',
+                                  docs='an alias for set_key')
+            self.add_method_alias(alias='set_decrypt_key', method='set_key',
+                                  args='METH_VARARGS', docargs='key',
+                                  docs='an alias for set_key')
         if param['nonce']:
             self.required += 1
             self.add_set_key_function(self.name, keylen='', key='nonce')
@@ -140,6 +159,12 @@ class Cipher(CClass):
             self.add_crypt_method(self.name, 'decrypt')
         else:
             self.add_crypt_method(self.name, 'crypt')
+            self.add_method_alias(alias='encrypt', method='crypt',
+                                  args='METH_VARARGS', docargs='bytes',
+                                  docs='an alias for crypt')
+            self.add_method_alias(alias='decrypt', method='crypt',
+                                  args='METH_VARARGS', docargs='bytes',
+                                  docs='an alias for crypt')
 
         if param['invert']:
             self.add_method(

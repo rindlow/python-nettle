@@ -98,6 +98,8 @@ class ARCFOUR(TestCase):
         self.assertEqual(c.crypt(cleartext), ciphertext)
         c.set_key(key)
         self.assertEqual(c.crypt(ciphertext), cleartext)
+        c.set_key(key)
+        self.assertEqual(c.decrypt(ciphertext), cleartext)
 
         c = nettle.arcfour(key=key)
         self.assertEqual(c.crypt(cleartext), ciphertext)
@@ -246,6 +248,8 @@ class Salsa(TestCase):
         data = b'\0' * len(expected)
         c = cipher(key=key, nonce=nonce)
         self.assertEqual(c.crypt(data), expected)
+        c = cipher(key=key, nonce=nonce)
+        self.assertEqual(c.crypt(expected), data)
 
         c = cipher()
         with self.assertRaises(nettle.NotInitializedError):

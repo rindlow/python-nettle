@@ -85,7 +85,7 @@ ciphers = [
      'twokeys': True, 'twofuncs': True, 'invert': True},
     {'name': 'arcfour', 'headers': ['arcfour.h'],
      'docstring': docstrings.arcfour,
-     'lenparam': True, 'variable_keylen': True},
+     'lenparam': True, 'variable_keylen': True, 'stream': True},
     {'name': 'arctwo', 'headers': ['arctwo.h'],
      'docstring': docstrings.arctwo, 'lenparam': True,
      'twofuncs': True, 'variable_keylen': True},
@@ -108,15 +108,15 @@ ciphers = [
     {'name': 'chacha', 'headers': ['chacha.h'],
      'docstring': docstrings.chacha,
      'nonce': True},
-    {'name': 'salsa20', 'headers': ['salsa20.h'],
-     'docstring': docstrings.salsa20,
-     'lenparam': True, 'nonce': True},
     {'name': 'des', 'family': 'des', 'headers': ['des.h'],
      'docstring': docstrings.des,
      'twofuncs': True, 'parity': True},
     {'name': 'des3', 'family': 'des', 'headers': ['des.h'],
      'docstring': docstrings.des,
      'twofuncs': True, 'parity': True},
+    {'name': 'salsa20', 'headers': ['salsa20.h'],
+     'docstring': docstrings.salsa20,
+     'lenparam': True, 'nonce': True},
     {'name': 'serpent', 'family': 'serpent', 'headers': ['serpent.h'],
      'docstring': docstrings.serpent,
      'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
@@ -207,6 +207,8 @@ class Generator:
 
     def __init__(self):
         self.objects = []
+        self.ciphers = []
+        self.hashes = []
 
     @staticmethod
     def write_python2_buffer_struct(f):
@@ -221,6 +223,7 @@ class Generator:
         headers = set([f for h in hashdata for f in h['headers']])
         classes = [Hash(p['name'], p['docstring']) for p in hashdata]
         self.objects.extend(classes)
+        self.hashes = classes
 
         self.write_class_file(self.hash_file, classes, headers)
         self.write_doc_file(self.hash_doc_file, "Hashes",
@@ -235,6 +238,7 @@ class Generator:
                  for m in modedata]
         classes = ciphers + modes
         self.objects.extend(classes)
+        self.ciphers = ciphers
 
         self.write_class_file(self.cipher_file, classes, headers)
         self.write_doc_file(self.cipher_doc_file, "Ciphers",
@@ -294,6 +298,14 @@ class Generator:
             f.write('import _nettle\n')
             for obj in sorted(self.objects, key=lambda o: o.name):
                 obj.write_python_subclass(f)
+            if self.ciphers:
+                f.write('ciphers = [{}]\n'.format(','.join(c.name
+                                                           for c in
+                                                           self.ciphers)))
+            if self.hashes:
+                f.write('hashes = [{}]\n'.format(','.join(h.name
+                                                          for h in
+                                                          self.hashes)))
 
     def write_class_file(self, filename, classes, nettle_headers,
                          system_headers=[], pynettle_headers=[]):
