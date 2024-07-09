@@ -174,7 +174,7 @@ class CipherMode(CClass):
                     self->cipher = obj;
                     Py_INCREF (self->cipher);
                   }}
-                else'''.format(name=c['name'], FAMILY=c['family'].upper()))
+                else'''.format(name=c['name']))
         self.add_to_init_body('''
                   {
                     PyErr_Format (PyExc_TypeError, "Expected cipher object");
@@ -343,12 +343,12 @@ class CipherMode(CClass):
                   {lname}_{en}crypt(self->ctx, self->encrypt_func, \\
                               self->block_size, self->{iv}, \\
                               buffer.len, dst, buffer.buf);
-            '''.format(lname=lname, iv=param['iv'], en=en, de=de)
+            '''.format(lname=lname, iv=param['iv'], en=en)
             decrypt = '''
                   {lname}_{de}crypt(self->ctx, self->decrypt_func, \\
                               self->block_size, self->{iv}, \\
                               buffer.len, dst, buffer.buf);
-            '''.format(lname=lname, iv=param['iv'], en=en, de=de)
+            '''.format(lname=lname, iv=param['iv'], de=de)
 
         if param['know_len']:
             check_len = '''

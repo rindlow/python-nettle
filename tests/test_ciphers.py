@@ -357,6 +357,32 @@ class Serpent(TestCase):
                    SHEX("D095576FCEA3E3A7 ED98D9F29073D78E"),
                    SHEX("B90EE5862DE69168 F2BDD5125B45472B"))
 
+class SM4(TestCase):
+
+    def _test(self, cipher, key, cleartext, ciphertext):
+        self.assertEqual(len(cleartext), len(ciphertext))
+        c = cipher()
+        with self.assertRaises(nettle.NotInitializedError):
+            c.crypt(cleartext)
+        self.assertEqual(len(key), c.key_size)
+        c.set_encrypt_key(key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c.set_decrypt_key(key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        c = cipher(encrypt_key=key)
+        self.assertEqual(c.crypt(cleartext), ciphertext)
+        c = cipher(decrypt_key=key)
+        self.assertEqual(c.crypt(ciphertext), cleartext)
+
+        with self.assertRaises(nettle.KeyLenError):
+            c = cipher(encrypt_key=key[:-1])
+
+    def test_sm4(self):
+        self._test(nettle.sm4,
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"),
+                   SHEX("0123456789ABCDEF FEDCBA9876543210"),
+                   SHEX("681EDF34D206965E 86B3E94F536E4246"))
 
 class Twofish(TestCase):
 

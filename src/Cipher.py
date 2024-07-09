@@ -128,7 +128,7 @@ class Cipher(CClass):
                 name='nonce_size',
                 decl='int nonce_size',
                 init='self->nonce_size = {}_NONCE_SIZE;'
-                    .format(self.name.upper()),
+                     .format(self.name.upper()),
                 docs='The size of a {} nonce'.format(self.name),
                 flags='READONLY',
                 type='T_INT',

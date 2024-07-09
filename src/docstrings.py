@@ -92,6 +92,18 @@ sha3_384 = 'This is SHA3 with 384-bit output size.'
 
 sha3_512 = 'This is SHA3 with 512-bit output size.'
 
+streebog_512 = 'STREEBOG512 is a member of the Streebog (GOST R 34.11-2012)'\
+    ' family. It outputs hash values of 512 bits, or 64 octets.'
+
+streebog_256 = 'STREEBOG256 is a variant of STREEBOG512, with a different'\
+    ' initial state, and with the output truncated to 256 bits, or 32 octets.'
+
+sm3 = 'SM3 is a cryptographic hash function standard adopted by the'\
+    ' government of the People’s Republic of China, which was issued by the'\
+    ' Cryptography Standardization Technical Committee of China on December'\
+    ' 17, 2010. The corresponding standard is GM/T 0004-2012 \\"SM3'\
+    ' Cryptographic Hash Algorithm\\".'
+
 # Ciphers
 
 aes = 'AES is a block cipher, specified by NIST as a replacement' \
@@ -201,6 +213,11 @@ serpent = 'SERPENT is one of the AES finalists, designed by Ross' \
     ' properties are similar to AES\'. One peculiarity is that it is' \
     ' quite pointless to use it with anything but the maximum key size,' \
     ' smaller keys are just padded to larger ones.'
+
+sm4 = 'SM4 is a block cipher standard adopted by the government of the' \
+    ' People’s Republic of China, and it was issued by the State' \
+    ' Cryptography Administration on March 21, 2012. The standard is GM/T' \
+    ' 0002-2012 \\"SM4 block cipher algorithm\\".'
 
 twofish = 'Another AES finalist, this one designed by Bruce Schneier ' \
     'and others.'

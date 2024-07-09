@@ -31,3 +31,12 @@ dist/*
 
 # build directory
 build
+
+# VS Code config
+.vscode/
+
+# pyenv version file
+.python-version
+
+# Compile commands for debugger
+compile_commands.json

@@ -18,4 +18,5 @@ setup(name="nettle",
                              'src/nettle_macs.c',
                              'src/nettle_pubkey.c',
                              'src/nettle_asn1.c',
-                             'src/nettle.c'])])
+                             'src/nettle.c'],
+                    extra_compile_args=['-Werror'])])
