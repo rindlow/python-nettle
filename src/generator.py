@@ -63,15 +63,22 @@ hashes = [
      'docstring': docstrings.sha384},
     {'name': 'sha512_256', 'headers': ['sha2.h'],
      'docstring': docstrings.sha384},
+    {'name': 'sha3_128', 'headers': ['sha3.h'], 'digest': False, 'shake': True,
+     'docstring': docstrings.sha3_224},
     {'name': 'sha3_224', 'headers': ['sha3.h'],
      'docstring': docstrings.sha3_224},
-    {'name': 'sha3_256', 'headers': ['sha3.h'],
+    {'name': 'sha3_256', 'headers': ['sha3.h'], 'shake': True,
      'docstring': docstrings.sha3_256},
     {'name': 'sha3_384', 'headers': ['sha3.h'],
      'docstring': docstrings.sha3_384},
     {'name': 'sha3_512', 'headers': ['sha3.h'],
      'docstring': docstrings.sha3_512},
-]
+    {'name': 'streebog512', 'headers': ['streebog.h'],
+     'docstring': docstrings.streebog_512},
+    {'name': 'streebog256', 'headers': ['streebog.h'],
+     'docstring': docstrings.streebog_256},
+    {'name': 'sm3', 'headers': ['sm3.h'],
+     'docstring': docstrings.sm3}, ]
 
 ciphers = [
     {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h'],
@@ -120,6 +127,8 @@ ciphers = [
     {'name': 'serpent', 'family': 'serpent', 'headers': ['serpent.h'],
      'docstring': docstrings.serpent,
      'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
+    {'name': 'sm4', 'family': 'sm4', 'headers': ['sm4.h'],
+     'docstring': docstrings.sm4, 'twokeys': True, },
     {'name': 'twofish', 'family': 'twofish', 'headers': ['twofish.h'],
      'docstring': docstrings.twofish,
      'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
@@ -199,6 +208,7 @@ class Generator:
     mod_file = 'nettle.c'
     pubkey_file = 'nettle_pubkey.c'
     python_module = '../nettle/autogen.py'
+    python_interface = '../nettle/autogen.pyi'
     cipher_doc_file = '../doc/source/ciphers.rst'
     ciphermode_doc_file = '../doc/source/ciphermodes.rst'
     hash_doc_file = '../doc/source/hashes.rst'
@@ -219,9 +229,23 @@ class Generator:
                 '} nettle_py2buf;\n'
                 '#endif\n')
 
+    @staticmethod
+    def write_c_autogen_warning(f):
+        f.write('/*\n'
+                '  This file is auto generated (by src/generator.py).\n'
+                '  All changes will be lost!\n'
+                '*/\n')
+
+    @staticmethod
+    def write_python_autogen_warning(f):
+        f.write('# This file is auto generated (by src/generator.py).\n'
+                '# All changes will be lost!\n')
+
     def gen_hash_file(self, hashdata):
         headers = set([f for h in hashdata for f in h['headers']])
-        classes = [Hash(p['name'], p['docstring']) for p in hashdata]
+        classes = [Hash(p['name'], p.get('digest', True),
+                        p.get('shake', False), p['docstring'])
+                   for p in hashdata]
         self.objects.extend(classes)
         self.hashes = classes
 
@@ -231,23 +255,24 @@ class Generator:
 
     def gen_cipher_file(self, cipherdata, modedata):
         headers = set([h for m in cipherdata + modedata for h in m['headers']])
-        ciphers = [Cipher(defaultdict(none_factory(), c)) for c in cipherdata]
+        cipher_list = [Cipher(defaultdict(none_factory(), c))
+                       for c in cipherdata]
         modes = [CipherMode(defaultdict(none_factory(), m),
                             [c for c in cipherdata
                              if c.get('family') in ('aes', 'camellia')])
                  for m in modedata]
-        classes = ciphers + modes
+        classes = cipher_list + modes
         self.objects.extend(classes)
-        self.ciphers = ciphers
+        self.ciphers = cipher_list
 
         self.write_class_file(self.cipher_file, classes, headers)
         self.write_doc_file(self.cipher_doc_file, "Ciphers",
-                            docstrings.cipher_example, ciphers)
+                            docstrings.cipher_example, cipher_list)
         self.write_doc_file(self.ciphermode_doc_file, "Cipher Modes",
                             docstrings.ciphermode_example, modes)
 
     def gen_mac_file(self, macdata):
-        headers = set([h for m in macdata for h in m['headers']])
+        headers = set(h for m in macdata for h in m['headers'])
         classes = [MAC(m) for m in macdata]
         self.objects.extend(classes)
 
@@ -267,22 +292,25 @@ class Generator:
         self.write_doc_file(self.pubkey_doc_file, 'Public Key Encryption',
                             docstrings.pubkey_example, classes)
 
-    def gen_exceptions(self, exceptions):
-        for e in exceptions:
+    def gen_exceptions(self, exception_list):
+        for e in exception_list:
             self.objects.append(CException(e['name'], 'nettle',
                                            e['docs'], e['base']))
 
     def gen_header_file(self):
-        with open(self.header_file, 'w') as f:
+        with open(self.header_file, 'w', encoding='utf8') as f:
+            self.write_c_autogen_warning(f)
             f.write('#ifndef _NETTLE_H_\n#define _NETTLE_H_\n\n')
             f.write('#include <nettle/camellia.h>\n')
             f.write('#include <nettle/sha2.h>\n')
+            f.write('#include <nettle/streebog.h>\n')
             for obj in self.objects:
                 obj.write_decl_to_file(f, extern=True)
             f.write('#endif /* _NETTLE_H_ */\n')
 
     def gen_mod_file(self):
-        with open(self.mod_file, 'w') as f:
+        with open(self.mod_file, 'w', encoding='utf8') as f:
+            self.write_c_autogen_warning(f)
             f.write('#include <Python.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
             for obj in sorted(self.objects, key=lambda o: o.name):
@@ -294,7 +322,8 @@ class Generator:
             module.write_to_file(f)
 
     def gen_python_file(self):
-        with open(self.python_module, 'w') as f:
+        with open(self.python_module, 'w', encoding='utf8') as f:
+            self.write_python_autogen_warning(f)
             f.write('import _nettle\n')
             for obj in sorted(self.objects, key=lambda o: o.name):
                 obj.write_python_subclass(f)
@@ -303,29 +332,58 @@ class Generator:
                                                            for c in
                                                            self.ciphers)))
             if self.hashes:
+                f.write('class Hash: pass\n')
+                f.write('class DigestableHash(Hash): pass\n')
+                f.write('class ShakeableHash(Hash): pass\n')
                 f.write('hashes = [{}]\n'.format(','.join(h.name
                                                           for h in
                                                           self.hashes)))
 
+    def gen_interface_file(self, hash_list):
+        with open(self.python_interface, 'w', encoding='utf8') as f:
+            self.write_python_autogen_warning(f)
+            f.write('import typing as t\n')
+            f.write('T = t.TypeVar("T", bound="Hash")\n')
+            f.write('class Hash(t.Protocol):\n')
+            f.write('    def __init__(self, msg: bytes = ...) -> None: ...\n')
+            f.write('    def copy(self: T) -> T: ...\n')
+            f.write('    def update(self, msg: bytes) -> None: ...\n')
+            f.write('class DigestableHash(Hash, t.Protocol):\n')
+            f.write('    def digest(self) -> bytes: ...\n')
+            f.write('    def hexdigest(self) -> str: ...\n')
+            f.write('class ShakeableHash(Hash, t.Protocol):\n')
+            f.write('    def shake(self, length: int) -> bytes: ...\n')
+            f.write('    def shake_output(self, length: int) -> bytes: ...\n')
+            for h in hash_list:
+                protocols = []
+                if h.get('digest', True):
+                    protocols.append('DigestableHash')
+                if h.get('shake'):
+                    protocols.append('ShakeableHash')
+                f.write('class {}({}): ...\n'.format(h['name'], ', '.join(protocols)))
+
     def write_class_file(self, filename, classes, nettle_headers,
-                         system_headers=[], pynettle_headers=[]):
-        with open(filename, 'w') as f:
+                         system_headers=None, pynettle_headers=None):
+        with open(filename, 'w', encoding='utf8') as f:
+            self.write_c_autogen_warning(f)
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
             f.write('#include "{}"\n'.format(self.header_file))
-            for header in sorted(system_headers):
-                f.write('#include <{}>\n'.format(header))
+            if system_headers is not None:
+                for header in sorted(system_headers):
+                    f.write('#include <{}>\n'.format(header))
             for header in sorted(nettle_headers):
                 f.write('#include <nettle/{}>\n'.format(header))
-            for header in sorted(pynettle_headers):
-                f.write('#include "{}"\n'.format(header))
+            if pynettle_headers is not None:
+                for header in sorted(pynettle_headers):
+                    f.write('#include "{}"\n'.format(header))
             self.write_python2_buffer_struct(f)
             f.write('\n')
             for cls in classes:
                 cls.write_to_file(f)
 
     def write_doc_file(self, filename, title, example, classes):
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf8') as f:
             f.write('{}\n'.format(title))
             f.write('{}\n\n'.format('=' * len(title)))
             f.write('Example\n')
@@ -346,3 +404,4 @@ gen.gen_exceptions(exceptions)
 gen.gen_header_file()
 gen.gen_mod_file()
 gen.gen_python_file()
+gen.gen_interface_file(hashes)

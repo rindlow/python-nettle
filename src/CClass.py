@@ -104,8 +104,8 @@ class CClass:
         f.write('{0} = _nettle.{0}\n'.format(self.name))
 
     def write_class_struct_to_file(self, f):
-        f.write('typedef struct\n{{'
-                '\n  PyObject_HEAD\n'.format(self.name))
+        f.write('typedef struct\n{'
+                '\n  PyObject_HEAD\n')
         for member in self.members:
             f.write('  {};\n'.format(member['decl']))
         f.write('}} pynettle_{};\n'.format(self.name))
@@ -306,7 +306,6 @@ class CClass:
                        docstring=self.docs,
                        members=members,
                        richcompare=richcompare,
-                       have_richcompare=have_richcompare,
                        getset=getset))
 
     def write_to_file(self, f):

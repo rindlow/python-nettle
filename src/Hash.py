@@ -35,7 +35,7 @@ from CClass import CClass
 
 class Hash(CClass):
 
-    def __init__(self, name, docs):
+    def __init__(self, name, digest, shake, docs):
         CClass.__init__(self, name, docs, args='[msg]')
 
         self.add_to_init_body('''
@@ -100,58 +100,84 @@ class Hash(CClass):
                   {name}_update (self->ctx, buffer.len, buffer.buf);
                   Py_RETURN_NONE;
                 '''.format(name=name))
+        if digest:
+            self.add_method(
+                name='digest',
+                args='METH_NOARGS',
+                docs='Return the digest of the data passed to the update()'
+                ' method so far. This is a bytes object of size digest_size'
+                ' which may contain bytes in the whole range from 0 to 255.',
+                body='''
+                    uint8_t digest[{NAME}_DIGEST_SIZE];
+                    {name}_digest (self->ctx, {NAME}_DIGEST_SIZE, digest);
+                    return PyBytes_FromStringAndSize ((const char *) digest,
+                                                      {NAME}_DIGEST_SIZE);
+                '''.format(name=name, NAME=name.upper()))
 
-        self.add_method(
-            name='digest',
-            args='METH_NOARGS',
-            docs='Return the digest of the data passed to the update()'
-            ' method so far. This is a bytes object of size digest_size'
-            ' which may contain bytes in the whole range from 0 to 255.'
-            ' Note that unlike the nettle c function, the state is not reset.',
-            body='''
-                uint8_t digest[{NAME}_DIGEST_SIZE];
-                struct {name}_ctx *ctx_copy;
-                if ((ctx_copy = PyMem_Malloc (sizeof
-                      (struct {name}_ctx))) == NULL) {{
-                  return PyErr_NoMemory ();
-                }}
-                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
-                {name}_digest (ctx_copy, {NAME}_DIGEST_SIZE, digest);
-                PyMem_Free(ctx_copy);
-                return PyBytes_FromStringAndSize ((const char *) digest,
-                                                  {NAME}_DIGEST_SIZE);
-            '''.format(name=name, NAME=name.upper()))
+            self.add_method(
+                name='hexdigest',
+                args='METH_NOARGS',
+                docs='Like digest() except the digest is returned as a string'
+                ' object of double length, containing only hexadecimal'
+                ' digits. This may be used to exchange the value safely'
+                ' in email or other non-binary environments.',
+                body='''
+                    uint8_t digest[{NAME}_DIGEST_SIZE];
+                    char hex[{NAME}_DIGEST_SIZE * 2 + 1];
+                    char *ptr = hex;
+                    {name}_digest (self->ctx, {NAME}_DIGEST_SIZE, digest);
+                    for (int i = 0; i < {NAME}_DIGEST_SIZE; i++) {{
+                      snprintf(ptr, 3, "%02X", digest[i]);
+                      ptr += 2;
+                    }}
+                  #if PY_MAJOR_VERSION >= 3
+                    return PyUnicode_FromString ((const char *) hex);
+                  #else
+                    return PyString_FromString ((const char *) hex);
+                  #endif
+                '''.format(name=name, NAME=name.upper()))
 
-        self.add_method(
-            name='hexdigest',
-            args='METH_NOARGS',
-            docs='Like digest() except the digest is returned as a string'
-            ' object of double length, containing only hexadecimal'
-            ' digits. This may be used to exchange the value safely'
-            ' in email or other non-binary environments.'
-            ' Note that unlike the nettle c function, the state is not reset.',
-            body='''
-                uint8_t digest[{NAME}_DIGEST_SIZE];
-                char hex[{NAME}_DIGEST_SIZE * 2 + 1];
-                char *ptr = hex;
-                struct {name}_ctx *ctx_copy;
-                if ((ctx_copy = PyMem_Malloc (sizeof \\
-                      (struct {name}_ctx))) == NULL) {{
-                  return PyErr_NoMemory ();
-                }}
-                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
-                {name}_digest (ctx_copy, {NAME}_DIGEST_SIZE, digest);
-                PyMem_Free(ctx_copy);
-                for (int i = 0; i < {NAME}_DIGEST_SIZE; i++) {{
-                  snprintf(ptr, 3, "%02X", digest[i]);
-                  ptr += 2;
-                }}
-              #if PY_MAJOR_VERSION >= 3
-                return PyUnicode_FromString ((const char *) hex);
-              #else
-                return PyString_FromString ((const char *) hex);
-              #endif
-            '''.format(name=name, NAME=name.upper()))
+        if shake:
+            self.add_method(
+                name='shake',
+                args='METH_VARARGS',
+                docs='Performs final processing and produces a {NAME} digest.'
+                ' length can be of arbitrary size.'.format(NAME=name.upper()),
+                body='''
+                    size_t length;
+                    uint8_t *digest;
+                    if (! PyArg_ParseTuple (args, "n", &length)) {{
+                      return NULL;
+                    }}
+                    if ((digest = PyMem_Malloc(length)) == NULL) {{
+                      return PyErr_NoMemory ();
+                    }}
+                    {name}_shake (self->ctx, length, digest);
+                    PyObject * bytes = PyBytes_FromStringAndSize (
+                        (const char *) digest, length);
+                    PyMem_Free(digest);
+                    return bytes;
+                '''.format(name=name))
+            self.add_method(
+                name='shake_output',
+                args='METH_VARARGS',
+                docs='Performs final processing and produces a {NAME} digest.'
+                ' length can be of arbitrary size.'.format(NAME=name.upper()),
+                body='''
+                    size_t length;
+                    uint8_t *digest;
+                    if (! PyArg_ParseTuple (args, "n", &length)) {{
+                      return NULL;
+                    }}
+                    if ((digest = PyMem_Malloc(length)) == NULL) {{
+                      return PyErr_NoMemory ();
+                    }}
+                    {name}_shake_output (self->ctx, length, digest);
+                    PyObject * bytes = PyBytes_FromStringAndSize (
+                        (const char *) digest, length);
+                    PyMem_Free(digest);
+                    return bytes;
+                '''.format(name=name))
 
         self.add_method(
             name='copy',
