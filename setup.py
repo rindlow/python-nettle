@@ -13,6 +13,8 @@ setup(name="nettle",
       packages=['nettle'],
       ext_modules=[
           Extension("_nettle", libraries=['nettle', 'hogweed', 'gmp'],
+                    include_dirs=['/opt/homebrew/include'],
+                    library_dirs=['/opt/homebrew/lib'],
                     sources=['src/nettle_hashes.c',
                              'src/nettle_ciphers.c',
                              'src/nettle_macs.c',
