@@ -1,0 +1,20 @@
+[project]
+name = "nettle"
+version = "2025.1"
+description = "Python bindings to the nettle cryptographic library"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [
+    { name = "Henrik Rindlöw", email = "henrik@rindlow.se" }
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
