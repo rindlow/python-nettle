@@ -186,13 +186,8 @@ class Cipher(CClass):
                      ' parity.',
                 docargs='key',
                 body='''
-                    #if PY_MAJOR_VERSION >= 3
                       Py_buffer key;
                       if (!PyArg_ParseTuple (args, "y*", &key))
-                    #else
-                      nettle_py2buf key;
-                      if (!PyArg_ParseTuple (args, "t#", &key.buf, &key.len))
-                    #endif
                         {{
                           return NULL;
                         }}
@@ -208,13 +203,8 @@ class Cipher(CClass):
                      ' and want to use it as a key',
                 docargs='key',
                 body='''
-                    #if PY_MAJOR_VERSION >= 3
                       Py_buffer key;
                       if (!PyArg_ParseTuple (args, "y*", &key))
-                    #else
-                      nettle_py2buf key;
-                      if (!PyArg_ParseTuple (args, "t#", &key.buf, &key.len))
-                    #endif
                         {{
                           return NULL;
                         }}
@@ -254,14 +244,8 @@ class Cipher(CClass):
                       return NULL;
                     }}
                   uint8_t *dst;
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
                   if (!PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                  nettle_py2buf buffer;
-                  if (!PyArg_ParseTuple (args, "t#",
-                                         &buffer.buf, &buffer.len))
-                #endif
                     {{
                       return NULL;
                     }}
@@ -287,13 +271,8 @@ class Cipher(CClass):
             docs=docs,
             docargs=key,
             body='''
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer {key};
                   if (!PyArg_ParseTuple (args, "y*", &{key}))
-                #else
-                  nettle_py2buf {key};
-                  if (!PyArg_ParseTuple (args, "t#", &{key}.buf, &{key}.len))
-                #endif
                     {{
                       return NULL;
                     }}

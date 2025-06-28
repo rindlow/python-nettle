@@ -245,14 +245,8 @@ class CClass:
             members = 0
         if self.richcompare is None:
             richcompare = 0
-            have_richcompare = ''
         else:
             richcompare = 'pynettle_{}_richcompare'.format(self.name)
-            have_richcompare = '''
-                #if PY_MAJOR_VERSION < 3
-                Py_TPFLAGS_HAVE_RICHCOMPARE |
-                #endif
-                '''
         if self.getsetters:
             getset = 'pynettle_{}_getsetters'.format(self.name)
         else:
@@ -279,7 +273,6 @@ class CClass:
               0,				      /* tp_setattro */
               0,				      /* tp_as_buffer */
               '''.format(name=self.name))
-        self.writeindent(2, have_richcompare)
         self.writeindent(0, '''
               Py_TPFLAGS_DEFAULT |
               Py_TPFLAGS_BASETYPE,                    /* tp_flags */
@@ -376,21 +369,11 @@ class CClass:
     def add_bufferparse_to_init(self, buffers):
         self.add_to_init_body('''
               static char *kwlist[] = {kwlist};
-            #if PY_MAJOR_VERSION >= 3
               Py_buffer {vars};
-            #else
-              nettle_py2buf {vars};
-            #endif
               {nullify}
-            #if PY_MAJOR_VERSION >= 3
               if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py3fmt}", \\
                                                  kwlist,
                                                  {py3pointers}))
-            #else
-              if (! PyArg_ParseTupleAndKeywords (args, kwds, "{py2fmt}", \\
-                                                 kwlist,
-                                                 {py2pointers}))
-            #endif
                 {{
                   return -1;
                 }}
@@ -398,11 +381,7 @@ class CClass:
                        vars=', '.join(buffers),
                        nullify='//\n'.join(['{b}.buf = NULL; {b}.len = 0;'
                                             .format(b=b) for b in buffers]),
-                       py2fmt='|' + 't#' * len(buffers),
                        py3fmt='|' + 'z*' * len(buffers),
-                       py2pointers=',//\n'.join(
-                           ['&{b}.buf, &{b}.len'.format(b=b)
-                            for b in buffers]),
                        py3pointers=', '.join(['&{}'.format(b)
                                               for b in buffers])))
 

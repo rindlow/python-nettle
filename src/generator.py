@@ -221,15 +221,6 @@ class Generator:
         self.hashes = []
 
     @staticmethod
-    def write_python2_buffer_struct(f):
-        f.write('#if PY_MAJOR_VERSION < 3\n'
-                'typedef struct py2buf_struct\n{\n'
-                '  uint8_t *buf;\n'
-                '  int len;\n'
-                '} nettle_py2buf;\n'
-                '#endif\n')
-
-    @staticmethod
     def write_c_autogen_warning(f):
         f.write('/*\n'
                 '  This file is auto generated (by src/generator.py).\n'
@@ -377,7 +368,6 @@ class Generator:
             if pynettle_headers is not None:
                 for header in sorted(pynettle_headers):
                     f.write('#include "{}"\n'.format(header))
-            self.write_python2_buffer_struct(f)
             f.write('\n')
             for cls in classes:
                 cls.write_to_file(f)

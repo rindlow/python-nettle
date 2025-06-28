@@ -64,15 +64,9 @@ encryptbody = '''
     mpz_t ciphertext;
     uint8_t *data;
     size_t len;
-    #if PY_MAJOR_VERSION >= 3
     Py_buffer buffer;
 
     if (! PyArg_ParseTuple (args, "y*", &buffer))
-    #else
-    nettle_py2buf buffer;
-    if (! PyArg_ParseTuple (args, "t#",
-                            &buffer.buf, &buffer.len))
-    #endif
       {
         return NULL;
       }
@@ -96,15 +90,9 @@ verifybody = '''
     mpz_t signature;
     PyObject *obj;
     pynettle_sha256 *hash;
-    #if PY_MAJOR_VERSION >= 3
     Py_buffer buffer;
 
     if (! PyArg_ParseTuple (args, "y*O", &buffer, &obj))
-    #else
-    nettle_py2buf buffer;
-    if (! PyArg_ParseTuple (args, "t#O",
-                            &buffer.buf, &buffer.len, &obj))
-    #endif
       {
         return NULL;
       }
@@ -255,14 +243,8 @@ class RSAKeyPair(CClass):
             args='METH_VARARGS',
             docargs='bytes',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-                #endif
                   {
                     return NULL;
                   }
@@ -280,14 +262,8 @@ class RSAKeyPair(CClass):
             args='METH_VARARGS',
             docargs='bytes',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-                #endif
                   {
                     return NULL;
                   }
@@ -328,14 +304,8 @@ class RSAKeyPair(CClass):
                 mpz_t ciphertext;
                 size_t datalen = 256;
                 uint8_t data[datalen];
-              #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-              #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-              #endif
                   {
                     return NULL;
                   }
@@ -492,14 +462,8 @@ class RSAPubKey(CClass):
             docargs='bytes',
             args='METH_VARARGS',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-                #endif
                   {
                     return NULL;
                   }
@@ -518,14 +482,8 @@ class RSAPubKey(CClass):
             docargs='bytes',
             args='METH_VARARGS',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-                #endif
                   {
                     return NULL;
                   }
@@ -544,14 +502,8 @@ class RSAPubKey(CClass):
             docargs='bytes',
             args='METH_VARARGS',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (! PyArg_ParseTuple (args, "t#",
-                                        &buffer.buf, &buffer.len))
-                #endif
                   {
                     return NULL;
                   }

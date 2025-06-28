@@ -116,15 +116,9 @@ class CipherMode(CClass):
                 .format(iv=param['iv'])
             self.add_to_init_body('''
                 PyObject *obj = NULL;
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (!PyArg_ParseTuple (args, "Oy*iii", &obj, &buffer, \\
                     &self->authlen, &self->msglen, &self->taglen))
-                #else
-                nettle_py2buf buffer;
-                if (!PyArg_ParseTuple (args, "Ot#iii", &obj, &buffer.buf, \\
-                    &buffer.len, &self->authlen, &self->msglen, &self->taglen))
-                #endif
                   {
                     return -1;
                   }
@@ -135,14 +129,8 @@ class CipherMode(CClass):
             self.args = 'cipher, {iv}'.format(iv=param['iv'])
             self.add_to_init_body('''
                 PyObject *obj = NULL;
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (!PyArg_ParseTuple (args, "Oy*", &obj, &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (!PyArg_ParseTuple (args, "Ot#", &obj, &buffer.buf, \\
-                    &buffer.len))
-                #endif
                   {
                     return -1;
                   }
@@ -245,14 +233,8 @@ class CipherMode(CClass):
                 ' of the block size.',
                 docargs='bytes',
                 body='''
-                    #if PY_MAJOR_VERSION >= 3
                     Py_buffer buffer;
                     if (!PyArg_ParseTuple (args, "y*", &buffer))
-                    #else
-                    nettle_py2buf buffer;
-                    if (!PyArg_ParseTuple (args, "t#", \\
-                        &buffer.buf, &buffer.len))
-                    #endif
                       {{
                         return NULL;
                       }}
@@ -315,11 +297,7 @@ class CipherMode(CClass):
                       snprintf(ptr, 3, "%02X", digest[i]);
                       ptr += 2;
                     }}
-                  #if PY_MAJOR_VERSION >= 3
                     return PyUnicode_FromString ((const char *) hex);
-                  #else
-                    return PyString_FromString ((const char *) hex);
-                  #endif
                     '''.format(name=name, lname=lname, mode_key=mode_key,
                                cipher=digest_cipher, taglen=taglen))
         else:
@@ -376,14 +354,8 @@ class CipherMode(CClass):
                     return NULL;
                   }
                 uint8_t *dst;
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (!PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (!PyArg_ParseTuple (args, "t#",
-                                       &buffer.buf, &buffer.len))
-                #endif
                     {
                       return NULL;
                     }
@@ -409,14 +381,8 @@ class CipherMode(CClass):
                     return NULL;
                   }
                 uint8_t *dst;
-                #if PY_MAJOR_VERSION >= 3
                 Py_buffer buffer;
                 if (!PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                nettle_py2buf buffer;
-                if (!PyArg_ParseTuple (args, "t#",
-                                       &buffer.buf, &buffer.len))
-                #endif
                     {
                       return NULL;
                     }

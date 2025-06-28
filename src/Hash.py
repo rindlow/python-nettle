@@ -39,16 +39,9 @@ class Hash(CClass):
         CClass.__init__(self, name, docs, args='[msg]')
 
         self.add_to_init_body('''
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
                   buffer.buf = NULL;
                   if (! PyArg_ParseTuple (args, "|y*", &buffer)) {{
-                #else
-                  nettle_py2buf buffer;
-                  buffer.buf = NULL;
-                  if (! PyArg_ParseTuple (args, "|t#",
-                                          &buffer.buf, &buffer.len)) {{
-                #endif
                     return -1;
                   }}
                   if (buffer.buf != NULL) {{
@@ -86,15 +79,9 @@ class Hash(CClass):
             docs='Hash some more data',
             docargs='msg',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
 
                   if (! PyArg_ParseTuple (args, "y*", &buffer)) {{
-                #else
-                  nettle_py2buf buffer;
-                  if (! PyArg_ParseTuple (args, "t#",
-                                          &buffer.buf, &buffer.len)) {{
-                #endif
                     return NULL;
                   }}
                   {name}_update (self->ctx, buffer.len, buffer.buf);
@@ -130,11 +117,7 @@ class Hash(CClass):
                       snprintf(ptr, 3, "%02X", digest[i]);
                       ptr += 2;
                     }}
-                  #if PY_MAJOR_VERSION >= 3
                     return PyUnicode_FromString ((const char *) hex);
-                  #else
-                    return PyString_FromString ((const char *) hex);
-                  #endif
                 '''.format(name=name, NAME=name.upper()))
 
         if shake:

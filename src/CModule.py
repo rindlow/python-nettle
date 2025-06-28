@@ -40,8 +40,7 @@ class CModule:
         self.out = None
 
     def write_to_file(self, out):
-        out.write('#if PY_MAJOR_VERSION >= 3\n'
-                  '#define MOD_ERR_VAL NULL\n'
+        out.write('#define MOD_ERR_VAL NULL\n'
                   'static PyModuleDef {name} = {{\n'
                   '  PyModuleDef_HEAD_INIT,\n'
                   '  "{name}",\n'
@@ -53,13 +52,6 @@ class CModule:
                   'PyInit_{name} (void)\n'
                   '{{\n'
                   '  PyObject *m = PyModule_Create (&{name});\n'
-                  '#else\n'
-                  '#define MOD_ERR_VAL\n'
-                  'PyMODINIT_FUNC\n'
-                  'init{name} (void)\n'
-                  '{{\n'
-                  '  PyObject *m = Py_InitModule3 ("{name}", NULL, "{doc}");\n'
-                  '#endif\n'
                   '  if (m == NULL) {{\n'
                   '    return MOD_ERR_VAL;\n'
                   '  }}\n'.format(name=self.name, doc=self.doc))
@@ -67,7 +59,5 @@ class CModule:
         for obj in sorted(self.objects, key=lambda o: o.name):
             obj.write_reg_to_file(out)
 
-        out.write('#if PY_MAJOR_VERSION >= 3\n'
-                  '  return m;\n'
-                  '#endif\n'
+        out.write('  return m;\n'
                   '}\n')

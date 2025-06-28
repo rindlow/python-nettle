@@ -101,15 +101,9 @@ class MAC(CClass):
                                      "Cipher not initialized. Set key first!");
                           return NULL;
                         }}
-                    #if PY_MAJOR_VERSION >= 3
                       Py_buffer nonce;
 
                       if (! PyArg_ParseTuple (args, "y*", &nonce))
-                    #else
-                      nettle_py2buf nonce;
-                      if (! PyArg_ParseTuple (args, "t#",
-                                             &nonce.buf, &nonce.len))
-                    #endif
                         {{
                           return NULL;
                         }}
@@ -131,15 +125,9 @@ class MAC(CClass):
             docs='Initializes the MAC with the key',
             docargs='key',
             body='''
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer key;
 
                   if (! PyArg_ParseTuple (args, "y*", &key))
-                #else
-                  nettle_py2buf key;
-                  if (! PyArg_ParseTuple (args, "t#",
-                                         &key.buf, &key.len))
-                #endif
                     {{
                       return NULL;
                     }}
@@ -159,15 +147,9 @@ class MAC(CClass):
                                     "Cipher not initialized. Set key first!");
                       return NULL;
                     }}
-                #if PY_MAJOR_VERSION >= 3
                   Py_buffer buffer;
 
                   if (! PyArg_ParseTuple (args, "y*", &buffer))
-                #else
-                  nettle_py2buf buffer;
-                  if (! PyArg_ParseTuple (args, "t#",
-                                         &buffer.buf, &buffer.len))
-                #endif
                     {{
                       return NULL;
                     }}
@@ -230,9 +212,5 @@ class MAC(CClass):
                     snprintf(ptr, 3, "%02X", digest[i]);
                     ptr += 2;
                   }}
-              #if PY_MAJOR_VERSION >= 3
                 return PyUnicode_FromString ((const char *) hex);
-              #else
-                return PyString_FromString ((const char *) hex);
-              #endif
             '''.format(name=name, DIGESTSIZE=digestsize))
