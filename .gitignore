@@ -16,6 +16,7 @@ nettle_macs.c
 nettle_pubkey.c
 nettle.h
 nettle/autogen.py
+nettle/autogen.pyi
 doc/source/ciphermodes.rst
 doc/source/ciphers.rst
 doc/source/hashes.rst
