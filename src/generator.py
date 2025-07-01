@@ -329,15 +329,34 @@ class Generator:
                 f.write('hashes = [{}]\n'.format(','.join(h.name
                                                           for h in
                                                           self.hashes)))
+            if self.ciphers:
+                f.write('class Cipher: ...\n')
+                f.write('class SingleFuncCipher(Cipher): ...\n')
+                f.write('class SingleKeyCipher(Cipher): ...\n')
+                f.write('class DoubleKeyCipher(Cipher): ...\n')
+                f.write('class NonceCipher(Cipher): ...\n')
+                f.write('class StreamCipher(Cipher): ...\n')
+                f.write('class InvertableKeyCipher(Cipher): ...\n')
+                f.write('class ParitySensitiveCipher(Cipher): ...\n')
+                written_families = set()
+                for c in self.ciphers:
+                    if c.family is not None and c.family not in written_families:
+                        f.write(f'class {c.family.capitalize()}FamilyCipher(Cipher): ... \n')
+                        written_families.add(c.family)
 
-    def gen_interface_file(self, hash_list):
+            f.write('class CipherMode: pass\n')
+            f.write('class AEADCipherMode(CipherMode): pass\n')
+            f.write('class MAC: pass\n')
+            f.write('class NonceMAC(MAC): pass\n')
+
+    def gen_interface_file(self, hash_list, cipher_list, ciphermode_list, 
+                           exception_list, mac_list):
         with open(self.python_interface, 'w', encoding='utf8') as f:
             self.write_python_autogen_warning(f)
             f.write('import typing as t\n')
-            f.write('T = t.TypeVar("T", bound="Hash")\n')
             f.write('class Hash(t.Protocol):\n')
             f.write('    def __init__(self, msg: bytes = ...) -> None: ...\n')
-            f.write('    def copy(self: T) -> T: ...\n')
+            f.write('    def copy(self) -> t.Self: ...\n')
             f.write('    def update(self, msg: bytes) -> None: ...\n')
             f.write('class DigestableHash(Hash, t.Protocol):\n')
             f.write('    def digest(self) -> bytes: ...\n')
@@ -352,6 +371,134 @@ class Generator:
                 if h.get('shake'):
                     protocols.append('ShakeableHash')
                 f.write('class {}({}): ...\n'.format(h['name'], ', '.join(protocols)))
+            f.write('class Cipher(t.Protocol):\n')
+            f.write('    key_size: int\n')
+            f.write('    def set_encrypt_key(self, key: bytes) -> None: ...\n')
+            f.write('    def set_decrypt_key(self, key: bytes) -> None: ...\n')
+            f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('class SingleFuncCipher(Cipher, t.Protocol):\n')
+            f.write('    def crypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('class SingleKeyCipher(Cipher, t.Protocol):\n')
+            f.write('    def set_key(self, key: bytes) -> None: ...\n')
+            f.write('class DoubleKeyCipher(Cipher, t.Protocol): ...\n')
+            f.write('class NonceCipher(Cipher, t.Protocol):\n')
+            f.write('    def set_nonce(self, nonce: bytes) -> None: ...\n')
+            f.write('class StreamCipher(Cipher, t.Protocol):\n')
+            f.write('    block_size: int\n')
+            f.write('class InvertableKeyCipher(Cipher, t.Protocol):\n')
+            f.write('    def invert_key(self) -> None: ...\n')
+            f.write('class ParitySensitiveCipher(Cipher, t.Protocol):\n')
+            f.write('    def check_parity(self, key: bytes) -> bool: ...\n')
+            f.write('    def fix_parity(self, key: bytes) -> bytes: ...\n')
+            written_families = set()
+            for c in cipher_list:
+                if 'family' not in c or c['family'] not in written_families:
+                    protocols = []
+                    init_args = []
+                    if not c.get('twofuncs'):
+                        protocols.append('SingleFuncCipher')
+                        # f.write('    def crypt(self, msg: bytes) -> bytes: ...\n')
+                    if c.get('twokeys'):
+                        protocols.append('DoubleKeyCipher')
+                        init_args.extend(['encrypt_key: bytes | None = None',
+                                          'decrypt_key: bytes | None = None'])
+                    else:
+                        protocols.append('SingleKeyCipher')
+                        # f.write('    def set_key(self, key: bytes) -> None: ...\n')
+                        init_args.append('key: bytes | None = None')
+                    if c.get('nonce'):
+                        protocols.append('NonceCipher')
+                        # f.write('    def set_nonce(self, nonce: bytes) -> None: ...\n')
+                        init_args.append('nonce: bytes | None = None')
+                    if c.get('invert'):
+                        protocols.append('InvertableKeyCipher')
+                        # f.write('    def invert_key(self) -> None: ...\n')
+                    if c.get('parity'):
+                        protocols.append('ParitySensitiveCipher')
+                        # f.write('    def check_parity(self, key: bytes) -> bool: ...\n')
+                        # f.write('    def fix_parity(self, key: bytes) -> bytes: ...\n')
+
+                if 'family' in c:
+                    if c['family'] not in written_families:
+                        written_families.add(c['family'])
+                        f.write(f'class {c["family"].capitalize()}FamilyCipher({", ".join(protocols)}, t.Protocol):\n')
+                        f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
+                    f.write(f'class {c["name"]}({c["family"].capitalize()}FamilyCipher):\n')
+                    f.write('    key_size: int\n')
+                else:
+                    if len(protocols) == 0:
+                        protocols = ['Cipher']
+                    f.write(f'class {c["name"]}({", ".join(protocols)}):\n')
+                    f.write('    key_size: int\n')
+                    f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
+
+            f.write('class CipherMode(t.Protocol):\n')
+            f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('class AEADCipherMode(CipherMode, t.Protocol):\n')
+            f.write('    def update(self, msg: bytes) -> None: ...\n')
+            f.write('    def digest(self) -> bytes: ...\n')            
+            f.write('    def hexdigest(self) -> str: ...\n')            
+            for m in ciphermode_list:
+                if 'aead' in m:
+                    protocol = 'AEADCipherMode'
+                else:
+                    protocol = 'CipherMode'
+                init_args = f'cipher: Cipher, {m["iv"]}: bytes'
+                if 'know_len' in m:
+                    init_args += ', authlen: int, msglen: int, taglen: int'
+                f.write(f'class {m["name"]}({protocol}):\n')
+                f.write(f'    def __init__(self, {init_args}) -> None: ...\n')
+
+            for e in exception_list:
+                f.write(f'class {e["name"]}(Exception): ...\n')
+
+            f.write('class MAC(t.Protocol):\n')
+            f.write('    def __init__(self, key: bytes | None = None) -> None: ...\n')
+            f.write('    def set_key(self, key: bytes) -> None: ...\n')
+            f.write('    def update(self, msg: bytes) -> None: ...\n')
+            f.write('    def digest(self) -> bytes: ...\n')
+            f.write('    def hexdigest(self) -> str: ...\n')
+            f.write('class NonceMAC(MAC, t.Protocol):\n')
+            f.write('    def __init__(self, key: bytes | None = None, nonce: bytes | None = None) -> None: ...\n')
+            f.write('    def set_nonce(self, nonce: bytes) -> None: ...\n')
+            for m in mac_list:
+                if 'nonce' in m:
+                    f.write(f'class {m["name"]}(NonceMAC):\n')
+                else:
+                    f.write(f'class {m["name"]}(MAC):\n')
+                f.write('    digest_size: int\n')
+
+            f.write('class RSAKeyPair:\n')
+            f.write('    public_key: RSAPubKey\n')
+            f.write('    yarrow: Yarrow\n')
+            f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
+            f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('    def from_pkcs1(self, buffer: bytes) -> None: ...\n')
+            f.write('    def from_pkcs8(self, buffer: bytes) -> None: ...\n')
+            f.write('    def genkey(self, n_size: int, e_size: int) -> None: ...\n')
+            f.write('    def read_key(self, filename: str) -> None: ...\n')
+            f.write('    def read_pkcs1_key(self, key: bytes) -> None: ...\n')
+            f.write('    def read_pkcs8_key(self, key: bytes) -> None: ...\n')
+            f.write('    def sign(self, hash: Hash) -> bytes: ...\n')
+            f.write('    def to_pkcs1_key(self) -> bytes: ...\n')
+            f.write('    def verify(self, signature: bytes, hash: Hash) -> bool: ...\n')
+            f.write('    def write_key(self, filename: str) -> None: ...\n')
+            f.write('class RSAPubKey:\n')
+            f.write('    yarrow: Yarrow\n')
+            f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
+            f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            f.write('    def from_pkcs1(self, key: bytes) -> None: ...\n')
+            f.write('    def from_pkcs8(self, key: bytes) -> None: ...\n')
+            f.write('    def to_pkcs8_key(self) -> bytes: ...\n')
+            f.write('    def read_key(self, filename: str) -> None: ...\n')
+            f.write('    def read_key_from_cert(self, cert: bytes) -> None: ...\n')
+            f.write('    def verify(self, signature: bytes, hash: Hash) -> bool: ...\n')
+            f.write('    def write_key(self, filename: str) -> None: ...\n')
+            f.write('class Yarrow:\n')
+            f.write('    def random(self, length: int) -> bytes: ...\n')
 
     def write_class_file(self, filename, classes, nettle_headers,
                          system_headers=None, pynettle_headers=None):
@@ -394,4 +541,4 @@ gen.gen_exceptions(exceptions)
 gen.gen_header_file()
 gen.gen_mod_file()
 gen.gen_python_file()
-gen.gen_interface_file(hashes)
+gen.gen_interface_file(hashes, ciphers, ciphermodes, exceptions, macs)

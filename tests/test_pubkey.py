@@ -4,7 +4,8 @@ import nettle
 
 class PubKey(TestCase):
 
-    def _test(self, keypair, pubkey):
+    def _test(self, keypair: type[nettle.RSAKeyPair],
+              pubkey: type[nettle.RSAPubKey]):
         privfile = '/tmp/privkey.der'
         pubfile = '/tmp/pubkey.der'
 
