@@ -356,6 +356,7 @@ pack_header (asn1object * obj)
       PyErr_Format (PyExc_MemoryError, "malloc failed");
       return NULL;
     }
+  memset(header, 0, idlen + lenptrlen + lenlen);    
   h = header;
   *h = (obj->tag_class << 6) | (obj->is_constructed << 5);
   if (obj->tag >= 0x1f)
