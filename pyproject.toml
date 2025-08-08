@@ -1,6 +1,6 @@
 [project]
 name = "nettle"
-version = "2025.1"
+version = "2025.3"
 description = "Python bindings to the nettle cryptographic library"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -18,6 +18,9 @@ build-backend = "setuptools.build_meta"
 dev = [
     "pytest>=8.4.1",
 ]
+
+[tool.uv]
+reinstall = true
 
 [tool.ruff]
 select = [

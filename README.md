@@ -18,7 +18,7 @@ cd ..
 python setup.py install
 ```
 
-Both python2 and python3 is supported.
+Support for python 2 was dropped in 2025.1
 
 ## Authors
 * **Henrik Rindlöw** - *Initial work*

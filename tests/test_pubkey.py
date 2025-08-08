@@ -4,36 +4,55 @@ import nettle
 
 class PubKey(TestCase):
 
-    def _test(self, keypair: type[nettle.RSAKeyPair],
-              pubkey: type[nettle.RSAPubKey]):
+    @classmethod
+    def setUpClass(cls):
+        cls.yarrow = nettle.Yarrow()
+        cls.keypair = nettle.RSAKeyPair(cls.yarrow)
+        cls.keypair.genkey(2048, 20)
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.keypair
+        del cls.yarrow
+
+    def test_read_write(self):
         privfile = '/tmp/privkey.der'
         pubfile = '/tmp/pubkey.der'
 
-        yarrow = nettle.Yarrow()
-        kp = keypair(yarrow)
-        kp.genkey(2048, 20)
+        kp = self.keypair
+
         kp.write_key(privfile)
-        kp2 = keypair(yarrow)
+        kp2 = nettle.RSAKeyPair(self.yarrow)
         kp2.read_key(privfile)
         self.assertEqual(kp, kp2)
         del kp2
 
         pk = kp.public_key
         pk.write_key(pubfile)
-        pk2 = pubkey(yarrow)
+        pk2 = nettle.RSAPubKey(self.yarrow)
         pk2.read_key(pubfile)
         self.assertEqual(pk, pk2)
         del pk2
 
+    def test_encrypt_decrypt(self):
+
+        kp = self.keypair
+        pk = kp.public_key
         cleartext = b'Urtica dioica'
+
         ciphertext = pk.encrypt(cleartext)
         decrypted = kp.decrypt(ciphertext)
         self.assertEqual(cleartext, decrypted)
 
-        cleartext = b'Urtica dioica'
         ciphertext = kp.encrypt(cleartext)
         decrypted = kp.decrypt(ciphertext)
         self.assertEqual(cleartext, decrypted)
+
+    def test_sign_verify(self):
+
+        kp = self.keypair
+        pk = kp.public_key
+        cleartext = b'Urtica dioica'
 
         h = nettle.sha256()
         h.update(cleartext)
@@ -44,10 +63,31 @@ class PubKey(TestCase):
         h2.update(b'gibberish')
         self.assertFalse(pk.verify(signature, h2))
 
+    def test_yarrow(self):
+        kp = self.keypair
+
         self.assertNotEqual(kp.yarrow.random(1), b'17')
 
-    def test_rsa(self):
-        self._test(nettle.RSAKeyPair, nettle.RSAPubKey)
+    def test_oaep_encrypt_decrypt(self):
+
+        kp = self.keypair
+        pk = kp.public_key
+        cleartext = b'Urtica dioica'
+
+        ciphertext = pk.oaep_sha256_encrypt(cleartext)
+        decrypted = kp.oaep_sha256_decrypt(ciphertext)
+        self.assertEqual(cleartext, decrypted)
+
+        ciphertext_label = pk.oaep_sha256_encrypt(cleartext, label=b'Nettle')
+        decrypted = kp.oaep_sha256_decrypt(ciphertext_label, label=b'Nettle')
+        self.assertEqual(cleartext, decrypted)
+        self.assertNotEqual(ciphertext, ciphertext_label)
+
+        longmessage = b'x' * 300
+        with self.assertRaises(nettle.RSAError):
+            ciphertext = pk.oaep_sha256_encrypt(longmessage)
+
+
 
     def test_cert(self):
         certfile = '/tmp/cert.pem'

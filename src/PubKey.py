@@ -86,26 +86,80 @@ encryptbody = '''
     mpz_export (data, &len, 1, 1, 0, 0, ciphertext);
     return PyBytes_FromStringAndSize ((const char *) data, len);'''
 
-verifybody = '''
-    mpz_t signature;
-    PyObject *obj;
-    pynettle_sha256 *hash;
+def oaep_encryptbody(hashfunc):
+    return f'''
+    size_t datalen = self->pub->size;
+    uint8_t *data;
     Py_buffer buffer;
-
-    if (! PyArg_ParseTuple (args, "y*O", &buffer, &obj))
-      {
+    Py_buffer label;
+    static char *kwlist[] = {{"msg", "label", NULL}};
+    buffer.buf = NULL; buffer.len = 0;
+    label.buf = NULL; label.len = 0;
+    if (! PyArg_ParseTupleAndKeywords (args, kwds, "y*|y*", kwlist,
+        &buffer, &label))
+      {{
         return NULL;
-      }
-    mpz_init (signature);
-    mpz_import (signature, buffer.len, 1, 1, 0, 0, buffer.buf);
-    if (PyObject_TypeCheck (obj, &pynettle_sha256_Type))
-      {
-        hash = (pynettle_sha256 *)obj;
-        return PyBool_FromLong (rsa_sha256_verify (self->pub, hash->ctx,
-                                                   signature));
-      }
-    PyErr_Format (PyExc_TypeError, "Wrong type of hash");
-    return NULL;'''
+      }}
+    PyObject *ciphertext = PyBytes_FromStringAndSize (NULL, datalen);
+    data = (unsigned char *)PyBytes_AsString(ciphertext);
+    if (! rsa_oaep_{hashfunc}_encrypt (self->pub, self->yarrow->ctx,
+                       (nettle_random_func *) &yarrow256_random,
+                       label.len, label.buf,
+                       buffer.len, buffer.buf, data))
+      {{
+        PyErr_Format (RSAError, "Failed to encrypt data");
+        return NULL;
+      }}
+    return ciphertext;'''
+
+
+def signbody():
+    body = '''
+        mpz_t signature;
+        PyObject *obj;
+        size_t len = 256;
+        uint8_t data[len];
+        mpz_init (signature);
+        if (! PyArg_ParseTuple (args, "O", &obj))
+          {
+            return NULL;
+          }'''
+    for hashfunc in ('md5', 'sha1', 'sha256', 'sha512'):
+        body += f'''
+        if (PyObject_TypeCheck (obj, &pynettle_{hashfunc}_Type))
+          {{
+            pynettle_{hashfunc} *hash = (pynettle_{hashfunc} *)obj;
+            rsa_{hashfunc}_sign (self->key, hash->ctx, signature);
+          }}'''
+    body += '''
+        mpz_export (data, &len, 1, 1, 0, 0, signature);
+        return PyBytes_FromStringAndSize ((const char *) data, len);'''
+    return body
+
+def verifybody():
+    body = '''
+        mpz_t signature;
+        PyObject *obj;
+        Py_buffer buffer;
+
+        if (! PyArg_ParseTuple (args, "y*O", &buffer, &obj))
+          {
+            return NULL;
+          }
+        mpz_init (signature);
+        mpz_import (signature, buffer.len, 1, 1, 0, 0, buffer.buf);'''
+    for hashfunc in ('md5', 'sha1', 'sha256', 'sha512'):
+        body += f'''
+        if (PyObject_TypeCheck (obj, &pynettle_{hashfunc}_Type))
+          {{
+            pynettle_{hashfunc} *hash = (pynettle_{hashfunc} *)obj;
+            return PyBool_FromLong (rsa_{hashfunc}_verify (self->pub, hash->ctx,
+                                                      signature));
+          }}'''
+    body += '''
+        PyErr_Format (PyExc_TypeError, "Wrong type of hash");
+        return NULL;'''
+    return body
 
 
 class Yarrow(CClass):
@@ -189,7 +243,10 @@ class RSAKeyPair(CClass):
                  }
                ''',
             init='rsa_public_key_init (self->pub);',
-            dealloc='PyMem_Free (self->pub);\nself->pub = NULL;')
+            dealloc='''
+                //rsa_public_key_clear (self->pub);
+                PyMem_Free (self->pub);
+                self->pub = NULL;''')
         self.add_member(
             name='key',
             decl='struct rsa_private_key *key',
@@ -200,7 +257,10 @@ class RSAKeyPair(CClass):
                    return PyErr_NoMemory ();
                  }''',
             init='rsa_private_key_init (self->key);',
-            dealloc='PyMem_Free (self->key);\nself->key = NULL;')
+            dealloc='''
+                //rsa_private_key_clear (self->key);
+                PyMem_Free (self->key);
+                self->key = NULL;''')
         self.add_member(
             name='yarrow',
             decl='pynettle_Yarrow *yarrow',
@@ -288,12 +348,23 @@ class RSAKeyPair(CClass):
                   }
                 return PyBytes_FromStringAndSize ((const char *) data, len);
             ''')
+
         self.add_method(
             name='encrypt',
             args='METH_VARARGS',
             docs='Encrypt data',
             docargs='bytes',
             body=encryptbody)
+
+        for hashfunc in ('sha257', 'sha384', 'sha512'):
+            self.add_method(
+                name=f'oaep_{hashfunc}_encrypt',
+                args='METH_VARARGS | METH_KEYWORDS',
+                docs=f'Encrypt data using RSA with the OAEP padding scheme and {hashfunc} hash',
+                docargs='bytes, label',
+                body=encryptbody,
+                # body=oaep_encryptbody(hashfunc),
+                )
 
         self.add_method(
             name='decrypt',
@@ -320,37 +391,54 @@ class RSAKeyPair(CClass):
                         datalen);
             ''')
 
+        for hashfunc in ('sha256', 'sha384', 'sha512'):
+          self.add_method(
+              name=f'oaep_{hashfunc}_decrypt',
+              args='METH_VARARGS | METH_KEYWORDS',
+              docs='Decrypt data',
+              docargs='bytes',
+              body=f'''
+                  size_t datalen = self->pub->size;
+                  uint8_t *data;
+                  Py_buffer buffer;
+                  Py_buffer label;
+                  static char *kwlist[] = {{"msg", "label", NULL}};
+                  buffer.buf = NULL; buffer.len = 0;
+                  label.buf = NULL; label.len = 0;
+                  if (! PyArg_ParseTupleAndKeywords (args, kwds, "y*|y*", kwlist,
+                      &buffer, &label))
+                    {{
+                      return NULL;
+                    }}
+                  if ((data = PyMem_Malloc (datalen)) == NULL)
+                    {{
+                      return PyErr_NoMemory ();
+                    }}
+                  if (! rsa_oaep_{hashfunc}_decrypt (self->pub, self->key, self->yarrow->ctx,
+                        (nettle_random_func *) &yarrow256_random,
+                        label.len, label.buf,
+                        &datalen, data, buffer.buf))
+                    {{
+                      PyErr_Format (RSAError, "Failed to decrypt data");
+                      return NULL;
+                    }}
+                  return PyBytes_FromStringAndSize ((const char *) data, \\
+                          datalen);''')
+
+
         self.add_method(
             name='sign',
             args='METH_VARARGS',
             docs='Sign a hash',
             docargs='hash',
-            body='''
-                mpz_t signature;
-                PyObject *obj;
-                pynettle_sha256 *hash;
-                size_t len = 256;
-                uint8_t data[len];
-                mpz_init (signature);
-                if (! PyArg_ParseTuple (args, "O", &obj))
-                  {
-                    return NULL;
-                  }
-                if (PyObject_TypeCheck (obj, &pynettle_sha256_Type))
-                  {
-                    hash = (pynettle_sha256 *)obj;
-                    rsa_sha256_sign (self->key, hash->ctx, signature);
-                  }
-                mpz_export (data, &len, 1, 1, 0, 0, signature);
-                return PyBytes_FromStringAndSize ((const char *) data, len);
-            ''')
+            body=signbody())
 
         self.add_method(
             name='verify',
             args='METH_VARARGS',
             docs='Verify a signature',
             docargs='signature, hash',
-            body=verifybody)
+            body=verifybody())
 
         self.add_richcompare(
             body='''
@@ -558,11 +646,19 @@ class RSAPubKey(CClass):
             docs='Encrypt data',
             body=encryptbody)
 
+        for hashfunc in ('sha256', 'sha384', 'sha512'):
+            self.add_method(
+                name=f'oaep_{hashfunc}_encrypt',
+                args='METH_VARARGS | METH_KEYWORDS',
+                docs=f'Encrypt data using RSA with the OAEP padding scheme and {hashfunc} hash',
+                docargs='label, bytes',
+                body=oaep_encryptbody(hashfunc))
+
         self.add_method(
             name='verify',
             args='METH_VARARGS',
             docs='Verify a signature',
-            body=verifybody)
+            body=verifybody())
 
         self.add_to_init_body(yarrowinit)
 

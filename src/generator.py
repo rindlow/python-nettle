@@ -277,7 +277,7 @@ class Generator:
         self.objects.extend(classes)
 
         self.write_class_file(self.pubkey_file, classes, headers,
-                              system_headers=['fcntl.h'],
+                              system_headers=['fcntl.h', 'stdio.h'],
                               pynettle_headers=['nettle_asn1.h'])
 
         self.write_doc_file(self.pubkey_doc_file, 'Public Key Encryption',
@@ -476,6 +476,9 @@ class Generator:
             f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
             f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            for hashfunc in ('sha256', 'sha384', 'sha512'):
+                f.write(f'    def oaep_{hashfunc}_decrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...\n')
+                f.write(f'    def oaep_{hashfunc}_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...\n')
             f.write('    def from_pkcs1(self, buffer: bytes) -> None: ...\n')
             f.write('    def from_pkcs8(self, buffer: bytes) -> None: ...\n')
             f.write('    def genkey(self, n_size: int, e_size: int) -> None: ...\n')
@@ -490,6 +493,8 @@ class Generator:
             f.write('    yarrow: Yarrow\n')
             f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
+            for hashfunc in ('sha256', 'sha384', 'sha512'):
+                f.write(f'    def oaep_{hashfunc}_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...\n')
             f.write('    def from_pkcs1(self, key: bytes) -> None: ...\n')
             f.write('    def from_pkcs8(self, key: bytes) -> None: ...\n')
             f.write('    def to_pkcs8_key(self) -> bytes: ...\n')
