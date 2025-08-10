@@ -356,15 +356,13 @@ class RSAKeyPair(CClass):
             docargs='bytes',
             body=encryptbody)
 
-        for hashfunc in ('sha257', 'sha384', 'sha512'):
+        for hashfunc in ('sha256', 'sha384', 'sha512'):
             self.add_method(
                 name=f'oaep_{hashfunc}_encrypt',
                 args='METH_VARARGS | METH_KEYWORDS',
                 docs=f'Encrypt data using RSA with the OAEP padding scheme and {hashfunc} hash',
                 docargs='bytes, label',
-                body=encryptbody,
-                # body=oaep_encryptbody(hashfunc),
-                )
+                body=oaep_encryptbody(hashfunc))
 
         self.add_method(
             name='decrypt',
