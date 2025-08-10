@@ -161,6 +161,38 @@ def verifybody():
         return NULL;'''
     return body
 
+def bufferbody(members: dict[str, str]):
+    kwlist = f'{{{', '.join(f'"{m}"' for m in members)}, NULL}}'
+    buffers = [f'buffer_{m}' for m in members]
+    body = f'''
+    Py_buffer {', '.join(buffers)};
+    static char *kwlist[] = {kwlist};
+
+    if (! PyArg_ParseTupleAndKeywords (args, kwds, "{'y*' * len(members)}",
+        kwlist, {', '.join(f'&{buf}' for buf in buffers)}))
+      {{
+        return NULL;
+      }}'''
+    for member, key in members.items():
+        body += (f'\n    mpz_import (self->{key}->{member},'
+                 f' buffer_{member}.len, 1, 1, 0, 0, buffer_{member}.buf);')
+    body += '''
+    if (!rsa_public_key_prepare (self->pub))
+      {
+        PyErr_Format (RSAError, "rsa_public_key_prepare failed");
+        return 0;
+      }'''
+    if 'key' in members.values():
+      body += '''
+    if (!rsa_private_key_prepare (self->key))
+      {
+        PyErr_Format (RSAError, "rsa_private_key_prepare failed");
+        return 0;
+      }'''
+    body += '''
+    Py_RETURN_NONE;\n'''
+    return body
+
 
 class Yarrow(CClass):
 
@@ -244,7 +276,7 @@ class RSAKeyPair(CClass):
                ''',
             init='rsa_public_key_init (self->pub);',
             dealloc='''
-                //rsa_public_key_clear (self->pub);
+                rsa_public_key_clear (self->pub);
                 PyMem_Free (self->pub);
                 self->pub = NULL;''')
         self.add_member(
@@ -258,7 +290,7 @@ class RSAKeyPair(CClass):
                  }''',
             init='rsa_private_key_init (self->key);',
             dealloc='''
-                //rsa_private_key_clear (self->key);
+                rsa_private_key_clear (self->key);
                 PyMem_Free (self->key);
                 self->key = NULL;''')
         self.add_member(
@@ -335,6 +367,13 @@ class RSAKeyPair(CClass):
                   }
                 Py_RETURN_NONE;
               ''')
+        self.add_method(
+            'from_n_e_d_p_q_a_b_c',
+            docs='Read key (keypair) from n, e, d, p, q, a, b and c',
+            args='METH_VARARGS | METH_KEYWORDS',
+            docargs='bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes',
+            body=bufferbody({'n': 'pub', 'e': 'pub', 'd': 'key', 'p': 'key',
+                             'q': 'key', 'a': 'key', 'b': 'key', 'c': 'key'}))
         self.add_method(
             'to_pkcs1_key',
             docs='Write key (keypair) to buffer in PKCS#1 format',
@@ -581,7 +620,12 @@ class RSAPubKey(CClass):
                   }
                 Py_RETURN_NONE;
               ''')
-
+        self.add_method(
+            'from_n_e',
+            docs='Read key (pubkey) from n and e',
+            args='METH_VARARGS | METH_KEYWORDS',
+            docargs='bytes, bytes',
+            body=bufferbody({'n': 'pub', 'e': 'pub'}))
         self.add_method(
             'read_key_from_cert',
             docs='Read key from buffer containing X.509 certificate',

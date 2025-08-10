@@ -87,8 +87,6 @@ class PubKey(TestCase):
         with self.assertRaises(nettle.RSAError):
             ciphertext = pk.oaep_sha256_encrypt(longmessage)
 
-
-
     def test_cert(self):
         certfile = '/tmp/cert.pem'
         with open(certfile, 'w') as f:
@@ -123,3 +121,54 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 -----END CERTIFICATE-----''')
         pub = nettle.RSAPubKey()
         pub.read_key(certfile)
+
+    def test_n_e_d_p_q_a_b_c(self):
+        kp = nettle.RSAKeyPair()
+        kp.from_n_e_d_p_q_a_b_c(
+            n=bytes.fromhex(
+                "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
+                "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
+                "ec8afa3f77134406f53721973115fc2d8cfbba23b145f28d"
+                "84f81d3b6ae8ce1e2850580c026e809bcfbb52566ea3a3b3"
+                "df7edf52971872a7e35c1451b8636d22279a8fb299368238"
+                "e545fbb4cf"),
+            e=bytes.fromhex("0db2ad57"),
+            d=bytes.fromhex(
+                "3240a56f4cd0dcc24a413eb4ea5452595c83d771a1c2ba7b"
+                "ec47c5b43eb4b37409bd2aa1e236dd86481eb1768811412f"
+                "f8d91be3545912afb55c014cb55ceac654216af3b85d5c4f"
+                "4a32894e3b5dfcde5b2875aa4dc8d9a86afd0ca92ef50d35"
+                "bd09f1c47efb4c8dc631e07698d362aa4a83fd304e66d6c5"
+                "468863c307"),
+            p=bytes.fromhex(
+                "0a66399919be4b4de5a78c5ea5c85bf9aba8c013cb4a8732"
+                "14557a12bd67711ebb4073fd39ad9a86f4e80253ad809e5b"
+                "f2fad3bc37f6f013273c9552c9f489"),
+            q=bytes.fromhex(
+                "0a294f069f118625f5eae2538db9338c776a298eae953329"
+                "9fd1eed4eba04e82b2593bc98ba8db27de034da7daaea795"
+                "2d55b07b5f9a5875d1ca5f6dcab897"),
+            a=bytes.fromhex(
+                "011b6c48eb592eeee85d1bb35cfb6e07344ea0b5e5f03a28"
+                "5b405396cbc78c5c868e961db160ba8d4b984250930cf79a"
+                "1bf8a9f28963de53128aa7d690eb87"),
+            b=bytes.fromhex(
+                "0409ecf3d2557c88214f1af5e1f17853d8b2d63782fa5628"
+                "60cf579b0833b7ff5c0529f2a97c64522fa1a8878a9635ab"
+                "ce56debf431bdec270b308fa5bf387"),
+            c=bytes.fromhex(
+                "04e103ee925cb5e66653949fa5e1a462c9e65e1adcd60058"
+                "e2df9607cee95fa8daec7a389a7d9afc8dd21fef9d83805a"
+                "40d46f49676a2f6b2926f70c572c00"))
+
+    def test_n_e(self):
+        kp = nettle.RSAPubKey()
+        kp.from_n_e(
+            n=bytes.fromhex(
+                "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
+                "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
+                "ec8afa3f77134406f53721973115fc2d8cfbba23b145f28d"
+                "84f81d3b6ae8ce1e2850580c026e809bcfbb52566ea3a3b3"
+                "df7edf52971872a7e35c1451b8636d22279a8fb299368238"
+                "e545fbb4cf"),
+            e=bytes.fromhex("0db2ad57"))
