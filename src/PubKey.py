@@ -368,8 +368,8 @@ class RSAKeyPair(CClass):
                 Py_RETURN_NONE;
               ''')
         self.add_method(
-            'from_n_e_d_p_q_a_b_c',
-            docs='Read key (keypair) from n, e, d, p, q, a, b and c',
+            'from_params',
+            docs='Read key (keypair) from params',
             args='METH_VARARGS | METH_KEYWORDS',
             docargs='bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes',
             body=bufferbody({'n': 'pub', 'e': 'pub', 'd': 'key', 'p': 'key',
@@ -621,8 +621,8 @@ class RSAPubKey(CClass):
                 Py_RETURN_NONE;
               ''')
         self.add_method(
-            'from_n_e',
-            docs='Read key (pubkey) from n and e',
+            'from_params',
+            docs='Read key (pubkey) from params',
             args='METH_VARARGS | METH_KEYWORDS',
             docargs='bytes, bytes',
             body=bufferbody({'n': 'pub', 'e': 'pub'}))

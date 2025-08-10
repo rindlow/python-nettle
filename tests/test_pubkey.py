@@ -122,9 +122,9 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
         pub = nettle.RSAPubKey()
         pub.read_key(certfile)
 
-    def test_n_e_d_p_q_a_b_c(self):
+    def test_kp_params(self):
         kp = nettle.RSAKeyPair()
-        kp.from_n_e_d_p_q_a_b_c(
+        kp.from_params(
             n=bytes.fromhex(
                 "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
                 "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -161,9 +161,9 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
                 "e2df9607cee95fa8daec7a389a7d9afc8dd21fef9d83805a"
                 "40d46f49676a2f6b2926f70c572c00"))
 
-    def test_n_e(self):
+    def test_pk_params(self):
         kp = nettle.RSAPubKey()
-        kp.from_n_e(
+        kp.from_params(
             n=bytes.fromhex(
                 "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
                 "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
