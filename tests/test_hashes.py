@@ -22,6 +22,8 @@ class Hash(TestCase):
         h.update(msg)
         self.assertEqual(hashfunc(msg).digest(), digest)
 
+        self.assertGreater(h.digest_size, 0)
+
         h1 = hashfunc()
         h1.update(SDATA('a'))
         h2 = h1.copy()
