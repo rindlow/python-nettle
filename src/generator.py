@@ -359,6 +359,7 @@ class Generator:
             f.write('    def copy(self) -> t.Self: ...\n')
             f.write('    def update(self, msg: bytes) -> None: ...\n')
             f.write('class DigestableHash(Hash, t.Protocol):\n')
+            f.write('    digest_size: int\n')
             f.write('    def digest(self) -> bytes: ...\n')
             f.write('    def hexdigest(self) -> str: ...\n')
             f.write('class ShakeableHash(Hash, t.Protocol):\n')
@@ -368,9 +369,14 @@ class Generator:
                 protocols = []
                 if h.get('digest', True):
                     protocols.append('DigestableHash')
+                    ellipsis = ''
+                else:
+                    ellipsis = ' ...'
                 if h.get('shake'):
                     protocols.append('ShakeableHash')
-                f.write('class {}({}): ...\n'.format(h['name'], ', '.join(protocols)))
+                f.write('class {}({}):{}\n'.format(h['name'], ', '.join(protocols), ellipsis))
+                if h.get('digest', True):
+                    f.write('    digest_size: int\n')
             f.write('class Cipher(t.Protocol):\n')
             f.write('    key_size: int\n')
             f.write('    def set_encrypt_key(self, key: bytes) -> None: ...\n')
@@ -473,6 +479,7 @@ class Generator:
             f.write('class RSAKeyPair:\n')
             f.write('    public_key: RSAPubKey\n')
             f.write('    yarrow: Yarrow\n')
+            f.write('    size: int\n')
             f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
             f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
@@ -492,16 +499,17 @@ class Generator:
             f.write('    def write_key(self, filename: str) -> None: ...\n')
             f.write('class RSAPubKey:\n')
             f.write('    yarrow: Yarrow\n')
+            f.write('    size: int\n')
             f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
             for hashfunc in ('sha256', 'sha384', 'sha512'):
                 f.write(f'    def oaep_{hashfunc}_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...\n')
+            f.write('    def from_cert(self, cert: bytes) -> None: ...\n')
             f.write('    def from_pkcs1(self, key: bytes) -> None: ...\n')
             f.write('    def from_pkcs8(self, key: bytes) -> None: ...\n')
             f.write('    def from_params(self, n: bytes, e: bytes) -> None: ...\n')
             f.write('    def to_pkcs8_key(self) -> bytes: ...\n')
             f.write('    def read_key(self, filename: str) -> None: ...\n')
-            f.write('    def read_key_from_cert(self, cert: bytes) -> None: ...\n')
             f.write('    def verify(self, signature: bytes, hash: Hash) -> bool: ...\n')
             f.write('    def write_key(self, filename: str) -> None: ...\n')
             f.write('class Yarrow:\n')

@@ -538,6 +538,13 @@ class RSAKeyPair(CClass):
             ''',
             docs='The public part of the keypair')
 
+        self.add_getsetter(
+            'size',
+            gbody='''
+                return (PyObject *)PyLong_FromUnsignedLong(self->pub->size);
+            ''',
+            docs='The size, in octets, of the modulo')
+
     def write_python_subclass(self, f):
         # Do not write copying code, this class will be subclassed
         pass
@@ -627,7 +634,7 @@ class RSAPubKey(CClass):
             docargs='bytes, bytes',
             body=bufferbody({'n': 'pub', 'e': 'pub'}))
         self.add_method(
-            'read_key_from_cert',
+            'from_cert',
             docs='Read key from buffer containing X.509 certificate',
             docargs='bytes',
             args='METH_VARARGS',
@@ -643,6 +650,7 @@ class RSAPubKey(CClass):
                     PyErr_Format (ASN1Error, "Failed to read file");
                     return NULL;
                   }
+                fprintf(stderr, "pubkey_from_cert returned %p\\n", self->pub);
                 Py_RETURN_NONE;
             ''')
 
@@ -703,6 +711,13 @@ class RSAPubKey(CClass):
             body=verifybody())
 
         self.add_to_init_body(yarrowinit)
+
+        self.add_getsetter(
+            'size',
+            gbody='''
+                return (PyObject *)PyLong_FromUnsignedLong(self->pub->size);
+            ''',
+            docs='The size, in octets, of the modulo')
 
     def write_python_subclass(self, f):
         # Do not write copying code, this class will be subclassed

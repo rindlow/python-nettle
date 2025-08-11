@@ -121,6 +121,7 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 -----END CERTIFICATE-----''')
         pub = nettle.RSAPubKey()
         pub.read_key(certfile)
+        self.assertEqual(pub.size, 256)
 
     def test_kp_params(self):
         kp = nettle.RSAKeyPair()
@@ -160,10 +161,11 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
                 "04e103ee925cb5e66653949fa5e1a462c9e65e1adcd60058"
                 "e2df9607cee95fa8daec7a389a7d9afc8dd21fef9d83805a"
                 "40d46f49676a2f6b2926f70c572c00"))
+        self.assertEqual(kp.size, 125)
 
     def test_pk_params(self):
-        kp = nettle.RSAPubKey()
-        kp.from_params(
+        pk = nettle.RSAPubKey()
+        pk.from_params(
             n=bytes.fromhex(
                 "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
                 "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -172,3 +174,4 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
                 "df7edf52971872a7e35c1451b8636d22279a8fb299368238"
                 "e545fbb4cf"),
             e=bytes.fromhex("0db2ad57"))
+        self.assertEqual(pk.size, 125)
