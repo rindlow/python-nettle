@@ -61,9 +61,9 @@ class RSAPubKey (_nettle.RSAPubKey):
             with io.open(filename, encoding='ascii') as f:
                 data = f.read()
                 m = re.search(r'^-----BEGIN ([^-]+)-----$'
-                              '^([^-]+)$'
+                              '([^-]+)'
                               '^-----END[^-]+-----$',
-                              data, re.M)
+                              data, re.MULTILINE)
                 if m:
                     keytype = m.group(1)
                     b64 = m.group(2)
