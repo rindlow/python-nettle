@@ -432,6 +432,9 @@ class Generator:
                         f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
                     f.write(f'class {c["name"]}({c["family"].capitalize()}FamilyCipher):\n')
                     f.write('    key_size: int\n')
+                    if 'stream' not in c:
+                        f.write('    block_size: int\n')
+
                 else:
                     if len(protocols) == 0:
                         protocols = ['Cipher']
