@@ -48,6 +48,11 @@ class PubKey(TestCase):
         decrypted = kp.decrypt(ciphertext)
         self.assertEqual(cleartext, decrypted)
 
+        with self.assertRaises(nettle.RSAError):
+            cleartext = b'\00' * (pk.size)
+            ciphertext = pk.encrypt(cleartext)
+
+
     def test_sign_verify(self):
 
         kp = self.keypair
