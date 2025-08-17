@@ -32,6 +32,8 @@
 # not, see http://www.gnu.org/licenses/.
 
 from collections import defaultdict
+import pathlib
+
 from CModule import CModule
 from CException import CException
 from Hash import Hash
@@ -201,36 +203,52 @@ exceptions = [
 
 # noinspection PyArgumentList
 class Generator:
-    cipher_file = 'nettle_ciphers.c'
-    hash_file = 'nettle_hashes.c'
-    header_file = 'nettle.h'
-    mac_file = 'nettle_macs.c'
-    mod_file = 'nettle.c'
-    pubkey_file = 'nettle_pubkey.c'
-    python_module = '../nettle/autogen.py'
-    python_interface = '../nettle/autogen.pyi'
-    cipher_doc_file = '../doc/source/ciphers.rst'
-    ciphermode_doc_file = '../doc/source/ciphermodes.rst'
-    hash_doc_file = '../doc/source/hashes.rst'
-    mac_doc_file = '../doc/source/macs.rst'
-    pubkey_doc_file = '../doc/source/pubkey.rst'
 
     def __init__(self):
         self.objects = []
         self.ciphers = []
         self.hashes = []
+        filepath = pathlib.Path(__file__)
+        rootpath = filepath.parent.parent
+        srcpath = rootpath / 'src'
+        nettlepath = rootpath / 'nettle'
+        docpath = rootpath / 'doc' / 'source'
+        self.cipher_file = srcpath / 'nettle_ciphers.c'
+        self.hash_file = srcpath / 'nettle_hashes.c'
+        self.mac_file = srcpath / 'nettle_macs.c'
+        self.mod_file = srcpath / 'nettle.c'
+        self.header_file = srcpath / 'nettle.h'
+        self.pubkey_file = srcpath / 'nettle_pubkey.c'
+        self.python_module = nettlepath / 'autogen.py'
+        self.python_interface = nettlepath / 'autogen.pyi'
+        self.cipher_doc_file = docpath / 'ciphers.rst'
+        self.ciphermode_doc_file = docpath / 'ciphermodes.rst'
+        self.hash_doc_file = docpath / 'hashes.rst'
+        self.mac_doc_file = docpath / 'macs.rst'
+        self.pubkey_doc_file = docpath / 'pubkey.rst'
 
     @staticmethod
     def write_c_autogen_warning(f):
         f.write('/*\n'
-                '  This file is auto generated (by src/generator.py).\n'
+                '  This file is auto generated (by generator/generator.py).\n'
                 '  All changes will be lost!\n'
                 '*/\n')
 
     @staticmethod
     def write_python_autogen_warning(f):
-        f.write('# This file is auto generated (by src/generator.py).\n'
+        f.write('# This file is auto generated (by generator/generator.py).\n'
                 '# All changes will be lost!\n')
+
+    def generate(self):
+        self.gen_hash_file(hashes)
+        self.gen_cipher_file(ciphers, ciphermodes)
+        self.gen_mac_file(macs)
+        self.gen_pubkey_file()
+        self.gen_exceptions(exceptions)
+        self.gen_header_file()
+        self.gen_mod_file()
+        self.gen_python_file()
+        self.gen_interface_file(hashes, ciphers, ciphermodes, exceptions, macs)
 
     def gen_hash_file(self, hashdata):
         headers = set([f for h in hashdata for f in h['headers']])
@@ -430,8 +448,9 @@ class Generator:
                         written_families.add(c['family'])
                         f.write(f'class {c["family"].capitalize()}FamilyCipher({", ".join(protocols)}, t.Protocol):\n')
                         f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
+                        if 'stream' not in c:
+                            f.write('    block_size: int\n')
                     f.write(f'class {c["name"]}({c["family"].capitalize()}FamilyCipher):\n')
-                    f.write('    key_size: int\n')
                     if 'stream' not in c:
                         f.write('    block_size: int\n')
 
@@ -464,6 +483,7 @@ class Generator:
                 f.write(f'class {e["name"]}(Exception): ...\n')
 
             f.write('class MAC(t.Protocol):\n')
+            f.write('    digest_size: int\n')
             f.write('    def __init__(self, key: bytes | None = None) -> None: ...\n')
             f.write('    def set_key(self, key: bytes) -> None: ...\n')
             f.write('    def update(self, msg: bytes) -> None: ...\n')
@@ -550,13 +570,5 @@ class Generator:
                 cls.write_docs_to_file(f)
 
 
-gen = Generator()
-gen.gen_hash_file(hashes)
-gen.gen_cipher_file(ciphers, ciphermodes)
-gen.gen_mac_file(macs)
-gen.gen_pubkey_file()
-gen.gen_exceptions(exceptions)
-gen.gen_header_file()
-gen.gen_mod_file()
-gen.gen_python_file()
-gen.gen_interface_file(hashes, ciphers, ciphermodes, exceptions, macs)
+if __name__ == '__main__':
+    Generator().generate()
