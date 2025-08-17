@@ -451,6 +451,7 @@ class Generator:
                         if 'stream' not in c:
                             f.write('    block_size: int\n')
                     f.write(f'class {c["name"]}({c["family"].capitalize()}FamilyCipher):\n')
+                    f.write('    key_size: int\n')
                     if 'stream' not in c:
                         f.write('    block_size: int\n')
 
