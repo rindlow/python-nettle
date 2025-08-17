@@ -59,6 +59,16 @@ class MAC(TestCase):
                    SDATA("Hi There"),
                    SHEX("b0344c61d8db38535ca8afceaf0bf12b"
                         "881dc200c9833da726e9376c2e32cff7"))
+        
+    def test_hmac_sha512(self):
+        self._test_without_nonce(nettle.hmac_sha512,
+                   SHEX("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+                   "0b0b0b0b"),
+                   SDATA("Hi There"),
+                   SHEX("87aa7cdea5ef619d4ff0b4241a1d6cb0"
+                   "2379f4e2ce4ec2787ad0b30545e17cde"
+                   "daa833b7d6b8a702038b274eaea3f4e4"
+                   "be9d914eeb61f1702e696c203a126854"))
 
     def test_umac32(self):
         self._test_with_nonce(nettle.umac32,
