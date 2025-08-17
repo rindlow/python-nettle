@@ -442,6 +442,7 @@ class CTR(TestCase):
               key: bytes, cleartext: bytes, ciphertext: bytes, ctr: bytes):
         self.assertEqual(len(cleartext), len(ciphertext))
         c = cipher(encrypt_key=key)
+        self.assertGreater(c.block_size, 0)
         ctrmode = nettle.CTR(c, ctr)
         self.assertEqual(ctrmode.encrypt(cleartext), ciphertext)
 
@@ -514,6 +515,9 @@ class CBC(TestCase):
         self.assertEqual(cbc.encrypt(cleartext), ciphertext)
 
         c = cipher(decrypt_key=key)
+        cbc = nettle.CBC(c, iv)
+        self.assertEqual(cbc.decrypt(ciphertext), cleartext)
+        
         with self.assertRaises(nettle.KeyLenError):
             c = cipher(encrypt_key=key[:-1])
         with self.assertRaises(nettle.KeyLenError):

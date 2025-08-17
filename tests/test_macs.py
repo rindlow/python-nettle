@@ -15,6 +15,7 @@ class MAC(TestCase):
     def _test_without_nonce(self, hashfunc: type[nettle.MAC],
                             key: bytes, msg: bytes, digest: bytes):
         h = hashfunc(key=key)
+        self.assertGreater(h.digest_size, 0)
         h.update(msg)
         self.assertEqual(h.digest(), digest)
         self.assertEqual(SHEX(h.hexdigest()), digest)
