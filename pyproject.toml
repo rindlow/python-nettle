@@ -1,6 +1,6 @@
 [project]
 name = "nettle"
-version = "2025.9"
+version = "2025.10"
 description = "Python bindings to the nettle cryptographic library"
 readme = "README.md"
 license = "GPL-3.0-or-later"
