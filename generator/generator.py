@@ -83,14 +83,14 @@ hashes = [
      'docstring': docstrings.sm3}, ]
 
 ciphers = [
-    {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h'],
-     'docstring': docstrings.aes,
+    {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
+     'docstring': docstrings.aes, 'keywrap': True,
      'twokeys': True, 'twofuncs': True, 'invert': True},
-    {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h'],
-     'docstring': docstrings.aes,
+    {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
+     'docstring': docstrings.aes, 'keywrap': True,
      'twokeys': True, 'twofuncs': True, 'invert': True},
-    {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h'],
-     'docstring': docstrings.aes,
+    {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
+     'docstring': docstrings.aes, 'keywrap': True,
      'twokeys': True, 'twofuncs': True, 'invert': True},
     {'name': 'arcfour', 'headers': ['arcfour.h'],
      'docstring': docstrings.arcfour,
@@ -201,6 +201,8 @@ exceptions = [
      'docs': 'RSA operation failed'},
     {'name': 'ASN1Error', 'base': 'BaseException',
      'docs': 'ASN1 parsing failed'},
+    {'name': 'AuthenticationError', 'base': 'BaseException',
+     'docs': 'Authentication failed'},
 ]
 
 
@@ -359,6 +361,7 @@ class Generator:
                 f.write('class StreamCipher(Cipher): ...\n')
                 f.write('class InvertableKeyCipher(Cipher): ...\n')
                 f.write('class ParitySensitiveCipher(Cipher): ...\n')
+                f.write('class KeyWrapCipher(Cipher): ...\n')
                 written_families = set()
                 for c in self.ciphers:
                     if c.family is not None and c.family not in written_families:
@@ -418,6 +421,9 @@ class Generator:
             f.write('class ParitySensitiveCipher(Cipher, t.Protocol):\n')
             f.write('    def check_parity(self, key: bytes) -> bool: ...\n')
             f.write('    def fix_parity(self, key: bytes) -> bytes: ...\n')
+            f.write('class KeyWrapCipher(Cipher, t.Protocol):\n')
+            f.write('    def keywrap(self, cleartext: bytes) -> bytes: ...\n')
+            f.write('    def keyunwrap(self, ciphertext: bytes) -> bytes: ...\n')
             written_families = set()
             for c in cipher_list:
                 if 'family' not in c or c['family'] not in written_families:
@@ -425,26 +431,23 @@ class Generator:
                     init_args = []
                     if not c.get('twofuncs'):
                         protocols.append('SingleFuncCipher')
-                        # f.write('    def crypt(self, msg: bytes) -> bytes: ...\n')
                     if c.get('twokeys'):
                         protocols.append('DoubleKeyCipher')
                         init_args.extend(['encrypt_key: bytes | None = None',
                                           'decrypt_key: bytes | None = None'])
                     else:
                         protocols.append('SingleKeyCipher')
-                        # f.write('    def set_key(self, key: bytes) -> None: ...\n')
                         init_args.append('key: bytes | None = None')
                     if c.get('nonce'):
                         protocols.append('NonceCipher')
-                        # f.write('    def set_nonce(self, nonce: bytes) -> None: ...\n')
                         init_args.append('nonce: bytes | None = None')
                     if c.get('invert'):
                         protocols.append('InvertableKeyCipher')
-                        # f.write('    def invert_key(self) -> None: ...\n')
                     if c.get('parity'):
                         protocols.append('ParitySensitiveCipher')
-                        # f.write('    def check_parity(self, key: bytes) -> bool: ...\n')
-                        # f.write('    def fix_parity(self, key: bytes) -> bytes: ...\n')
+                    if c.get('keywrap'):
+                        protocols.append('KeyWrapCipher')
+
 
                 if 'family' in c:
                     if c['family'] not in written_families:

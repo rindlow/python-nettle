@@ -212,6 +212,90 @@ class Cipher(CClass):
                     return PyBytes_FromStringAndSize ((const char *)key.buf, \\
                         key.len);
                 '''.format(self.family))
+            
+        if param['keywrap']:
+            self.add_method(
+                name='keywrap',
+                args='METH_VARARGS',
+                docs='wrap key, the length of which must be an'
+                ' integral multiple of the block size',
+                docargs='bytes',
+                body='''
+                    if (self->is_initialized < {required})
+                        {{
+                        PyErr_Format (NotInitializedError,
+                                        "Cipher not initialized. Set key first!");
+                        return NULL;
+                        }}
+                    uint8_t *dst;
+                    Py_buffer buffer;
+                    if (!PyArg_ParseTuple (args, "y*", &buffer))
+                        {{
+                        return NULL;
+                        }}
+                    if (buffer.len % 8 != 0)
+                    {{
+                        PyErr_Format (DataLenError, //
+                                    "Data length %d not a multiple of 8", //
+                                    buffer.len);
+                        return NULL;
+                    }}
+                    int dstlen = buffer.len + 8;
+                    if ((dst = PyMem_Malloc (dstlen)) == NULL)
+                        {{
+                        return PyErr_NoMemory ();
+                        }}
+                    nist_keywrap16 (self->ctx, (nettle_cipher_func *) &{name}_encrypt, 
+                                    (const uint8_t *)"\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6",
+                                    dstlen, dst, buffer.buf);
+                    return PyBytes_FromStringAndSize ((const char *) dst,
+                                                    dstlen);
+                    '''.format(name=self.name, required=self.required))
+            self.add_method(
+                name='keyunwrap',
+                args='METH_VARARGS',
+                docs='unwrap key, the length of which must be an'
+                ' integral multiple of the block size',
+                docargs='bytes',
+                body='''
+                    if (self->is_initialized < {required})
+                        {{
+                        PyErr_Format (NotInitializedError,
+                                        "Cipher not initialized. Set key first!");
+                        return NULL;
+                        }}
+                    uint8_t *dst;
+                    Py_buffer buffer;
+                    if (!PyArg_ParseTuple (args, "y*", &buffer))
+                        {{
+                        return NULL;
+                        }}
+                    if (buffer.len % 8 != 0)
+                    {{
+                        PyErr_Format (DataLenError, //
+                                    "Data length %d not a multiple of 8", //
+                                    buffer.len);
+                        return NULL;
+                    }}
+                    int dstlen = buffer.len - 8;
+                    if ((dst = PyMem_Malloc (dstlen)) == NULL)
+                    {{
+                        return PyErr_NoMemory ();
+                    }}
+                    if (nist_keyunwrap16 (self->ctx, (nettle_cipher_func *) &{name}_decrypt,
+                                    (const uint8_t *)"\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6",
+                                    dstlen, dst, buffer.buf))
+                    {{
+                        return PyBytes_FromStringAndSize ((const char *) dst,
+                                                           dstlen);
+                    }}
+                    else
+                    {{
+                        PyErr_Format (AuthenticationError, //
+                                      "Key unwrapping failed to authenticate");
+                        return NULL;
+                    }}
+                    '''.format(name=self.name, required=self.required))
 
     def add_crypt_method(self, name, func):
         crypt = '{}_{} (self->ctx, buffer.len, dst, buffer.buf);'\

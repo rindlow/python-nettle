@@ -60,6 +60,22 @@ class AES(TestCase):
         c.invert_key()
         self.assertEqual(c.decrypt(ciphertext), cleartext)
 
+    def _test_keywrap(self, cipher: type[nettle.AesFamilyCipher],
+                      key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
+        self.assertEqual(len(cleartext) + 8, len(ciphertext))
+        c = cipher()
+        c.set_encrypt_key(key)
+        encrypted = c.keywrap(cleartext)
+        self.assertEqual(encrypted, ciphertext)
+
+        c.set_decrypt_key(key)
+        decrypted = c.keyunwrap(ciphertext)
+        self.assertEqual(decrypted, cleartext)
+
+        with self.assertRaises(nettle.AuthenticationError):
+            c.keyunwrap(bytes([0] * len(ciphertext)))
+
+
     def test_aes128(self) -> None:
         self._test(nettle.aes128,
                    SHEX("0001020305060708 0A0B0C0D0F101112"),
@@ -85,7 +101,24 @@ class AES(TestCase):
                           SHEX("0001020305060708 0A0B0C0D0F101112"),
                           SHEX("506812A45F08C889 B97F5980038B8359"),
                           SHEX("D8F532538289EF7D 06B506A4FD5BE9C9"))
+        
+    def test_aes128_keywrap(self) -> None:
+        self._test_keywrap(nettle.aes128,
+                    SHEX("0001020304050607 08090A0B0C0D0E0F"),
+                    SHEX("0011223344556677 8899AABBCCDDEEFF"),
+                    SHEX("1FA68B0A8112B447 AEF34BD8FB5A7B82 9D3E862371D2CFE5"))
 
+    def test_aes192_keywrap(self) -> None:
+        self._test_keywrap(nettle.aes192,
+                    SHEX("0001020304050607 08090A0B0C0D0E0F 1011121314151617"),
+                    SHEX("0011223344556677 8899AABBCCDDEEFF"),
+                    SHEX("96778B25AE6CA435 F92B5B97C050AED2 468AB8A17AD84E5D"))
+
+    def test_aes256_keywrap(self) -> None:
+        self._test_keywrap(nettle.aes256,
+                    SHEX("0001020304050607 08090A0B0C0D0E0F 1011121314151617 18191A1B1C1D1E1F"),
+                    SHEX("0011223344556677 8899AABBCCDDEEFF"),
+                    SHEX("64E8C3F9CE0F5BA2 63E9777905818A2A 93C8191E7D6E8AE7"))
 
 class ARCFOUR(TestCase):
 
