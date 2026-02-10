@@ -30,76 +30,81 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-from CClass import CClass
+from c_class import CClass
+from params import HashParam
 
 
 class Hash(CClass):
 
-    def __init__(self, name, digest, shake, docs):
-        CClass.__init__(self, name, docs, args='[msg]')
+    def __init__(self, param: HashParam) -> None:
+        name = param['name']
+        lname = name.lower()
+        uname = name.upper()
+        context = param.get('context', f'{lname}_ctx')
+        CClass.__init__(self, name, param['docstring'], args='[msg]')
 
-        self.add_to_init_body('''
+        self.add_to_init_body(f'''
                   Py_buffer buffer;
                   buffer.buf = NULL;
                   if (! PyArg_ParseTuple (args, "|y*", &buffer)) {{
                     return -1;
                   }}
                   if (buffer.buf != NULL) {{
-                    {name}_update (self->ctx, buffer.len, buffer.buf);
+                    {lname}_update (self->ctx, buffer.len, buffer.buf);
                   }}
-        '''.format(name=name))
+        ''')
 
         self.add_member(
             name='ctx',
-            decl='struct {}_ctx *ctx'.format(self.name),
-            init='{}_init (self->ctx);'.format(self.name),
-            alloc='if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx)))'
-            ' == NULL) {{\n    return PyErr_NoMemory ();\n  }}'
-            .format(self.name),
+            decl=f'struct {context} *ctx',
+            init=f'{lname}_init (self->ctx);',
+            alloc=f'if ((self->ctx = PyMem_Malloc (sizeof (struct {context})))'
+            ' == NULL) {\n    return PyErr_NoMemory ();\n  }'
+            ,
             dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
         self.add_member(
             name='digest_size',
             decl='int digest_size',
-            init='self->digest_size = {}_DIGEST_SIZE;'.format(name.upper()),
-            docs='The size of a {} digest'.format(name.upper()),
+            init=f'self->digest_size = {uname}_DIGEST_SIZE;',
+            docs=f'The size of a {uname} digest',
             flags='READONLY',
-            type='T_INT',
+            ctype='T_INT',
             public=True)
         self.add_member(
             name='block_size',
             decl='int block_size',
-            init='self->block_size = {}_BLOCK_SIZE;'.format(name.upper()),
-            docs='The internal block size of {}'.format(name.upper()),
+            init=f'self->block_size = {uname}_BLOCK_SIZE;',
+            docs=f'The internal block size of {uname}',
             flags='READONLY',
-            type='T_INT',
+            ctype='T_INT',
             public=True)
         self.add_method(
             name='update',
             args='METH_VARARGS',
             docs='Hash some more data',
             docargs='msg',
-            body='''
+            body=f'''
                   Py_buffer buffer;
 
                   if (! PyArg_ParseTuple (args, "y*", &buffer)) {{
                     return NULL;
                   }}
-                  {name}_update (self->ctx, buffer.len, buffer.buf);
+                  {lname}_update (self->ctx, buffer.len, buffer.buf);
                   Py_RETURN_NONE;
-                '''.format(name=name))
-        if digest:
+                ''')
+        if param.get('digest', True):
             self.add_method(
                 name='digest',
                 args='METH_NOARGS',
                 docs='Return the digest of the data passed to the update()'
                 ' method so far. This is a bytes object of size digest_size'
                 ' which may contain bytes in the whole range from 0 to 255.',
-                body='''
-                    uint8_t digest[{NAME}_DIGEST_SIZE];
-                    {name}_digest (self->ctx, {NAME}_DIGEST_SIZE, digest);
+                body=f'''
+                    uint8_t digest[{uname}_DIGEST_SIZE];
+                    {lname}_digest (self->ctx, digest);
                     return PyBytes_FromStringAndSize ((const char *) digest,
-                                                      {NAME}_DIGEST_SIZE);
-                '''.format(name=name, NAME=name.upper()))
+                                                      {uname}_DIGEST_SIZE);
+                ''')
 
             self.add_method(
                 name='hexdigest',
@@ -108,25 +113,25 @@ class Hash(CClass):
                 ' object of double length, containing only hexadecimal'
                 ' digits. This may be used to exchange the value safely'
                 ' in email or other non-binary environments.',
-                body='''
-                    uint8_t digest[{NAME}_DIGEST_SIZE];
-                    char hex[{NAME}_DIGEST_SIZE * 2 + 1];
+                body=f'''
+                    uint8_t digest[{uname}_DIGEST_SIZE];
+                    char hex[{uname}_DIGEST_SIZE * 2 + 1];
                     char *ptr = hex;
-                    {name}_digest (self->ctx, {NAME}_DIGEST_SIZE, digest);
-                    for (int i = 0; i < {NAME}_DIGEST_SIZE; i++) {{
+                    {lname}_digest (self->ctx, digest);
+                    for (int i = 0; i < {uname}_DIGEST_SIZE; i++) {{
                       snprintf(ptr, 3, "%02X", digest[i]);
                       ptr += 2;
                     }}
                     return PyUnicode_FromString ((const char *) hex);
-                '''.format(name=name, NAME=name.upper()))
+                ''')
 
-        if shake:
+        if param.get('shake'):
             self.add_method(
                 name='shake',
                 args='METH_VARARGS',
-                docs='Performs final processing and produces a {NAME} digest.'
-                ' length can be of arbitrary size.'.format(NAME=name.upper()),
-                body='''
+                docs=f'Performs final processing and produces a {uname} digest.'
+                ' length can be of arbitrary size.',
+                body=f'''
                     size_t length;
                     uint8_t *digest;
                     if (! PyArg_ParseTuple (args, "n", &length)) {{
@@ -135,18 +140,18 @@ class Hash(CClass):
                     if ((digest = PyMem_Malloc(length)) == NULL) {{
                       return PyErr_NoMemory ();
                     }}
-                    {name}_shake (self->ctx, length, digest);
+                    {lname}_shake (self->ctx, length, digest);
                     PyObject * bytes = PyBytes_FromStringAndSize (
                         (const char *) digest, length);
                     PyMem_Free(digest);
                     return bytes;
-                '''.format(name=name))
+                ''')
             self.add_method(
                 name='shake_output',
                 args='METH_VARARGS',
-                docs='Performs final processing and produces a {NAME} digest.'
-                ' length can be of arbitrary size.'.format(NAME=name.upper()),
-                body='''
+                docs=f'Performs final processing and produces a {uname} digest.'
+                ' length can be of arbitrary size.',
+                body=f'''
                     size_t length;
                     uint8_t *digest;
                     if (! PyArg_ParseTuple (args, "n", &length)) {{
@@ -155,12 +160,12 @@ class Hash(CClass):
                     if ((digest = PyMem_Malloc(length)) == NULL) {{
                       return PyErr_NoMemory ();
                     }}
-                    {name}_shake_output (self->ctx, length, digest);
+                    {lname}_shake_output (self->ctx, length, digest);
                     PyObject * bytes = PyBytes_FromStringAndSize (
                         (const char *) digest, length);
                     PyMem_Free(digest);
                     return bytes;
-                '''.format(name=name))
+                ''')
 
         self.add_method(
             name='copy',
@@ -168,11 +173,11 @@ class Hash(CClass):
             docs='Return a copy (\\"clone\\") of the hash object. This can'
             ' be used to efficiently compute the digests of data sharing'
             ' a common initial substring',
-            body='''
+            body=f'''
                 PyObject * module = PyImport_ImportModule("nettle");
                 PyObject * obj = PyObject_GetAttrString(module, "{name}");
                 pynettle_{name} * copy= (pynettle_{name} *) \\
                    PyObject_CallObject (obj, NULL);
-                memcpy(copy->ctx, self->ctx, sizeof (struct {name}_ctx));
+                memcpy(copy->ctx, self->ctx, sizeof (struct {lname}_ctx));
                 return (PyObject *)copy;
-            '''.format(name=name))
+            ''')

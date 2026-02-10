@@ -14,6 +14,7 @@ nettle_ciphers.c
 nettle_hashes.c
 nettle_macs.c
 nettle_pubkey.c
+nettle_random.c
 nettle.h
 nettle/autogen.py
 nettle/autogen.pyi
@@ -22,6 +23,7 @@ doc/source/ciphers.rst
 doc/source/hashes.rst
 doc/source/macs.rst
 doc/source/pubkey.rst
+doc/source/random.rst
 
 # setuptools metadata
 nettle.egg-info/*

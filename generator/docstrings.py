@@ -289,6 +289,22 @@ poly1305 = 'Poly1305-AES is a message authentication code designed by' \
     ' nonce, to produce an 128-bit authenticator for the message. See' \
     ' http://cr.yp.to/mac/poly1305-20050329.pdf for further details.'
 
+# Randomness
+
+yarrow = 'Yarrow is a family of pseudo-randomness generators, designed' \
+    ' for cryptographic use, by John Kelsey, Bruce Schneier and Niels' \
+    ' Ferguson. Yarrow-160 is described in a paper at' \
+    ' https://www.schneier.com/academic/yarrow/, and it uses SHA1 and' \
+    ' triple-DES, and has a 160-bit internal state. Nettle implements' \
+    ' Yarrow-256, which is similar, but uses SHA256 and AES to get an' \
+    ' internal state of 256 bits.'
+
+drbg_ctr = 'The Deterministic Random Bit Generator (DRBG) family is a' \
+    ' complex family of deterministic randomness generators published' \
+    ' by NIST in SP 800-90A.'
+
+# Examples
+
 hash_example = '''
    >>> import nettle
    >>> sha = nettle.sha256()
@@ -352,3 +368,5 @@ pubkey_example = '''
    >>> pubkey.verify(signature, nettle.sha256(b'Data to be signed'))
    True
 '''
+
+random_example = '''XXX'''

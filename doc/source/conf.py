@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'python-nettle'
-copyright = '2018, Henrik Rindlöw'
+copyright = '2018-2026, Henrik Rindlöw'
 author = 'Henrik Rindlöw'
 
 # The short X.Y version

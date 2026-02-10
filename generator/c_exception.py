@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# CModule.py
+# CException.py
 #
 # Copyright (C) 2017, 2018 Henrik Rindlöw
 #
@@ -30,34 +30,33 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
+from typing import TextIO
 
-class CModule:
 
-    def __init__(self, name, doc, objects):
+class CException:
+
+    def __init__(self, name: str, module: str, docs: str, base: str) -> None:
         self.name = name
-        self.doc = doc
-        self.objects = objects
-        self.out = None
+        self.module = module
+        self.docs = docs
+        self.base = base
 
-    def write_to_file(self, out):
-        out.write('#define MOD_ERR_VAL NULL\n'
-                  'static PyModuleDef {name} = {{\n'
-                  '  PyModuleDef_HEAD_INIT,\n'
-                  '  "{name}",\n'
-                  '  "{doc}",\n'
-                  '  -1,\n'
-                  '  NULL, NULL, NULL, NULL, NULL\n'
-                  '}};\n'
-                  'PyMODINIT_FUNC\n'
-                  'PyInit_{name} (void)\n'
-                  '{{\n'
-                  '  PyObject *m = PyModule_Create (&{name});\n'
-                  '  if (m == NULL) {{\n'
-                  '    return MOD_ERR_VAL;\n'
-                  '  }}\n'.format(name=self.name, doc=self.doc))
+    def write_decl_to_file(self, f: TextIO, extern: bool = False) -> None:
+        if extern:
+            f.write('extern ')
+        f.write(f'PyObject *{self.name};\n')
 
-        for obj in sorted(self.objects, key=lambda o: o.name):
-            obj.write_reg_to_file(out)
+    def write_reg_to_file(self, f: TextIO) -> None:
+        f.write(f'  {self.name} = PyErr_NewExceptionWithDoc ('
+                f'"{self.module}.{self.name}",'
+                f' "{self.docs}", {self.base}, NULL);\n'
+                f'  if (!{self.name})\n    {{\n'
+                '      return MOD_ERR_VAL;\n'
+                '    }\n  else\n    {\n'
+                f'      Py_INCREF ({self.name});\n'
+                f'      PyModule_AddObject (m, "{self.name}", {self.name});\n'
+                '    }\n',
+                )
 
-        out.write('  return m;\n'
-                  '}\n')
+    def write_python_subclass(self, f: TextIO) -> None:
+        f.write(f'{self.name} = _nettle.{self.name}\n')

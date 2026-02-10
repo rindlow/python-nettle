@@ -30,29 +30,31 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-from CClass import CClass
+from c_class import CClass
+from params import CipherParam
 
 
 class Cipher(CClass):
 
-    def __init__(self, param):
+    def __init__(self, param: CipherParam) -> None:
         CClass.__init__(self, param['name'], param['docstring'])
 
         self.name = param['name']
-        self.family = param['family']
+        self.lname = self.name.lower()
+        self.family: str | None = param.get('family')
         self.docs = param['docstring']
         self.required = 1
 
-        if param['lenparam']:
+        if param.get('lenparam'):
             keylen = 'key.len, '
         else:
             keylen = ''
-        if param['twofuncs']:
-            encrypt_func = '{}_encrypt'.format(self.name)
-            decrypt_func = '{}_decrypt'.format(self.name)
+        if param.get('twofuncs'):
+            encrypt_func = f'{self.lname}_encrypt'
+            decrypt_func = f'{self.lname}_decrypt'
         else:
-            encrypt_func = '{}_crypt'.format(self.name)
-            decrypt_func = '{}_crypt'.format(self.name)
+            encrypt_func = f'{self.lname}_crypt'
+            decrypt_func = f'{self.lname}_crypt'
 
         self.add_member(
             name='is_initialized',
@@ -60,32 +62,32 @@ class Cipher(CClass):
             init='self->is_initialized = 0;')
         self.add_member(
             name='ctx',
-            decl='struct {}_ctx *ctx'.format(self.name),
-            alloc='''
-                if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx))) \\
+            decl=f'struct {self.lname}_ctx *ctx',
+            alloc=f'''
+                if ((self->ctx = PyMem_Malloc (sizeof (struct {self.lname}_ctx))) \\
                     == NULL)
                   {{
                     return PyErr_NoMemory ();
-                  }}'''.format(self.name),
+                  }}''',
             dealloc='PyMem_Free (self->ctx);\nself->ctx = NULL;')
         self.add_member(
             name='encrypt_func',
             decl='nettle_cipher_func *encrypt_func',
-            init='self->encrypt_func = (nettle_cipher_func *)&{};'
-            .format(encrypt_func))
+            init=f'self->encrypt_func = (nettle_cipher_func *)&{encrypt_func};',
+            )
         self.add_member(
             name='decrypt_func',
             decl='nettle_cipher_func *decrypt_func',
-            init='self->decrypt_func = (nettle_cipher_func *)&{};'
-            .format(decrypt_func))
+            init=f'self->decrypt_func = (nettle_cipher_func *)&{decrypt_func};',
+            )
 
-        if param['twokeys']:
+        if param.get('twokeys'):
             keys = ['encrypt_key', 'decrypt_key']
             self.args = 'encrypt_key=None, decrypt_key=None'
         else:
             keys = ['key']
             self.args = 'key=None'
-        if param['nonce']:
+        if param.get('nonce'):
             keys.append('nonce')
             self.args += ', nonce=None'
 
@@ -97,16 +99,16 @@ class Cipher(CClass):
                 kl = keylen
             self.add_to_init_body(
                 self.key_len_check_and_set(
-                    key=key, keylen=kl, cipher_name=self.name, init=True,
-                    varkey=param['variable_keylen']))
+                    key=key, keylen=kl, cipher_name=self.lname, init=True,
+                    varkey=param.get('variable_keylen', False)))
 
         self.add_member(
             name='key_size',
             decl='int key_size',
-            init='self->key_size = {}_KEY_SIZE;'.format(self.name.upper()),
-            docs='The size of a {} key'.format(self.name.upper()),
+            init=f'self->key_size = {self.name.upper()}_KEY_SIZE;',
+            docs=f'The size of a {self.name.upper()} key',
             flags='READONLY',
-            type='T_INT',
+            ctype='T_INT',
             public=True)
 
         if 'stream' not in param:
@@ -117,44 +119,44 @@ class Cipher(CClass):
             self.add_member(
                 name='block_size',
                 decl='int block_size',
-                init='self->block_size = {}_BLOCK_SIZE;'.format(s),
-                docs='The internal block size of {}'.format(s),
+                init=f'self->block_size = {s}_BLOCK_SIZE;',
+                docs=f'The internal block size of {s}',
                 flags='READONLY',
-                type='T_INT',
+                ctype='T_INT',
                 public=True)
 
-        if param['nonce']:
+        if param.get('nonce'):
             self.add_member(
                 name='nonce_size',
                 decl='int nonce_size',
-                init='self->nonce_size = {}_NONCE_SIZE;'
-                     .format(self.name.upper()),
-                docs='The size of a {} nonce'.format(self.name),
+                init=f'self->nonce_size = {self.name.upper()}_NONCE_SIZE;'
+                     ,
+                docs=f'The size of a {self.name} nonce',
                 flags='READONLY',
-                type='T_INT',
+                ctype='T_INT',
                 public=True)
 
-        if param['twokeys']:
+        if param.get('twokeys'):
             self.add_set_key_function(self.name, key='encrypt_key',
                                       keylen=keylen,
-                                      varkey=param['variable_keylen'])
+                                      varkey=param.get('variable_keylen', False))
             self.add_set_key_function(self.name, key='decrypt_key',
                                       keylen=keylen,
-                                      varkey=param['variable_keylen'])
+                                      varkey=param.get('variable_keylen', False))
         else:
             self.add_set_key_function(self.name, keylen=keylen,
-                                      varkey=param['variable_keylen'])
+                                      varkey=param.get('variable_keylen', False))
             self.add_method_alias(alias='set_encrypt_key', method='set_key',
                                   args='METH_VARARGS', docargs='key',
                                   docs='an alias for set_key')
             self.add_method_alias(alias='set_decrypt_key', method='set_key',
                                   args='METH_VARARGS', docargs='key',
                                   docs='an alias for set_key')
-        if param['nonce']:
+        if param.get('nonce'):
             self.required += 1
             self.add_set_key_function(self.name, keylen='', key='nonce')
 
-        if param['twofuncs']:
+        if param.get('twofuncs'):
             self.add_crypt_method(self.name, 'encrypt')
             self.add_crypt_method(self.name, 'decrypt')
         else:
@@ -166,18 +168,18 @@ class Cipher(CClass):
                                   args='METH_VARARGS', docargs='bytes',
                                   docs='an alias for crypt')
 
-        if param['invert']:
+        if param.get('invert'):
             self.add_method(
                 name='invert_key',
                 args='METH_NOARGS',
                 docs='On an instance initialized for encryption, initializes'
                 ' the context for decryption using the same key',
-                body='''
-                    {name}_invert_key (self->ctx, self->ctx);
+                body=f'''
+                    {self.lname}_invert_key (self->ctx, self->ctx);
                     Py_RETURN_NONE;
-                    '''.format(name=self.name))
+                    ''')
 
-        if param['parity']:
+        if param.get('parity'):
             self.add_method(
                 name='check_parity',
                 args='METH_VARARGS',
@@ -185,15 +187,15 @@ class Cipher(CClass):
                      ' Returns True for correct parity, and False for bad'
                      ' parity.',
                 docargs='key',
-                body='''
+                body=f'''
                       Py_buffer key;
                       if (!PyArg_ParseTuple (args, "y*", &key))
                         {{
                           return NULL;
                         }}
-                      return PyBool_FromLong ({}_check_parity(key.len, \\
+                      return PyBool_FromLong ({self.family}_check_parity(key.len, \\
                           key.buf));
-                '''.format(self.family))
+                ''')
             self.add_method(
                 name='fix_parity',
                 args='METH_VARARGS',
@@ -202,26 +204,26 @@ class Cipher(CClass):
                      ' random-looking string by a key agreement protocol,'
                      ' and want to use it as a key',
                 docargs='key',
-                body='''
+                body=f'''
                       Py_buffer key;
                       if (!PyArg_ParseTuple (args, "y*", &key))
                         {{
                           return NULL;
                         }}
-                    {}_fix_parity(key.len, key.buf, key.buf);
+                    {self.family}_fix_parity(key.len, key.buf, key.buf);
                     return PyBytes_FromStringAndSize ((const char *)key.buf, \\
                         key.len);
-                '''.format(self.family))
-            
-        if param['keywrap']:
+                ''')
+
+        if param.get('keywrap'):
             self.add_method(
                 name='keywrap',
                 args='METH_VARARGS',
                 docs='wrap key, the length of which must be an'
                 ' integral multiple of the block size',
                 docargs='bytes',
-                body='''
-                    if (self->is_initialized < {required})
+                body=f'''
+                    if (self->is_initialized < {self.required})
                         {{
                         PyErr_Format (NotInitializedError,
                                         "Cipher not initialized. Set key first!");
@@ -245,20 +247,20 @@ class Cipher(CClass):
                         {{
                         return PyErr_NoMemory ();
                         }}
-                    nist_keywrap16 (self->ctx, (nettle_cipher_func *) &{name}_encrypt, 
+                    nist_keywrap16 (self->ctx, (nettle_cipher_func *) &{self.lname}_encrypt,
                                     (const uint8_t *)"\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6",
                                     dstlen, dst, buffer.buf);
                     return PyBytes_FromStringAndSize ((const char *) dst,
                                                     dstlen);
-                    '''.format(name=self.name, required=self.required))
+                    ''')
             self.add_method(
                 name='keyunwrap',
                 args='METH_VARARGS',
                 docs='unwrap key, the length of which must be an'
                 ' integral multiple of the block size',
                 docargs='bytes',
-                body='''
-                    if (self->is_initialized < {required})
+                body=f'''
+                    if (self->is_initialized < {self.required})
                         {{
                         PyErr_Format (NotInitializedError,
                                         "Cipher not initialized. Set key first!");
@@ -282,7 +284,7 @@ class Cipher(CClass):
                     {{
                         return PyErr_NoMemory ();
                     }}
-                    if (nist_keyunwrap16 (self->ctx, (nettle_cipher_func *) &{name}_decrypt,
+                    if (nist_keyunwrap16 (self->ctx, (nettle_cipher_func *) &{self.lname}_decrypt,
                                     (const uint8_t *)"\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6\\xA6",
                                     dstlen, dst, buffer.buf))
                     {{
@@ -295,33 +297,33 @@ class Cipher(CClass):
                                       "Key unwrapping failed to authenticate");
                         return NULL;
                     }}
-                    '''.format(name=self.name, required=self.required))
+                    ''')
 
-    def add_crypt_method(self, name, func):
-        crypt = '{}_{} (self->ctx, buffer.len, dst, buffer.buf);'\
-                .format(self.name, func)
+    def add_crypt_method(self, name: str, func: str) -> None:
+        crypt = f'{self.lname}_{func} (self->ctx, buffer.len, dst, buffer.buf);'
+
         if self.family is None:
             blockcheck = ''
         else:
-            blockcheck = '''
-                if (buffer.len % {family}_BLOCK_SIZE != 0)
+            blockcheck = f'''
+                if (buffer.len % {self.family.upper()}_BLOCK_SIZE != 0)
                   {{
                     PyErr_Format (DataLenError, //
                                   "Data length %d not a multiple of block" //
                                   " size %d", //
-                                   buffer.len, {family}_BLOCK_SIZE);
+                                   buffer.len, {self.family.upper()}_BLOCK_SIZE);
                     return NULL;
                   }}
-            '''.format(family=self.family.upper())
+            '''
 
         self.add_method(
             name=func,
             args='METH_VARARGS',
-            docs='{} data, the length of which must be an'
-            ' integral multiple of the block size'.format(name.capitalize()),
+            docs=f'{name.capitalize()} data, the length of which must be an'
+            ' integral multiple of the block size',
             docargs='bytes',
-            body='''
-                  if (self->is_initialized < {required})
+            body=f'''
+                  if (self->is_initialized < {self.required})
                     {{
                       PyErr_Format (NotInitializedError,
                                     "Cipher not initialized. Set key first!");
@@ -341,16 +343,15 @@ class Cipher(CClass):
                   {crypt}
                   return PyBytes_FromStringAndSize ((const char *) dst,
                                                    buffer.len);
-                '''.format(crypt=crypt, blockcheck=blockcheck,
-                           required=self.required))
+                ''')
 
-    def add_set_key_function(self, name, key='key', keylen='',
-                             varkey=False):
+    def add_set_key_function(self, name: str, key: str = 'key', keylen: str = '',
+                             varkey: bool = False) -> None:
         docs = 'Initialize the cipher'
         gsk = ''
 
         self.add_method(
-            name='set_{}'.format(key),
+            name=f'set_{key}',
             args='METH_VARARGS',
             docs=docs,
             docargs=key,
@@ -368,44 +369,41 @@ class Cipher(CClass):
                            varkey=varkey,
                            keylen=keylen,
                            key_init=gsk,
-                           cipher_name=name)))
+                           cipher_name=name.lower())))
 
     @staticmethod
-    def key_len_check_and_set(key, varkey=False, keylen='',
-                              cipher_name='', key_init='', init=False):
+    def key_len_check_and_set(key: str, varkey: bool = False, keylen: str = '',
+                              cipher_name: str = '', key_init: str = '',
+                              init: bool = False) -> str:
         if init:
             errval = -1
         else:
             errval = 'NULL'
         if key == 'nonce':
-            KEY = 'NONCE'
+            key_nonce = 'NONCE'
         else:
-            KEY = 'KEY'
+            key_nonce = 'KEY'
         if varkey:
-            check = '{key}.len < {cipher_name}_MIN_{KEY}_SIZE || ' \
-                    '{key}.len > {cipher_name}_MAX_{KEY}_SIZE' \
-                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
-            error = '"Invalid {key} length %d, expected between %d and %d.",' \
-                    '{key}.len, {cipher_name}_MIN_{KEY}_SIZE, ' \
-                    '{cipher_name}_MAX_{KEY}_SIZE' \
-                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
+            check = (f'{key}.len < {cipher_name.upper()}_MIN_{key_nonce}_SIZE || '
+                     f'{key}.len > {cipher_name.upper()}_MAX_{key_nonce}_SIZE')
+
+            error = (f'"Invalid {key} length %d, expected between %d and %d.",'
+                     f'{key}.len, {cipher_name.upper()}_MIN_{key_nonce}_SIZE, '
+                     f'{cipher_name.upper()}_MAX_{key_nonce}_SIZE')
         else:
-            check = '{key}.len != {cipher_name}_{KEY}_SIZE' \
-                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
-            error = '"Invalid {key} length %d, expected %d.",' \
-                    '{key}.len, {cipher_name}_{KEY}_SIZE' \
-                    .format(key=key, KEY=KEY, cipher_name=cipher_name.upper())
-        return \
-            '  if ({key}.buf != NULL)\n' \
-            '    {{\n' \
-            '      if ({check})\n' \
-            '        {{\n' \
-            '          PyErr_Format (KeyLenError, {error});\n' \
-            '          return {errval};\n' \
-            '        }}\n' \
-            '      {cipher_name}_set_{key} (self->ctx, {keylen}{key}.buf);\n' \
-            '      {key_init}\n' \
-            '      self->is_initialized += 1;\n' \
-            '    }}\n' \
-            .format(key=key, check=check, error=error, cipher_name=cipher_name,
-                    keylen=keylen, errval=errval, key_init=key_init)
+            check = f'{key}.len != {cipher_name.upper()}_{key_nonce}_SIZE'
+
+            error = (f'"Invalid {key} length %d, expected %d.",'
+                     f'{key}.len, {cipher_name.upper()}_{key_nonce}_SIZE')
+
+        return  f'''  if ({key}.buf != NULL)
+                {{
+                  if ({check})
+                    {{
+                      PyErr_Format (KeyLenError, {error});
+                      return {errval};
+                    }}
+                  {cipher_name}_set_{key} (self->ctx, {keylen}{key}.buf);
+                  {key_init}
+                  self->is_initialized += 1;
+                }}'''

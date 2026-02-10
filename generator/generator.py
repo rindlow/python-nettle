@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # generator.py
 #
-# Copyright (C) 2017, 2018 Henrik Rindlöw
+# Copyright (C) 2017-2026 Henrik Rindlöw
 #
 # This file is part of python-nettle.
 #
@@ -31,188 +30,32 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-from collections import defaultdict
 import pathlib
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, TextIO
 
-from CModule import CModule
-from CException import CException
-from Hash import Hash
-from Cipher import Cipher
-from CipherMode import CipherMode
-from MAC import MAC
-from PubKey import Yarrow, RSAKeyPair, RSAPubKey
 import docstrings
+import params
+from c_class import CClass
+from c_exception import CException
+from c_module import CModule
+from cipher import Cipher
+from cipher_mode import CipherMode
+from hash import Hash
+from mac import MAC
+from pubkey import RSAKeyPair, RSAPubKey
+from randomness import Random
+
+if TYPE_CHECKING:
+    from protocols import Object
 
 
-def none_factory():
-    return lambda: None
-
-
-hashes = [
-    {'name': 'gosthash94', 'headers': ['gosthash94.h'],
-     'docstring': docstrings.gosthash94},
-    {'name': 'md2', 'headers': ['md2.h'], 'docstring': docstrings.md2},
-    {'name': 'md4', 'headers': ['md4.h'], 'docstring': docstrings.md4},
-    {'name': 'md5', 'headers': ['md5.h'], 'docstring': docstrings.md5},
-    {'name': 'ripemd160', 'headers': ['ripemd160.h'],
-     'docstring': docstrings.ripemd160},
-    {'name': 'sha1', 'headers': ['sha1.h'], 'docstring': docstrings.sha1},
-    {'name': 'sha224', 'headers': ['sha2.h'], 'docstring': docstrings.sha224},
-    {'name': 'sha256', 'headers': ['sha2.h'], 'docstring': docstrings.sha256},
-    {'name': 'sha512', 'headers': ['sha2.h'], 'docstring': docstrings.sha512},
-    {'name': 'sha384', 'headers': ['sha2.h'], 'docstring': docstrings.sha384},
-    {'name': 'sha512_224', 'headers': ['sha2.h'],
-     'docstring': docstrings.sha384},
-    {'name': 'sha512_256', 'headers': ['sha2.h'],
-     'docstring': docstrings.sha384},
-    {'name': 'sha3_128', 'headers': ['sha3.h'], 'digest': False, 'shake': True,
-     'docstring': docstrings.sha3_224},
-    {'name': 'sha3_224', 'headers': ['sha3.h'],
-     'docstring': docstrings.sha3_224},
-    {'name': 'sha3_256', 'headers': ['sha3.h'], 'shake': True,
-     'docstring': docstrings.sha3_256},
-    {'name': 'sha3_384', 'headers': ['sha3.h'],
-     'docstring': docstrings.sha3_384},
-    {'name': 'sha3_512', 'headers': ['sha3.h'],
-     'docstring': docstrings.sha3_512},
-    {'name': 'streebog512', 'headers': ['streebog.h'],
-     'docstring': docstrings.streebog_512},
-    {'name': 'streebog256', 'headers': ['streebog.h'],
-     'docstring': docstrings.streebog_256},
-    {'name': 'sm3', 'headers': ['sm3.h'],
-     'docstring': docstrings.sm3}, ]
-
-ciphers = [
-    {'name': 'aes128', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
-     'docstring': docstrings.aes, 'keywrap': True,
-     'twokeys': True, 'twofuncs': True, 'invert': True},
-    {'name': 'aes192', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
-     'docstring': docstrings.aes, 'keywrap': True,
-     'twokeys': True, 'twofuncs': True, 'invert': True},
-    {'name': 'aes256', 'family': 'aes', 'headers': ['aes.h', 'nist-keywrap.h'],
-     'docstring': docstrings.aes, 'keywrap': True,
-     'twokeys': True, 'twofuncs': True, 'invert': True},
-    {'name': 'arcfour', 'headers': ['arcfour.h'],
-     'docstring': docstrings.arcfour,
-     'lenparam': True, 'variable_keylen': True, 'stream': True},
-    {'name': 'arctwo', 'headers': ['arctwo.h'],
-     'docstring': docstrings.arctwo, 'lenparam': True,
-     'twofuncs': True, 'variable_keylen': True},
-    {'name': 'blowfish', 'family': 'blowfish',
-     'headers': ['blowfish.h'],
-     'docstring': docstrings.blowfish,
-     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
-    {'name': 'camellia128', 'family': 'camellia', 'headers': ['camellia.h'],
-     'docstring': docstrings.camellia,
-     'twokeys': True, 'invert': True},
-    {'name': 'camellia192', 'family': 'camellia', 'headers': ['camellia.h'],
-     'docstring': docstrings.camellia,
-     'twokeys': True, 'invert': True},
-    {'name': 'camellia256', 'family': 'camellia', 'headers': ['camellia.h'],
-     'docstring': docstrings.camellia,
-     'twokeys': True, 'invert': True},
-    {'name': 'cast128', 'family': 'cast128', 'headers': ['cast128.h'],
-     'docstring': docstrings.cast128,
-     'twofuncs': True},
-    {'name': 'chacha', 'headers': ['chacha.h'],
-     'docstring': docstrings.chacha,
-     'nonce': True},
-    {'name': 'des', 'family': 'des', 'headers': ['des.h'],
-     'docstring': docstrings.des,
-     'twofuncs': True, 'parity': True},
-    {'name': 'des3', 'family': 'des', 'headers': ['des.h'],
-     'docstring': docstrings.des,
-     'twofuncs': True, 'parity': True},
-    {'name': 'salsa20', 'headers': ['salsa20.h'],
-     'docstring': docstrings.salsa20,
-     'lenparam': True, 'nonce': True},
-    {'name': 'serpent', 'family': 'serpent', 'headers': ['serpent.h'],
-     'docstring': docstrings.serpent,
-     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
-    {'name': 'sm4', 'family': 'sm4', 'headers': ['sm4.h'],
-     'docstring': docstrings.sm4, 'twokeys': True, },
-    {'name': 'twofish', 'family': 'twofish', 'headers': ['twofish.h'],
-     'docstring': docstrings.twofish,
-     'lenparam': True, 'twofuncs': True, 'variable_keylen': True},
-]
-
-ciphermodes = [
-    {'name': 'CBC', 'docstring': 'Cipher Block Chaining',
-     'headers': ['cbc.h'], 'iv': 'iv', 'twofuncs': True},
-    {'name': 'CTR', 'docstring': 'Counter Mode',
-     'headers': ['ctr.h'], 'iv': 'ctr'},
-    {'name': 'GCM', 'docstring': 'Galois Counter Mode',
-     'headers': ['gcm.h'], 'iv': 'iv', 'aead': True,
-     'mode_key': True, 'digest_cipher_param': True, },
-    {'name': 'EAX', 'docstring': 'The EAX mode is an AEAD mode which'
-     ' combines CTR mode encryption, with a message authentication'
-     ' based on CBC', 'headers': ['eax.h'],
-     'iv': 'nonce', 'aead': True, 'mode_key': True,
-     'update_cipher_param': True, 'digest_cipher_param': True,
-     'set_cipher_param': True},
-    {'name': 'CCM', 'docstring': 'Counter with Cipher Block Chaining'
-     '-Message Authentication Code', 'headers': ['ccm.h'],
-     'iv': 'nonce', 'aead': True, 'know_len': True,
-     'update_cipher_param': True, 'digest_cipher_param': True,
-     'set_cipher_param': True},
-]
-
-macs = [
-    {'name': 'hmac_sha1', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmac,
-     'digest': 'SHA1'},
-    {'name': 'hmac_sha256', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmac,
-     'digest': 'SHA256'},
-    {'name': 'hmac_sha512', 'headers': ['hmac.h'],
-     'docstring': docstrings.hmac,
-     'digest': 'SHA512'},
-    {'name': 'umac32', 'headers': ['umac.h'],
-     'docstring': docstrings.umac,
-     'nonce': 'variable'},
-    {'name': 'umac64', 'headers': ['umac.h'],
-     'docstring': docstrings.umac,
-     'nonce': 'variable'},
-    {'name': 'umac96', 'headers': ['umac.h'],
-     'docstring': docstrings.umac,
-     'nonce': 'variable'},
-    {'name': 'umac128', 'headers': ['umac.h'],
-     'docstring': docstrings.umac,
-     'nonce': 'variable'},
-    {'name': 'poly1305_aes', 'headers': ['poly1305.h'],
-     'docstring': docstrings.poly1305,
-     'nonce': 'fixed'},
-]
-
-exceptions = [
-    {'name': 'BaseException', 'base': 'NULL',
-     'docs': 'Generic Nettle Exception'},
-    {'name': 'KeyLenError', 'base': 'BaseException',
-     'docs': 'Key Length is not as expected'},
-    {'name': 'DataLenError', 'base': 'BaseException',
-     'docs': 'Data length is not a multiple of the block size'},
-    {'name': 'LenMismatch', 'base': 'BaseException',
-     'docs': 'Data length is not as specified earlier'},
-    {'name': 'NotInitializedError', 'base': 'BaseException',
-     'docs': 'Object must be initialized before calling this method'},
-    {'name': 'RandomError', 'base': 'BaseException',
-     'docs': 'Failed to open/read /dev/random'},
-    {'name': 'RSAError', 'base': 'BaseException',
-     'docs': 'RSA operation failed'},
-    {'name': 'ASN1Error', 'base': 'BaseException',
-     'docs': 'ASN1 parsing failed'},
-    {'name': 'AuthenticationError', 'base': 'BaseException',
-     'docs': 'Authentication failed'},
-]
-
-
-# noinspection PyArgumentList
 class Generator:
 
-    def __init__(self):
-        self.objects = []
-        self.ciphers = []
-        self.hashes = []
+    def __init__(self) -> None:
+        self.objects: list[Object] = []
+        self.ciphers: list[Cipher] = []
+        self.hashes: list[Hash] = []
         filepath = pathlib.Path(__file__)
         rootpath = filepath.parent.parent
         srcpath = rootpath / 'src'
@@ -221,8 +64,10 @@ class Generator:
         self.cipher_file = srcpath / 'nettle_ciphers.c'
         self.hash_file = srcpath / 'nettle_hashes.c'
         self.mac_file = srcpath / 'nettle_macs.c'
+        self.random_file = srcpath / 'nettle_random.c'
         self.mod_file = srcpath / 'nettle.c'
         self.header_file = srcpath / 'nettle.h'
+        self.header_include_path = self.header_file.name
         self.pubkey_file = srcpath / 'nettle_pubkey.c'
         self.python_module = nettlepath / 'autogen.py'
         self.python_interface = nettlepath / 'autogen.pyi'
@@ -230,36 +75,36 @@ class Generator:
         self.ciphermode_doc_file = docpath / 'ciphermodes.rst'
         self.hash_doc_file = docpath / 'hashes.rst'
         self.mac_doc_file = docpath / 'macs.rst'
+        self.random_doc_file = docpath / 'random.rst'
         self.pubkey_doc_file = docpath / 'pubkey.rst'
 
     @staticmethod
-    def write_c_autogen_warning(f):
+    def write_c_autogen_warning(f: TextIO) -> None:
         f.write('/*\n'
                 '  This file is auto generated (by generator/generator.py).\n'
                 '  All changes will be lost!\n'
                 '*/\n')
 
     @staticmethod
-    def write_python_autogen_warning(f):
+    def write_python_autogen_warning(f: TextIO) -> None:
         f.write('# This file is auto generated (by generator/generator.py).\n'
                 '# All changes will be lost!\n')
 
-    def generate(self):
-        self.gen_hash_file(hashes)
-        self.gen_cipher_file(ciphers, ciphermodes)
-        self.gen_mac_file(macs)
+    def generate(self) -> None:
+        self.gen_hash_file()
+        self.gen_cipher_file()
+        self.gen_mac_file()
+        self.gen_random_file()
         self.gen_pubkey_file()
-        self.gen_exceptions(exceptions)
+        self.gen_exceptions()
         self.gen_header_file()
         self.gen_mod_file()
         self.gen_python_file()
-        self.gen_interface_file(hashes, ciphers, ciphermodes, exceptions, macs)
+        self.gen_interface_file()
 
-    def gen_hash_file(self, hashdata):
-        headers = set([f for h in hashdata for f in h['headers']])
-        classes = [Hash(p['name'], p.get('digest', True),
-                        p.get('shake', False), p['docstring'])
-                   for p in hashdata]
+    def gen_hash_file(self) -> None:
+        headers = list({f for h in params.hashes for f in h['headers']})
+        classes = [Hash(p) for p in params.hashes]
         self.objects.extend(classes)
         self.hashes = classes
 
@@ -267,14 +112,12 @@ class Generator:
         self.write_doc_file(self.hash_doc_file, "Hashes",
                             docstrings.hash_example, classes)
 
-    def gen_cipher_file(self, cipherdata, modedata):
-        headers = set([h for m in cipherdata + modedata for h in m['headers']])
-        cipher_list = [Cipher(defaultdict(none_factory(), c))
-                       for c in cipherdata]
-        modes = [CipherMode(defaultdict(none_factory(), m),
-                            [c for c in cipherdata
-                             if c.get('family') in ('aes', 'camellia')])
-                 for m in modedata]
+    def gen_cipher_file(self) -> None:
+        headers = list({h for m in params.ciphers + params.ciphermodes for h in m['headers']})
+        cipher_list = [Cipher(c) for c in params.ciphers]
+        modes = [CipherMode(m, [c for c in params.ciphers
+                                if c.get('family') in ('aes', 'camellia')])
+                 for m in params.ciphermodes]
         classes = cipher_list + modes
         self.objects.extend(classes)
         self.ciphers = cipher_list
@@ -285,17 +128,17 @@ class Generator:
         self.write_doc_file(self.ciphermode_doc_file, "Cipher Modes",
                             docstrings.ciphermode_example, modes)
 
-    def gen_mac_file(self, macdata):
-        headers = set(h for m in macdata for h in m['headers'])
-        classes = [MAC(m) for m in macdata]
+    def gen_mac_file(self) -> None:
+        headers = list({h for m in params.macs for h in m['headers']})
+        classes = [MAC(m) for m in params.macs]
         self.objects.extend(classes)
 
         self.write_class_file(self.mac_file, classes, headers)
         self.write_doc_file(self.mac_doc_file, 'Keyed Hash Functions',
                             docstrings.mac_example, classes)
 
-    def gen_pubkey_file(self):
-        classes = [Yarrow(), RSAKeyPair(), RSAPubKey()]
+    def gen_pubkey_file(self) -> None:
+        classes: list[CClass] = [RSAKeyPair(), RSAPubKey()]
         headers = ['yarrow.h', 'rsa.h']
         self.objects.extend(classes)
 
@@ -306,13 +149,23 @@ class Generator:
         self.write_doc_file(self.pubkey_doc_file, 'Public Key Encryption',
                             docstrings.pubkey_example, classes)
 
-    def gen_exceptions(self, exception_list):
-        for e in exception_list:
-            self.objects.append(CException(e['name'], 'nettle',
-                                           e['docs'], e['base']))
+    def gen_random_file(self) -> None:
+        headers = list({f for h in params.random for f in h['headers']})
+        classes = [Random(p) for p in params.random]
+        self.objects.extend(classes)
 
-    def gen_header_file(self):
-        with open(self.header_file, 'w', encoding='utf8') as f:
+        self.write_class_file(self.random_file, classes, headers,
+                              system_headers=['fcntl.h', 'stdio.h'])
+        self.write_doc_file(self.random_doc_file, "Randomness",
+                            docstrings.random_example, classes)
+
+    def gen_exceptions(self) -> None:
+        for e in params.exceptions:
+            self.objects.append(CException(e['name'], 'nettle',
+                                           e['docstring'], e['base']))
+
+    def gen_header_file(self) -> None:
+        with self.header_file.open('w', encoding='utf8') as f:
             self.write_c_autogen_warning(f)
             f.write('#ifndef _NETTLE_H_\n#define _NETTLE_H_\n\n')
             f.write('#include <nettle/camellia.h>\n')
@@ -322,11 +175,11 @@ class Generator:
                 obj.write_decl_to_file(f, extern=True)
             f.write('#endif /* _NETTLE_H_ */\n')
 
-    def gen_mod_file(self):
-        with open(self.mod_file, 'w', encoding='utf8') as f:
+    def gen_mod_file(self) -> None:
+        with self.mod_file.open('w', encoding='utf8') as f:
             self.write_c_autogen_warning(f)
             f.write('#include <Python.h>\n')
-            f.write('#include "{}"\n'.format(self.header_file))
+            f.write(f'#include "{self.header_include_path}"\n')
             for obj in sorted(self.objects, key=lambda o: o.name):
                 obj.write_decl_to_file(f, extern=False)
 
@@ -335,8 +188,8 @@ class Generator:
                                  ' low level cryptographic library')
             module.write_to_file(f)
 
-    def gen_python_file(self):
-        with open(self.python_module, 'w', encoding='utf8') as f:
+    def gen_python_file(self) -> None:
+        with self.python_module.open('w', encoding='utf8') as f:
             self.write_python_autogen_warning(f)
             f.write('import _nettle\n')
             for obj in sorted(self.objects, key=lambda o: o.name):
@@ -362,10 +215,11 @@ class Generator:
                 f.write('class InvertableKeyCipher(Cipher): ...\n')
                 f.write('class ParitySensitiveCipher(Cipher): ...\n')
                 f.write('class KeyWrapCipher(Cipher): ...\n')
-                written_families = set()
+                written_families: set[str] = set()
                 for c in self.ciphers:
                     if c.family is not None and c.family not in written_families:
-                        f.write(f'class {c.family.capitalize()}FamilyCipher(Cipher): ... \n')
+                        f.write(f'class {c.family.capitalize()}'
+                                'FamilyCipher(Cipher): ... \n')
                         written_families.add(c.family)
 
             f.write('class CipherMode: pass\n')
@@ -373,9 +227,8 @@ class Generator:
             f.write('class MAC: pass\n')
             f.write('class NonceMAC(MAC): pass\n')
 
-    def gen_interface_file(self, hash_list, cipher_list, ciphermode_list, 
-                           exception_list, mac_list):
-        with open(self.python_interface, 'w', encoding='utf8') as f:
+    def gen_interface_file(self) -> None:
+        with self.python_interface.open('w', encoding='utf8') as f:
             self.write_python_autogen_warning(f)
             f.write('import typing as t\n')
             f.write('class Hash(t.Protocol):\n')
@@ -389,7 +242,7 @@ class Generator:
             f.write('class ShakeableHash(Hash, t.Protocol):\n')
             f.write('    def shake(self, length: int) -> bytes: ...\n')
             f.write('    def shake_output(self, length: int) -> bytes: ...\n')
-            for h in hash_list:
+            for h in params.hashes:
                 protocols = []
                 if h.get('digest', True):
                     protocols.append('DigestableHash')
@@ -398,7 +251,7 @@ class Generator:
                     ellipsis = ' ...'
                 if h.get('shake'):
                     protocols.append('ShakeableHash')
-                f.write('class {}({}):{}\n'.format(h['name'], ', '.join(protocols), ellipsis))
+                f.write(f"class {h['name']}({', '.join(protocols)}):{ellipsis}\n")
                 if h.get('digest', True):
                     f.write('    digest_size: int\n')
             f.write('class Cipher(t.Protocol):\n')
@@ -424,8 +277,10 @@ class Generator:
             f.write('class KeyWrapCipher(Cipher, t.Protocol):\n')
             f.write('    def keywrap(self, cleartext: bytes) -> bytes: ...\n')
             f.write('    def keyunwrap(self, ciphertext: bytes) -> bytes: ...\n')
-            written_families = set()
-            for c in cipher_list:
+            written_families: set[str] = set()
+            protocols: list[str] = []
+            init_args: list[str] = []
+            for c in params.ciphers:
                 if 'family' not in c or c['family'] not in written_families:
                     protocols = []
                     init_args = []
@@ -448,15 +303,17 @@ class Generator:
                     if c.get('keywrap'):
                         protocols.append('KeyWrapCipher')
 
-
                 if 'family' in c:
                     if c['family'] not in written_families:
                         written_families.add(c['family'])
-                        f.write(f'class {c["family"].capitalize()}FamilyCipher({", ".join(protocols)}, t.Protocol):\n')
-                        f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
+                        f.write(f'class {c["family"].capitalize()}'
+                                f'FamilyCipher({", ".join(protocols)}, t.Protocol):\n')
+                        f.write(f'    def __init__(self, {", ".join(init_args)})'
+                                ' -> None: ...\n')
                         if 'stream' not in c:
                             f.write('    block_size: int\n')
-                    f.write(f'class {c["name"]}({c["family"].capitalize()}FamilyCipher):\n')
+                    f.write(f'class {c["name"]}({c["family"].capitalize()}'
+                            'FamilyCipher):\n')
                     f.write('    key_size: int\n')
                     if 'stream' not in c:
                         f.write('    block_size: int\n')
@@ -466,27 +323,29 @@ class Generator:
                         protocols = ['Cipher']
                     f.write(f'class {c["name"]}({", ".join(protocols)}):\n')
                     f.write('    key_size: int\n')
-                    f.write(f'    def __init__(self, {", ".join(init_args)}) -> None: ...\n')
+                    f.write(f'    def __init__(self, {", ".join(init_args)})'
+                            ' -> None: ...\n')
 
             f.write('class CipherMode(t.Protocol):\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
             f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
             f.write('class AEADCipherMode(CipherMode, t.Protocol):\n')
             f.write('    def update(self, msg: bytes) -> None: ...\n')
-            f.write('    def digest(self) -> bytes: ...\n')            
-            f.write('    def hexdigest(self) -> str: ...\n')            
-            for m in ciphermode_list:
+            f.write('    def digest(self) -> bytes: ...\n')
+            f.write('    def hexdigest(self) -> str: ...\n')
+            for m in params.ciphermodes:
                 if 'aead' in m:
                     protocol = 'AEADCipherMode'
                 else:
                     protocol = 'CipherMode'
-                init_args = f'cipher: Cipher, {m["iv"]}: bytes'
+                init_args = ['cipher: Cipher', f'{m["iv"]}: bytes']
                 if 'know_len' in m:
-                    init_args += ', authlen: int, msglen: int, taglen: int'
+                    init_args.extend(['authlen: int', 'msglen: int', 'taglen: int'])
                 f.write(f'class {m["name"]}({protocol}):\n')
-                f.write(f'    def __init__(self, {init_args}) -> None: ...\n')
+                f.write(f"    def __init__(self, {', '.join(init_args)})"
+                        ' -> None: ...\n')
 
-            for e in exception_list:
+            for e in params.exceptions:
                 f.write(f'class {e["name"]}(Exception): ...\n')
 
             f.write('class MAC(t.Protocol):\n')
@@ -499,18 +358,22 @@ class Generator:
             f.write('class NonceMAC(MAC, t.Protocol):\n')
             f.write('    def __init__(self, key: bytes | None = None, nonce: bytes | None = None) -> None: ...\n')
             f.write('    def set_nonce(self, nonce: bytes) -> None: ...\n')
-            for m in mac_list:
+            for m in params.macs:
                 if 'nonce' in m:
                     f.write(f'class {m["name"]}(NonceMAC):\n')
                 else:
                     f.write(f'class {m["name"]}(MAC):\n')
                 f.write('    digest_size: int\n')
 
+            for r in params.random:
+                f.write(f'class {r["name"]}:\n')
+                f.write('    def random(self, length: int) -> bytes: ...\n')
+
             f.write('class RSAKeyPair:\n')
             f.write('    public_key: RSAPubKey\n')
-            f.write('    yarrow: Yarrow\n')
+            f.write('    yarrow: Yarrow256\n')
             f.write('    size: int\n')
-            f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
+            f.write('    def __init__(self, yarrow: Yarrow256 | None = None) -> None: ...\n')
             f.write('    def decrypt(self, msg: bytes) -> bytes: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
             for hashfunc in ('sha256', 'sha384', 'sha512'):
@@ -528,9 +391,9 @@ class Generator:
             f.write('    def verify(self, signature: bytes, hash: Hash) -> bool: ...\n')
             f.write('    def write_key(self, filename: str) -> None: ...\n')
             f.write('class RSAPubKey:\n')
-            f.write('    yarrow: Yarrow\n')
+            f.write('    yarrow: Yarrow256\n')
             f.write('    size: int\n')
-            f.write('    def __init__(self, yarrow: Yarrow | None = None) -> None: ...\n')
+            f.write('    def __init__(self, yarrow: Yarrow256 | None = None) -> None: ...\n')
             f.write('    def encrypt(self, msg: bytes) -> bytes: ...\n')
             for hashfunc in ('sha256', 'sha384', 'sha512'):
                 f.write(f'    def oaep_{hashfunc}_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...\n')
@@ -542,31 +405,33 @@ class Generator:
             f.write('    def read_key(self, filename: str) -> None: ...\n')
             f.write('    def verify(self, signature: bytes, hash: Hash) -> bool: ...\n')
             f.write('    def write_key(self, filename: str) -> None: ...\n')
-            f.write('class Yarrow:\n')
-            f.write('    def random(self, length: int) -> bytes: ...\n')
 
-    def write_class_file(self, filename, classes, nettle_headers,
-                         system_headers=None, pynettle_headers=None):
-        with open(filename, 'w', encoding='utf8') as f:
+
+    def write_class_file(self, filepath: pathlib.Path, classes: Sequence[CClass],
+                         nettle_headers: list[str],
+                         system_headers: list[str] | None = None,
+                         pynettle_headers: list[str] | None = None) -> None:
+        with filepath.open('w', encoding='utf8') as f:
             self.write_c_autogen_warning(f)
             f.write('#include <Python.h>\n')
             f.write('#include <structmember.h>\n')
-            f.write('#include "{}"\n'.format(self.header_file))
+            f.write(f'#include "{self.header_include_path}"\n')
             if system_headers is not None:
                 for header in sorted(system_headers):
-                    f.write('#include <{}>\n'.format(header))
+                    f.write(f'#include <{header}>\n')
             for header in sorted(nettle_headers):
-                f.write('#include <nettle/{}>\n'.format(header))
+                f.write(f'#include <nettle/{header}>\n')
             if pynettle_headers is not None:
                 for header in sorted(pynettle_headers):
-                    f.write('#include "{}"\n'.format(header))
+                    f.write(f'#include "{header}"\n')
             f.write('\n')
             for cls in classes:
                 cls.write_to_file(f)
 
-    def write_doc_file(self, filename, title, example, classes):
-        with open(filename, 'w', encoding='utf8') as f:
-            f.write('{}\n'.format(title))
+    def write_doc_file(self, filepath: pathlib.Path, title: str, example: str,
+                       classes: Sequence[CClass]) -> None:
+        with filepath.open('w', encoding='utf8') as f:
+            f.write(f'{title}\n')
             f.write('{}\n\n'.format('=' * len(title)))
             f.write('Example\n')
             f.write('-------\n')

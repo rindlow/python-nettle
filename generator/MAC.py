@@ -30,14 +30,17 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-from CClass import CClass
+from c_class import CClass
+from params import MacParam
 
 
 class MAC(CClass):
 
-    def __init__(self, param):
+    def __init__(self, param: MacParam) -> None:
         CClass.__init__(self, param['name'], param['docstring'])
         name = param['name']
+        lname = name.lower()
+        uname = name.upper()
 
         self.add_member(
             name='is_initialized',
@@ -45,25 +48,25 @@ class MAC(CClass):
             init='self->is_initialized = 0;')
         self.add_member(
             name='ctx',
-            decl='struct {}_ctx *ctx'.format(self.name),
-            alloc='if ((self->ctx = PyMem_Malloc (sizeof (struct {}_ctx)))'
-            ' == NULL)\n    {{\n      return PyErr_NoMemory ();\n    }}'
-            .format(self.name),
+            decl=f'struct {lname}_ctx *ctx',
+            alloc=f'if ((self->ctx = PyMem_Malloc (sizeof (struct {lname}_ctx)))'
+            ' == NULL)\n    {\n      return PyErr_NoMemory ();\n    }'
+            ,
             dealloc='PyMem_Free (self->ctx);\n  self->ctx = NULL;')
 
         if 'nonce' not in param:
-            digestsize = '{}_DIGEST_SIZE'.format(name[5:].upper())
+            digestsize = f'{uname[5:]}_DIGEST_SIZE'
             keylen = 'key.len, '
             self.add_bufferparse_to_init(['key'])
-            self.add_to_init_body('  if (key.buf != NULL)\n    {{\n'
-                                  '      {name}_set_key (self->ctx,'
+            self.add_to_init_body('  if (key.buf != NULL)\n    {\n'
+                                  f'      {lname}_set_key (self->ctx,'
                                   ' key.len, key.buf);\n'
                                   '      self->is_initialized = 1;\n'
-                                  '    }}\n'
-                                  .format(name=name))
+                                  '    }\n',
+                                  )
             self.args = 'key=None'
         else:
-            digestsize = '{}_DIGEST_SIZE'.format(name.upper())
+            digestsize = f'{uname}_DIGEST_SIZE'
             keylen = ''
             if param['nonce'] == 'fixed':
                 nonce_len = ''
@@ -71,10 +74,10 @@ class MAC(CClass):
                 nonce_len = 'nonce.len, '
             self.add_bufferparse_to_init(['key', 'nonce'])
             self.args = 'key=None, nonce=None'
-            self.add_to_init_body('''
+            self.add_to_init_body(f'''
                 if (key.buf != NULL)
                   {{
-                    {name}_set_key (self->ctx, key.buf);
+                    {lname}_set_key (self->ctx, key.buf);
                     self->is_initialized = 1;
                   }}
                 if (nonce.buf != NULL)
@@ -86,15 +89,15 @@ class MAC(CClass):
                                        Set key first!");
                         return -1;
                       }}
-                    {name}_set_nonce (self->ctx, {nonce_len}nonce.buf);
+                    {lname}_set_nonce (self->ctx, {nonce_len}nonce.buf);
                   }}
-            '''.format(name=name, nonce_len=nonce_len))
+            ''')
             self.add_method(
                 name='set_nonce',
                 args='METH_VARARGS',
                 docs='Initializes the MAC with the nonce',
                 docargs='nonce',
-                body='''
+                body=f'''
                       if (!self->is_initialized)
                         {{
                           PyErr_Format (NotInitializedError,
@@ -107,40 +110,40 @@ class MAC(CClass):
                         {{
                           return NULL;
                         }}
-                      {name}_set_nonce (self->ctx, {nonce_len}nonce.buf);
+                      {lname}_set_nonce (self->ctx, {nonce_len}nonce.buf);
                       Py_RETURN_NONE;
-                    '''.format(name=name, nonce_len=nonce_len))
+                    ''')
 
         self.add_member(
             name='digest_size',
             decl='int digest_size',
-            init='self->digest_size = {};'.format(digestsize),
-            docs='The size of a {} digest'.format(name.upper()),
+            init=f'self->digest_size = {digestsize};',
+            docs=f'The size of a {uname} digest',
             flags='READONLY',
-            type='T_INT',
+            ctype='T_INT',
             public=True)
         self.add_method(
             name='set_key',
             args='METH_VARARGS',
             docs='Initializes the MAC with the key',
             docargs='key',
-            body='''
+            body=f'''
                   Py_buffer key;
 
                   if (! PyArg_ParseTuple (args, "y*", &key))
                     {{
                       return NULL;
                     }}
-                  {name}_set_key (self->ctx, {keylen}key.buf);
+                  {lname}_set_key (self->ctx, {keylen}key.buf);
                   self->is_initialized = 1;
                   Py_RETURN_NONE;
-                '''.format(name=name, keylen=keylen))
+                ''')
         self.add_method(
             name='update',
             args='METH_VARARGS',
             docs='Process some more data',
             docargs='msg',
-            body='''
+            body=f'''
                   if (!self->is_initialized)
                     {{
                       PyErr_Format (NotInitializedError,
@@ -153,16 +156,16 @@ class MAC(CClass):
                     {{
                       return NULL;
                     }}
-                  {name}_update (self->ctx, buffer.len, buffer.buf);
+                  {lname}_update (self->ctx, buffer.len, buffer.buf);
                   Py_RETURN_NONE;
-                '''.format(name=name))
+                ''')
         self.add_method(
             name='digest',
             args='METH_NOARGS',
             docs='Performs final processing and extracts the message digest',
-            body='''
-                uint8_t digest[{DIGESTSIZE}];
-                struct {name}_ctx *ctx_copy;
+            body=f'''
+                uint8_t digest[{digestsize}];
+                struct {lname}_ctx *ctx_copy;
 
                 if (!self->is_initialized)
                   {{
@@ -171,27 +174,27 @@ class MAC(CClass):
                     return NULL;
                   }}
                 if ((ctx_copy = PyMem_Malloc (sizeof \\
-                     (struct {name}_ctx))) == NULL)
+                     (struct {lname}_ctx))) == NULL)
                   {{
                     return PyErr_NoMemory ();
                   }}
-                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
-                {name}_digest (ctx_copy, {DIGESTSIZE}, digest);
+                memcpy(ctx_copy, self->ctx, sizeof (struct {lname}_ctx));
+                {lname}_digest (ctx_copy, digest);
                 PyMem_Free(ctx_copy);
                 return PyBytes_FromStringAndSize ((const char *) digest, \\
-                                                  {DIGESTSIZE});
-            '''.format(name=name, DIGESTSIZE=digestsize))
+                                                  {digestsize});
+            ''')
 
         self.add_method(
             name='hexdigest',
             args='METH_NOARGS',
             docs='Performs final processing and extracts the message digest'
             ' as a string of hexadecimal characters',
-            body='''
-                uint8_t digest[{DIGESTSIZE}];
-                char hex[{DIGESTSIZE} * 2 + 1];
+            body=f'''
+                uint8_t digest[{digestsize}];
+                char hex[{digestsize} * 2 + 1];
                 char *ptr = hex;
-                struct {name}_ctx *ctx_copy;
+                struct {lname}_ctx *ctx_copy;
 
                 if (!self->is_initialized)
                   {{
@@ -200,17 +203,17 @@ class MAC(CClass):
                     return NULL;
                   }}
                 if ((ctx_copy = PyMem_Malloc (sizeof \\
-                     (struct {name}_ctx))) == NULL)
+                     (struct {lname}_ctx))) == NULL)
                   {{
                     return PyErr_NoMemory ();
                   }}
-                memcpy(ctx_copy, self->ctx, sizeof (struct {name}_ctx));
-                {name}_digest (ctx_copy, {DIGESTSIZE}, digest);
+                memcpy(ctx_copy, self->ctx, sizeof (struct {lname}_ctx));
+                {lname}_digest (ctx_copy, digest);
                 PyMem_Free(ctx_copy);
-                for (int i = 0; i < {DIGESTSIZE}; i++)
+                for (int i = 0; i < {digestsize}; i++)
                   {{
                     snprintf(ptr, 3, "%02X", digest[i]);
                     ptr += 2;
                   }}
                 return PyUnicode_FromString ((const char *) hex);
-            '''.format(name=name, DIGESTSIZE=digestsize))
+            ''')

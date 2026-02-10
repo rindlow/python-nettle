@@ -30,11 +30,13 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-from CClass import CClass
+from typing import TextIO
+
+from c_class import CClass
 
 yarrowinit = '''
     PyObject *obj = NULL;
-    pynettle_Yarrow *yarrow;
+    pynettle_Yarrow256 *yarrow;
 
     if (! PyArg_ParseTuple (args, "|O", &obj))
       {
@@ -42,9 +44,9 @@ yarrowinit = '''
       }
     if (obj != NULL)
       {
-        if (PyObject_TypeCheck (obj, &pynettle_Yarrow_Type))
+        if (PyObject_TypeCheck (obj, &pynettle_Yarrow256_Type))
           {
-            yarrow = (pynettle_Yarrow *)obj;
+            yarrow = (pynettle_Yarrow256 *)obj;
             self->yarrow = yarrow;
             Py_INCREF (self->yarrow);
           }
@@ -56,8 +58,8 @@ yarrowinit = '''
       }
     else
       {
-        self->yarrow = (pynettle_Yarrow *) PyObject_CallObject (
-            (PyObject *)& pynettle_Yarrow_Type, NULL);
+        self->yarrow = (pynettle_Yarrow256 *) PyObject_CallObject (
+            (PyObject *)& pynettle_Yarrow256_Type, NULL);
       }'''
 
 encryptbody = '''
@@ -86,7 +88,7 @@ encryptbody = '''
     mpz_export (data, &len, 1, 1, 0, 0, ciphertext);
     return PyBytes_FromStringAndSize ((const char *) data, len);'''
 
-def oaep_encryptbody(hashfunc):
+def oaep_encryptbody(hashfunc: str) -> str:
     return f'''
     size_t datalen = self->pub->size;
     uint8_t *data;
@@ -113,7 +115,7 @@ def oaep_encryptbody(hashfunc):
     return ciphertext;'''
 
 
-def signbody():
+def signbody() -> str:
     body = '''
         mpz_t signature;
         PyObject *obj;
@@ -124,19 +126,19 @@ def signbody():
           {
             return NULL;
           }'''
-    for hashfunc in ('md5', 'sha1', 'sha256', 'sha512'):
+    for hashfunc in ('MD5', 'SHA1', 'SHA256', 'SHA512'):
         body += f'''
         if (PyObject_TypeCheck (obj, &pynettle_{hashfunc}_Type))
           {{
             pynettle_{hashfunc} *hash = (pynettle_{hashfunc} *)obj;
-            rsa_{hashfunc}_sign (self->key, hash->ctx, signature);
+            rsa_{hashfunc.lower()}_sign (self->key, hash->ctx, signature);
           }}'''
     body += '''
         mpz_export (data, &len, 1, 1, 0, 0, signature);
         return PyBytes_FromStringAndSize ((const char *) data, len);'''
     return body
 
-def verifybody():
+def verifybody() -> str:
     body = '''
         mpz_t signature;
         PyObject *obj;
@@ -148,12 +150,12 @@ def verifybody():
           }
         mpz_init (signature);
         mpz_import (signature, buffer.len, 1, 1, 0, 0, buffer.buf);'''
-    for hashfunc in ('md5', 'sha1', 'sha256', 'sha512'):
+    for hashfunc in ('MD5', 'SHA1', 'SHA256', 'SHA512'):
         body += f'''
         if (PyObject_TypeCheck (obj, &pynettle_{hashfunc}_Type))
           {{
             pynettle_{hashfunc} *hash = (pynettle_{hashfunc} *)obj;
-            return PyBool_FromLong (rsa_{hashfunc}_verify (self->pub, hash->ctx,
+            return PyBool_FromLong (rsa_{hashfunc.lower()}_verify (self->pub, hash->ctx,
                                                       signature));
           }}'''
     body += '''
@@ -161,8 +163,8 @@ def verifybody():
         return NULL;'''
     return body
 
-def bufferbody(members: dict[str, str]):
-    kwlist = f'{{{', '.join(f'"{m}"' for m in members)}, NULL}}'
+def bufferbody(members: dict[str, str]) -> str:
+    kwlist = f'''{{{', '.join(f'"{m}"' for m in members)}, NULL}}'''
     buffers = [f'buffer_{m}' for m in members]
     body = f'''
     Py_buffer {', '.join(buffers)};
@@ -192,70 +194,6 @@ def bufferbody(members: dict[str, str]):
     body += '''
     Py_RETURN_NONE;\n'''
     return body
-
-
-class Yarrow(CClass):
-
-    def __init__(self):
-        CClass.__init__(self, 'Yarrow',
-                        'Yarrow Pseudo Random Number Generator')
-
-        self.add_member(
-            name='yarrow',
-            decl='struct yarrow256_ctx *ctx;',
-            init='self->ctx = NULL;',
-            dealloc='PyMem_Free (self->ctx);\nself->ctx = NULL;')
-        self.add_method(
-            'random',
-            docs='Generate random bytes',
-            args='METH_VARARGS',
-            docargs='len',
-            body='''
-                int len;
-                uint8_t *data;
-                PyObject *bytes;
-                if (! PyArg_ParseTuple (args, "i", &len))
-                  {
-                    return NULL;
-                  }
-                if ((data = malloc(len)) == NULL)
-                  {
-                    return PyErr_NoMemory ();
-                  }
-                yarrow256_random (self->ctx, len, data);
-                bytes = PyBytes_FromStringAndSize ((const char *) data, len);
-                free(data);
-                return bytes;
-            ''')
-        self.add_to_init_body('''
-            ssize_t res;
-            int fd;
-            uint8_t seed[YARROW256_SEED_FILE_SIZE];
-
-            if ((self->ctx = PyMem_Malloc (sizeof (struct yarrow256_ctx))) \\
-                == NULL)
-              {
-                PyErr_NoMemory ();
-                return -1;
-              }
-            yarrow256_init (self->ctx, 0, NULL);
-            if ((fd = open ("/dev/random", O_RDONLY)) < 0)
-              {
-                PyErr_Format (RandomError, "Failed to open /dev/random:");
-                return -1;
-              }
-            do
-              {
-                res = read (fd, seed, YARROW256_SEED_FILE_SIZE);
-              }
-            while (res < 0 && errno == EAGAIN);
-            if (res < 0 && errno != EAGAIN)
-              {
-                PyErr_Format (RandomError, "Failed to read /dev/random:");
-                return -1;
-              }
-            yarrow256_seed (self->ctx, YARROW256_SEED_FILE_SIZE, seed);
-          ''')
 
 
 class RSAKeyPair(CClass):
@@ -295,12 +233,12 @@ class RSAKeyPair(CClass):
                 self->key = NULL;''')
         self.add_member(
             name='yarrow',
-            decl='pynettle_Yarrow *yarrow',
+            decl='pynettle_Yarrow256 *yarrow',
             init='self->yarrow = NULL;',
             dealloc='Py_DECREF (self->yarrow);',
             docs='Yarrow instance',
             flags='READONLY',
-            type='T_OBJECT',
+            ctype='T_OBJECT',
             public=True)
         self.add_to_init_body(yarrowinit)
 
@@ -545,14 +483,14 @@ class RSAKeyPair(CClass):
             ''',
             docs='The size, in octets, of the modulo')
 
-    def write_python_subclass(self, f):
+    def write_python_subclass(self, f: TextIO) -> None:
         # Do not write copying code, this class will be subclassed
         pass
 
 
 class RSAPubKey(CClass):
 
-    def __init__(self):
+    def __init__(self) -> None:
         CClass.__init__(self, 'RSAPubKey', 'Public part of RSA Key Pair',
                         args='[yarrow]')
 
@@ -566,12 +504,12 @@ class RSAPubKey(CClass):
             dealloc='PyMem_Free (self->pub);\nself->pub = NULL;')
         self.add_member(
             name='yarrow',
-            decl='pynettle_Yarrow *yarrow',
+            decl='pynettle_Yarrow256 *yarrow',
             init='self->yarrow = NULL;',
             dealloc='Py_DECREF (self->yarrow);',
             docs='Yarrow instance',
             flags='READONLY',
-            type='T_OBJECT',
+            ctype='T_OBJECT',
             public=True)
 
         self.add_method(
@@ -719,6 +657,6 @@ class RSAPubKey(CClass):
             ''',
             docs='The size, in octets, of the modulo')
 
-    def write_python_subclass(self, f):
+    def write_python_subclass(self, f: TextIO) -> None:
         # Do not write copying code, this class will be subclassed
         pass

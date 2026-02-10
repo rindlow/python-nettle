@@ -1,4 +1,4 @@
-"""Generate c code and python declarations"""
+"""Generate c code and python declarations."""
 
 from . import generator
 

@@ -6,7 +6,7 @@ class PubKey(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.yarrow = nettle.Yarrow()
+        cls.yarrow = nettle.Yarrow256()
         cls.keypair = nettle.RSAKeyPair(cls.yarrow)
         cls.keypair.genkey(2048, 20)
 
@@ -59,10 +59,10 @@ class PubKey(TestCase):
         pk = kp.public_key
         cleartext = b'Urtica dioica'
 
-        h = nettle.sha256()
+        h = nettle.SHA256()
         h.update(cleartext)
         signature = kp.sign(h)
-        h2 = nettle.sha256()
+        h2 = nettle.SHA256()
         h2.update(cleartext)
         self.assertTrue(pk.verify(signature, h2))
         h2.update(b'gibberish')

@@ -7,18 +7,17 @@ Python bindings for the nettle low-level cryptographic library
 
 ### Prerequisites
 
-You'll need at least version 3 of nettle installed.
+You'll need at least version 4 of nettle installed.
 
-### Installing
+### Building
 
 ```
-cd src
 python generator.py
-cd ..
-python setup.py install
+uv build
 ```
 
 Support for python 2 was dropped in 2025.1
+2026.1 changed all classnames to pep8 CapWords. Sorry for the breaking change
 
 ## Authors
 * **Henrik Rindlöw** - *Initial work*
