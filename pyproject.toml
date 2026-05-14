@@ -1,18 +1,18 @@
 [project]
 name = "nettle"
-version = "2026.1"
+version = "2026.2"
 description = "Python bindings to the nettle cryptographic library"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 authors = [
     { name = "Henrik Rindlöw", email = "henrik@rindlow.se" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = []
 
 [build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11.10,<0.12.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -28,6 +28,7 @@ lint.select = [
 ]
 lint.ignore = [
     "COM812",
+    "D107",
     "D203",
     "D212",
     "Q000",
