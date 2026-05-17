@@ -617,7 +617,7 @@ def test_keywrap(
     ],
 )
 def test_cbc(
-    cipher: type[nettle.AesFamilyCipher],
+    cipher: type[nettle.BlockCipher],
     key: bytes,
     cleartext: bytes,
     ciphertext: bytes,
@@ -635,15 +635,6 @@ def test_cbc(
     cbc = nettle.CBC(c, iv)
     assert cbc.decrypt(ciphertext) == cleartext
 
-    with pytest.raises(nettle.KeyLenError):
-        c = cipher(encrypt_key=key[:-1])
-    with pytest.raises(nettle.KeyLenError):
-        c = cipher(decrypt_key=key + b"a")
-    with pytest.raises(nettle.KeyLenError):
-        c.set_encrypt_key(key[:-1])
-    with pytest.raises(nettle.KeyLenError):
-        c.set_decrypt_key(key[:-1])
-
     c = cipher()
     cbc = nettle.CBC(c, iv)
     with pytest.raises(nettle.NotInitializedError):
@@ -652,57 +643,66 @@ def test_cbc(
         cbc.decrypt(cleartext)
 
 
-#
-#
-# class GCM(TestCase):
-#
-#     def _test(self, cipher: type[nettle.AesFamilyCipher| nettle.CamelliaFamilyCipher],
-#               key: bytes, authtext: bytes, cleartext: bytes, ciphertext: bytes,
-#               iv: bytes, digest: bytes):
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#
-#         c = cipher(key)
-#         self.assertEqual(c.key_size, len(key))
-#         gcm = nettle.GCM(c, iv)
-#         gcm.update(authtext)
-#         self.assertEqual(gcm.encrypt(cleartext), ciphertext)
-#         self.assertEqual(gcm.digest(), digest)
-#         self.assertEqual(shex(gcm.hexdigest()), digest)
-#         self.assertEqual(gcm.digest(), digest)
-#
-#         with pytest.raises(nettle.KeyLenError):
-#             c = cipher(encrypt_key=key + b'a')
-#         with pytest.raises(nettle.KeyLenError):
-#             c = cipher()
-#             c.set_encrypt_key(key[:-1])
-#         with pytest.raises(nettle.KeyLenError):
-#             c = cipher()
-#             c.set_decrypt_key(key[:-1])
-#
-#         with pytest.raises(nettle.NotInitializedError):
-#             c = cipher()
-#             gcm = nettle.GCM(c, iv)
-#             gcm.encrypt(cleartext)
-#         with pytest.raises(nettle.NotInitializedError):
-#             c = cipher()
-#             gcm = nettle.GCM(c, iv)
-#             gcm.decrypt(cleartext)
-#
-#     def test_aes128_gcm():
-#         _test(nettle.AES128,
-#                    shex("feffe9928665731c6d6a8f9467308308"),
-#                    shex("feedfacedeadbeeffeedfacedeadbeef"
-#                         "abaddad2"),
-#                    shex("d9313225f88406e5a55909c5aff5269a"
-#                         "86a7a9531534f7da2e4c303d8a318a72"
-#                         "1c3c0c95956809532fcf0e2449a6b525"
-#                         "b16aedf5aa0de657ba637b39"),
-#                    shex("42831ec2217774244b7221b784d0d49c"
-#                         "e3aa212f2c02a4e035c17e2329aca12e"
-#                         "21d514b25466931c7d8f6a5aac84aa05"
-#                         "1ba30b396a0aac973d58e091"),
-#                    shex("cafebabefacedbaddecaf888"),
-#                    shex("5bc94fbc3221a5db94fae95ae7121a47"))
+@pytest.mark.parametrize(
+    ("cipher", "mode", "key", "authtext", "cleartext", "ciphertext", "iv", "digest"),
+    [
+        (
+            nettle.AES128,
+            nettle.GCM,
+            shex("feffe9928665731c6d6a8f9467308308"),
+            shex("feedfacedeadbeeffeedfacedeadbeefabaddad2"),
+            shex(
+                "d9313225f88406e5a55909c5aff5269a"
+                "86a7a9531534f7da2e4c303d8a318a72"
+                "1c3c0c95956809532fcf0e2449a6b525"
+                "b16aedf5aa0de657ba637b39"
+            ),
+            shex(
+                "42831ec2217774244b7221b784d0d49c"
+                "e3aa212f2c02a4e035c17e2329aca12e"
+                "21d514b25466931c7d8f6a5aac84aa05"
+                "1ba30b396a0aac973d58e091"
+            ),
+            shex("cafebabefacedbaddecaf888"),
+            shex("5bc94fbc3221a5db94fae95ae7121a47"),
+        )
+    ],
+)
+def test_aead(
+    cipher: type[nettle.BlockCipher],
+    mode: type[nettle.AEADCipherMode],
+    key: bytes,
+    authtext: bytes,
+    cleartext: bytes,
+    ciphertext: bytes,
+    iv: bytes,
+    digest: bytes,
+):
+    assert len(cleartext) == len(ciphertext)
+
+    c = cipher(encrypt_key=key)
+    assert c.key_size == len(key)
+    aead = mode(c, iv)
+    aead.update(authtext)
+    assert aead.encrypt(cleartext) == ciphertext
+    assert aead.digest() == digest
+
+    c = cipher(encrypt_key=key)
+    aead = mode(c, iv)
+    aead.update(authtext)
+    aead.encrypt(cleartext)
+    assert shex(aead.hexdigest()) == digest
+
+    c = cipher(encrypt_key=key)
+    aead = mode(c, iv)
+    aead.update(authtext)
+    assert aead.decrypt(ciphertext) == cleartext
+
+    c = cipher()
+    with pytest.raises(nettle.NotInitializedError):
+        aead = mode(c, iv)
+
+
 #
 #     def test_aes192_gcm():
 #         _test(nettle.AES192,

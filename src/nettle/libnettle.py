@@ -16,6 +16,7 @@ class Libnettle:
     nettle: ctypes.CDLL
     major: int
     minor: int
+    verbose: bool = False
 
     def __init__(self) -> None:
         glob = "libnettle*.dylib" if sys.platform == "darwin" else "libnettle.so*"
@@ -31,9 +32,7 @@ class Libnettle:
             "/opt/homebrew/lib",
         ]:
             libdir = pathlib.Path(instdir)
-            print(f"{libdir=}")
             libs.update({lib.resolve() for lib in libdir.glob(glob)})
-        print(libs)
         versions = []
         for dld in libs:
             with contextlib.suppress(OSError):
@@ -45,7 +44,8 @@ class Libnettle:
             raise LibnettleError
         versions.sort()
         self.major, self.minor, self.nettle = versions[-1]
-        print(self.major, self.minor, self.nettle)
+        if self.verbose:
+            print(f"nettle {self.major}.{self.minor} loaded")  # noqa: T201
 
 
 libnettle = Libnettle()

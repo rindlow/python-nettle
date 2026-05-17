@@ -1,27 +1,30 @@
 """Nettle hash functions."""
 
 import ctypes
-from typing import Protocol, Self
+from typing import Self
 
 from .libnettle import libnettle
 
 
-class _Initializible(Protocol):
-    def initialize(self) -> None: ...
+class HashContext(ctypes.Structure):
+    """Base hash context class."""
+
+    def initialize(self) -> None:
+        """Call initalizer."""
 
 
 class Hash:
     """Base hash class."""
 
-    _ctxclass: type[_Initializible]
-    _ctx: ctypes.Structure
+    _ctxclass: type[HashContext]
+    _ctx: HashContext
     _prefix: str
 
     def __init__(self, msg: bytes = b"") -> None:
         """If msg is given, it is used to update hash."""
         self._ctx = self._ctxclass()
         self._ctx.initialize()
-        ctxp = ctypes.pointer(self._ctx)
+        ctxp = ctypes.byref(self._ctx)
 
         if (msglen := len(msg)) > 0:
             libnettle.nettle[f"{self._prefix}_update"](ctxp, msglen, msg)
@@ -36,9 +39,10 @@ class Hash:
 
     def update(self, msg: bytes = b"") -> None:
         """Update hash with msg."""
-        ctxp = ctypes.pointer(self._ctx)
         if (msglen := len(msg)) > 0:
-            libnettle.nettle[f"{self._prefix}_update"](ctxp, msglen, msg)
+            libnettle.nettle[f"{self._prefix}_update"](
+                ctypes.byref(self._ctx), msglen, msg
+            )
 
 
 class DigestableHash(Hash):
@@ -46,15 +50,18 @@ class DigestableHash(Hash):
 
     digest_size: int
 
-    def digest(self: DigestableHash) -> bytes:
+    def digest(self) -> bytes:
         """Generate a digest of digest_size bytes."""
         dgst = (ctypes.c_uint8 * self.digest_size)()
-        ctxp = ctypes.pointer(self._ctx)
-        dgstp = ctypes.pointer(dgst)
-        libnettle.nettle[f"{self._prefix}_digest"](ctxp, dgstp)
+        if libnettle.major < 4:  # noqa: PLR2004
+            libnettle.nettle[f"{self._prefix}_digest"](
+                ctypes.byref(self._ctx), self.digest_size, dgst
+            )
+        else:
+            libnettle.nettle[f"{self._prefix}_digest"](ctypes.byref(self._ctx), dgst)
         return bytes(dgst)
 
-    def hexdigest(self: DigestableHash) -> str:
+    def hexdigest(self) -> str:
         """Generate a hex digest of digest_size bytes."""
         return self.digest().hex()
 
@@ -62,20 +69,18 @@ class DigestableHash(Hash):
 class ShakeableHash(Hash):
     """A hash that can generate shake."""
 
-    def shake(self: ShakeableHash, length: int) -> bytes:
+    def shake(self, length: int) -> bytes:
         """Generate a shake of length bytes. Also reset the context."""
         dgst = (ctypes.c_uint8 * length)()
-        ctxp = ctypes.pointer(self._ctx)
-        dgstp = ctypes.pointer(dgst)
-        libnettle.nettle[f"{self._prefix}_shake"](ctxp, length, dgstp)
+        libnettle.nettle[f"{self._prefix}_shake"](ctypes.byref(self._ctx), length, dgst)
         return bytes(dgst)
 
-    def shake_output(self: ShakeableHash, length: int) -> bytes:
+    def shake_output(self, length: int) -> bytes:
         """Generate a shake of length bytes. Does not reset the context."""
         dgst = (ctypes.c_uint8 * length)()
-        ctxp = ctypes.pointer(self._ctx)
-        dgstp = ctypes.pointer(dgst)
-        libnettle.nettle[f"{self._prefix}_shake_output"](ctxp, length, dgstp)
+        libnettle.nettle[f"{self._prefix}_shake_output"](
+            ctypes.byref(self._ctx), length, dgst
+        )
         return bytes(dgst)
 
 
@@ -91,7 +96,7 @@ class _SHA256ctx(ctypes.Structure):
     ]
 
     def initialize(self) -> None:
-        libnettle.nettle.nettle_sha256_init(ctypes.pointer(self))
+        libnettle.nettle.nettle_sha256_init(ctypes.byref(self))
 
 
 class SHA256(DigestableHash):
@@ -116,7 +121,7 @@ class _SHA512ctx(ctypes.Structure):
     ]
 
     def initialize(self) -> None:
-        libnettle.nettle.nettle_sha512_init(ctypes.pointer(self))
+        libnettle.nettle.nettle_sha512_init(ctypes.byref(self))
 
 
 class SHA512(DigestableHash):
@@ -144,7 +149,7 @@ class _NettleBlock8(ctypes.Union):
     _fields_ = [("b", ctypes.c_uint8 * 8), ("u64", ctypes.c_uint64)]  # noqa: RUF012
 
 
-class _SHA3ctx(ctypes.Structure):
+class _SHA3ctx(HashContext):
     _fields_ = [
         ("sha3_state", _SHA3state),
         ("index", ctypes.c_uint32),
@@ -153,7 +158,63 @@ class _SHA3ctx(ctypes.Structure):
     ]
 
     def initialize(self) -> None:
-        libnettle.nettle.nettle_sha3_init(ctypes.pointer(self))
+        libnettle.nettle.nettle_sha3_init(ctypes.byref(self))
+
+
+# Separate contexts for nettle < 4
+class _SHA3_128ctx(HashContext):  # noqa: N801
+    _fields_ = [
+        ("sha3_state", _SHA3state),
+        ("index", ctypes.c_uint32),
+        ("block", ctypes.c_uint8 * 168),
+    ]
+
+    def initialize(self) -> None:
+        libnettle.nettle.nettle_sha3_128_init(ctypes.byref(self))
+
+
+class _SHA3_224ctx(HashContext):  # noqa: N801
+    _fields_ = [
+        ("sha3_state", _SHA3state),
+        ("index", ctypes.c_uint32),
+        ("block", ctypes.c_uint8 * 144),
+    ]
+
+    def initialize(self) -> None:
+        libnettle.nettle.nettle_sha3_224_init(ctypes.byref(self))
+
+
+class _SHA3_256ctx(HashContext):  # noqa: N801
+    _fields_ = [
+        ("sha3_state", _SHA3state),
+        ("index", ctypes.c_uint32),
+        ("block", ctypes.c_uint8 * 136),
+    ]
+
+    def initialize(self) -> None:
+        libnettle.nettle.nettle_sha3_256_init(ctypes.byref(self))
+
+
+class _SHA3_384ctx(HashContext):  # noqa: N801
+    _fields_ = [
+        ("sha3_state", _SHA3state),
+        ("index", ctypes.c_uint32),
+        ("block", ctypes.c_uint8 * 104),
+    ]
+
+    def initialize(self) -> None:
+        libnettle.nettle.nettle_sha3_384_init(ctypes.byref(self))
+
+
+class _SHA3_512ctx(HashContext):  # noqa: N801
+    _fields_ = [
+        ("sha3_state", _SHA3state),
+        ("index", ctypes.c_uint32),
+        ("block", ctypes.c_uint8 * 72),
+    ]
+
+    def initialize(self) -> None:
+        libnettle.nettle.nettle_sha3_512_init(ctypes.byref(self))
 
 
 class SHA3_128(ShakeableHash):  # noqa: N801
@@ -163,8 +224,13 @@ class SHA3_128(ShakeableHash):  # noqa: N801
     This is SHA3 with 128-bit output size.
     """
 
-    _ctxclass = _SHA3ctx
+    _ctxclass: type[HashContext] = _SHA3ctx
     _prefix = "nettle_sha3_128"
+
+    def __init__(self, msg: bytes = b"") -> None:
+        if libnettle.major < 4:  # noqa: PLR2004
+            self._ctxclass = _SHA3_128ctx
+        super().__init__(msg)
 
 
 class SHA3_224(DigestableHash):  # noqa: N801
@@ -175,8 +241,13 @@ class SHA3_224(DigestableHash):  # noqa: N801
     """
 
     digest_size = 28
-    _ctxclass = _SHA3ctx
+    _ctxclass: type[HashContext] = _SHA3ctx
     _prefix = "nettle_sha3_224"
+
+    def __init__(self, msg: bytes = b"") -> None:
+        if libnettle.major < 4:  # noqa: PLR2004
+            self._ctxclass = _SHA3_224ctx
+        super().__init__(msg)
 
 
 class SHA3_256(DigestableHash, ShakeableHash):  # noqa: N801
@@ -187,5 +258,10 @@ class SHA3_256(DigestableHash, ShakeableHash):  # noqa: N801
     """
 
     digest_size = 32
-    _ctxclass = _SHA3ctx
+    _ctxclass: type[HashContext] = _SHA3ctx
     _prefix = "nettle_sha3_256"
+
+    def __init__(self, msg: bytes = b"") -> None:
+        if libnettle.major < 4:  # noqa: PLR2004
+            self._ctxclass = _SHA3_256ctx
+        super().__init__(msg)
