@@ -39,16 +39,18 @@ class Cipher:
         """Set encrypt key to key."""
         if len(key) != self.key_size:
             raise KeyLenError
-        ctxp = ctypes.byref(self._ctx)
-        libnettle.nettle[f"{self._prefix}_set_encrypt_key"](ctxp, key)
+        libnettle.nettle[f"{self._prefix}_set_encrypt_key"](
+            ctypes.byref(self._ctx), key
+        )
         self._initialized += 1
 
     def set_decrypt_key(self, key: bytes) -> None:
         """Set encrypt key to key."""
         if len(key) != self.key_size:
             raise KeyLenError
-        ctxp = ctypes.byref(self._ctx)
-        libnettle.nettle[f"{self._prefix}_set_decrypt_key"](ctxp, key)
+        libnettle.nettle[f"{self._prefix}_set_decrypt_key"](
+            ctypes.byref(self._ctx), key
+        )
         self._initialized += 1
 
     def encrypt(self, msg: bytes) -> bytes:
@@ -101,8 +103,7 @@ class SingleKeyCipher(Cipher):
 
     def set_key(self, key: bytes) -> None:
         """Set key."""
-        ctxp = ctypes.byref(self._ctx)
-        libnettle.nettle[f"{self._prefix}_set_key"](ctxp, key)
+        libnettle.nettle[f"{self._prefix}_set_key"](ctypes.byref(self._ctx), key)
         self._initialized += 1
 
 
@@ -117,8 +118,7 @@ class NonceCipher(Cipher):
 
     def set_nonce(self, nonce: bytes) -> None:
         """Set nonce."""
-        ctxp = ctypes.byref(self._ctx)
-        libnettle.nettle[f"{self._prefix}_set_nonce"](ctxp, nonce)
+        libnettle.nettle[f"{self._prefix}_set_nonce"](ctypes.byref(self._ctx), nonce)
         self._initialized += 1
 
 
@@ -139,8 +139,9 @@ class InvertibleKeyCipher(Cipher):
         """Invert key."""
         if self._initialized < self._required:
             raise NotInitializedError
-        ctxp = ctypes.byref(self._ctx)
-        libnettle.nettle[f"{self._prefix}_invert_key"](ctxp, ctxp)
+        libnettle.nettle[f"{self._prefix}_invert_key"](
+            ctypes.byref(self._ctx), ctypes.byref(self._ctx)
+        )
 
 
 class ParitySensitiveCipher(Cipher):
@@ -311,9 +312,8 @@ class AEADCipherMode(CipherMode):
 
     def update(self, msg: bytes) -> None:
         """Process associated data for authentication."""
-        ctxp = ctypes.byref(self._ctx)
         libnettle.nettle[f"{self._prefix}_update"](
-            ctxp, ctypes.byref(self._key), len(msg), msg
+            ctypes.byref(self._ctx), ctypes.byref(self._key), len(msg), msg
         )
 
     def digest(self) -> bytes:
