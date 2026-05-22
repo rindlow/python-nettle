@@ -1,25 +1,24 @@
-import nettle
+import nettle.hashes
 import pytest
 
-
-def sdata(string: str) -> bytes:
-    return string.encode("ascii")
-
-
-def shex(hexstring: str) -> bytes:
-    return bytes.fromhex(hexstring)
+from .utils import sdata, shex
 
 
 @pytest.mark.parametrize(
     ("hashfunc", "msg", "digest"),
     [
         (
-            nettle.SHA256,
+            nettle.hashes.SHA1,
+            sdata(""),
+            shex("DA39A3EE5E6B4B0D 3255BFEF95601890 AFD80709"),
+        ),
+        (
+            nettle.hashes.SHA256,
             sdata("abc"),
             shex("ba7816bf8f01cfea 414140de5dae2223b00361a396177a9c b410ff61f20015ad"),
         ),
         (
-            nettle.SHA512,
+            nettle.hashes.SHA512,
             sdata("abc"),
             shex(
                 "ddaf35a193617aba cc417349ae204131"
@@ -29,19 +28,19 @@ def shex(hexstring: str) -> bytes:
             ),
         ),
         (
-            nettle.SHA3_224,
+            nettle.hashes.SHA3_224,
             shex("4A4F202484512526"),
             shex("01386CDD70589B3B 34941EFE16B85071E9BA948179922044 F640868E"),
         ),
         (
-            nettle.SHA3_256,
+            nettle.hashes.SHA3_256,
             shex("4A4F202484512526"),
             shex("BA4FB009D57A5CEB 85FC64D54E5C55A55854B41CC47AD152 94BC41F32165DFBA"),
         ),
     ],
 )
 def test_digest(
-    hashfunc: type[nettle.DigestableHash], msg: bytes, digest: bytes
+    hashfunc: type[nettle.hashes.DigestableHash], msg: bytes, digest: bytes
 ) -> None:
     h = hashfunc()
     h.update(msg)
@@ -68,7 +67,7 @@ def test_digest(
     ("hashfunc", "msg", "digest"),
     [
         (
-            nettle.SHA3_128,
+            nettle.hashes.SHA3_128,
             shex("52A608AB21CCDD8A4457A57EDE782176"),
             shex(
                 "3A0FACA70C9D2B81D1064D429EA3B05A"
@@ -106,7 +105,7 @@ def test_digest(
             ),
         ),
         (
-            nettle.SHA3_256,
+            nettle.hashes.SHA3_256,
             shex("52A608AB21CCDD8A4457A57EDE782176"),
             shex(
                 "57119C4507F975AD0E9EA4F1166E5F9B"
@@ -145,7 +144,9 @@ def test_digest(
         ),
     ],
 )
-def test_shake(hashfunc: type[nettle.ShakeableHash], msg: bytes, digest: bytes) -> None:
+def test_shake(
+    hashfunc: type[nettle.hashes.ShakeableHash], msg: bytes, digest: bytes
+) -> None:
     h = hashfunc()
     h.update(msg)
     assert h.shake(512) == digest
@@ -154,65 +155,61 @@ def test_shake(hashfunc: type[nettle.ShakeableHash], msg: bytes, digest: bytes) 
 
 
 # def test_gosthash94() -> None:
-#     _test(nettle.GOSTHash94, sdata("message digest"),
+#     _test(nettle.hashes.GOSTHash94, sdata("message digest"),
 #                shex("ad4434ecb18f2c99 b60cbe59ec3d2469"
 #                     "582b65273f48de72 db2fde16a4889a4d"))
 #
 # def test_md2() -> None:
-#     _test(nettle.MD2, sdata("abc"),
+#     _test(nettle.hashes.MD2, sdata("abc"),
 #                shex("da853b0d3f88d99b30283a69e6ded6bb"))
 #
 # def test_md4() -> None:
-#     _test(nettle.MD4, sdata("abc"),
+#     _test(nettle.hashes.MD4, sdata("abc"),
 #                shex("a448017aaf21d8525fc10ae87aa6729d"))
 #
 # def test_md5() -> None:
-#     _test(nettle.MD5, sdata("abc"),
+#     _test(nettle.hashes.MD5, sdata("abc"),
 #                shex("900150983cd24fb0 D6963F7D28E17F72"))
 #
 # def test_ripemd160() -> None:
-#     _test(nettle.RIPEMD160, sdata("abc"),
+#     _test(nettle.hashes.RIPEMD160, sdata("abc"),
 #                shex("8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"))
 #
-# def test_sha1() -> None:
-#     _test(nettle.SHA1, sdata(""),
-#                shex("DA39A3EE5E6B4B0D 3255BFEF95601890 AFD80709"))
-#
 # def test_sha224() -> None:
-#     _test(nettle.SHA224, sdata("abc"),
+#     _test(nettle.hashes.SHA224, sdata("abc"),
 #                shex("23097d22 3405d822 8642a477 bda255b3"
 #                     "2aadbce4 bda0b3f7 e36c9da7"))
 # def test_sha384() -> None:
-#     _test(nettle.SHA384, sdata("abc"),
+#     _test(nettle.hashes.SHA384, sdata("abc"),
 #                shex("cb00753f45a35e8b b5a03d699ac65007"
 #                     "272c32ab0eded163 1a8b605a43ff5bed"
 #                     "8086072ba1e7cc23 58baeca134c825a7"))
 # def test_sha512_224() -> None:
-#     _test(nettle.SHA512_224, sdata("abc"),
+#     _test(nettle.hashes.SHA512_224, sdata("abc"),
 #                shex("4634270F 707B6A54 DAAE7530 460842E2"
 #                     "0E37ED26 5CEEE9A4 3E8924AA"))
 #
 # def test_sha512_256() -> None:
-#     _test(nettle.SHA512_256, sdata("abc"),
+#     _test(nettle.hashes.SHA512_256, sdata("abc"),
 #                shex("53048E26 81941EF9 9B2E29B7 6B4C7DAB"
 #                     "E4C2D0C6 34FC6D46 E0E2F131 07E7AF23"))
 
 
 # def test_sha3_384() -> None:
-#     _test(nettle.SHA3_384, shex("4A4F202484512526"),
+#     _test(nettle.hashes.SHA3_384, shex("4A4F202484512526"),
 #                shex("89DBF4C39B8FB46F DF0A6926CEC0355A"
 #                     "4BDBF9C6A446E140 B7C8BD08FF6F489F"
 #                     "205DAF8EFFE160F4 37F67491EF897C23"))
 #
 # def test_sha3_512() -> None:
-#     _test(nettle.SHA3_512, shex("4A4F202484512526"),
+#     _test(nettle.hashes.SHA3_512, shex("4A4F202484512526"),
 #                shex("150D787D6EB49670 C2A4CCD17E6CCE7A"
 #                     "04C1FE30FCE03D1E F2501752D92AE04C"
 #                     "B345FD42E51038C8 3B2B4F8FD438D1B4"
 #                     "B55CC588C6B91313 2F1A658FB122CB52"))
 #
 # def test_streebog512() -> None:
-#     _test(nettle.Streebog512,
+#     _test(nettle.hashes.Streebog512,
 #                sdata("0123456789012345678901234567890"
 #                      "12345678901234567890123456789012"),
 #                shex("1b54d01a4af5b9d5 cc3d86d68d285462"
@@ -221,14 +218,14 @@ def test_shake(hashfunc: type[nettle.ShakeableHash], msg: bytes, digest: bytes) 
 #                     "e2a481332b08ef7f 41797891c1646f48"))
 #
 # def test_streebog256() -> None:
-#     _test(nettle.Streebog256,
+#     _test(nettle.hashes.Streebog256,
 #                sdata("0123456789012345678901234567890"
 #                      "12345678901234567890123456789012"),
 #                shex("9d151eefd8590b89 daa6ba6cb74af927"
 #                     "5dd051026bb149a4 52fd84e5e57b5500"))
 #
 # def test_sm3() -> None:
-#     _test(nettle.SM3,
+#     _test(nettle.hashes.SM3,
 #                sdata("abc"),
 #                shex("66c7f0f462eeedd9 d1f2d46bdc10e4e2"
 #                     "4167c4875cf2f7a2 297da02b8f4ba8e0"))

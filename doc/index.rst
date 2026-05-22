@@ -1,0 +1,17 @@
+.. python-nettle documentation master file, created by
+   sphinx-quickstart on Mon May 18 17:41:02 2026.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+python-nettle documentation
+===========================
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   intro
+   hashes
+   ciphers
+
+

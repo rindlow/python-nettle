@@ -1,24 +1,45 @@
+#
+# cipher.py
+#
+# Copyright (C) 2017-2026 Henrik Rindlöw
+#
+# This file is part of python-nettle.
+#
+# Python-nettle is free software: you can redistribute it and/or
+# modify it under the terms of either:
+#
+#   * the GNU Lesser General Public License as published by the Free
+#     Software Foundation; either version 3 of the License, or (at your
+#     option) any later version.
+#
+# or
+#
+#   * the GNU General Public License as published by the Free
+#     Software Foundation; either version 2 of the License, or (at your
+#     option) any later version.
+#
+# or both in parallel, as here.
+#
+# Python-nettle is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received copies of the GNU General Public License and
+# the GNU Lesser General Public License along with this program.  If
+# not, see http://www.gnu.org/licenses/.
+
 """Nettle cipher functions."""
 
 import ctypes
 
+from .exceptions import (
+    AuthenticationError,
+    DataLenError,
+    KeyLenError,
+    NotInitializedError,
+)
 from .libnettle import libnettle
-
-
-class AuthenticationError(Exception):
-    """Wrapped key is not authenticated.."""
-
-
-class DataLenError(Exception):
-    """Data length not multiple of block size."""
-
-
-class KeyLenError(Exception):
-    """Key not of expected length."""
-
-
-class NotInitializedError(Exception):
-    """Cipher not initialized."""
 
 
 class _CipherContext(ctypes.Structure):
@@ -26,7 +47,7 @@ class _CipherContext(ctypes.Structure):
 
 
 class Cipher:
-    """Base cipher protocol."""
+    """Base cipher class."""
 
     key_size: int
     _ctx: _CipherContext
@@ -253,195 +274,3 @@ class AES256(AesFamilyCipher):
     key_size = 32
     _ctxclass = _AES256ctx
     _prefix = "nettle_aes256"
-
-
-## Cipher modes
-
-
-class CipherMode:
-    """Cipher modes specifies the procedure to use when encrypting a large message."""
-
-    _prefix: str
-    cipher: BlockCipher
-    iv: bytes
-
-    def encrypt(self, cleartext: bytes) -> bytes:
-        """Encrypt cleartext."""
-        self.cipher.check_initialized()
-        ctx = self.cipher._ctx  # noqa: SLF001
-        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-        bsize = self.cipher.block_size
-        iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
-        size = len(cleartext)
-        dst = (ctypes.c_uint8 * size)()
-        libnettle.nettle[f"{self._prefix}_encrypt"](
-            ctypes.byref(ctx), func, bsize, iv, size, dst, cleartext
-        )
-        return bytes(dst)
-
-    def decrypt(self, ciphertext: bytes) -> bytes:
-        """Decrypt ciphertext."""
-        self.cipher.check_initialized()
-        ctx = self.cipher._ctx  # noqa: SLF001
-        func = libnettle.nettle[f"{self.cipher._prefix}_decrypt"]  # noqa: SLF001
-        bsize = self.cipher.block_size
-        iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
-        size = len(ciphertext)
-        dst = (ctypes.c_uint8 * size)()
-        libnettle.nettle[f"{self._prefix}_decrypt"](
-            ctypes.byref(ctx), func, bsize, iv, size, dst, ciphertext
-        )
-        return bytes(dst)
-
-
-class _AEADContext(ctypes.Structure):
-    """Base class for AEAD contexts."""
-
-
-class _AEADKey(ctypes.Structure):
-    """Base class for AEAD keys."""
-
-
-class AEADCipherMode(CipherMode):
-    """Authenticated encryption with associated data."""
-
-    _ctx: _AEADContext
-    _key: _AEADKey
-    digest_size = 16
-    block_size = 16
-
-    def update(self, msg: bytes) -> None:
-        """Process associated data for authentication."""
-        libnettle.nettle[f"{self._prefix}_update"](
-            ctypes.byref(self._ctx), ctypes.byref(self._key), len(msg), msg
-        )
-
-    def digest(self) -> bytes:
-        """Generate a digest of digest_size bytes."""
-        dgst = (ctypes.c_uint8 * self.digest_size)()
-        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-        if libnettle.major < 4:  # noqa: PLR2004
-            libnettle.nettle[f"{self._prefix}_digest"](
-                ctypes.byref(self._ctx),
-                ctypes.byref(self._key),
-                ctypes.byref(self.cipher._ctx),  # noqa: SLF001
-                func,
-                self.digest_size,
-                dgst,
-            )
-        else:
-            libnettle.nettle[f"{self._prefix}_digest"](
-                ctypes.byref(self._ctx),
-                ctypes.byref(self._key),
-                ctypes.byref(self.cipher._ctx),  # noqa: SLF001
-                func,
-                dgst,
-            )
-        return bytes(dgst)
-
-    def hexdigest(self) -> str:
-        """Generate a hex digest of digest_size bytes."""
-        return self.digest().hex()
-
-    def encrypt(self, cleartext: bytes) -> bytes:
-        """Encrypt cleartext."""
-        self.cipher.check_initialized()
-
-        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-        size = len(cleartext)
-        dst = (ctypes.c_uint8 * size)()
-
-        libnettle.nettle[f"{self._prefix}_encrypt"](
-            ctypes.byref(self._ctx),
-            ctypes.byref(self._key),
-            ctypes.byref(self.cipher._ctx),  # noqa: SLF001
-            func,
-            size,
-            dst,
-            cleartext,
-        )
-        return bytes(dst)
-
-    def decrypt(self, ciphertext: bytes) -> bytes:
-        """Decrypt ciphertext."""
-        self.cipher.check_initialized()
-        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-        size = len(ciphertext)
-        dst = (ctypes.c_uint8 * size)()
-        libnettle.nettle[f"{self._prefix}_decrypt"](
-            ctypes.byref(self._ctx),
-            ctypes.byref(self._key),
-            ctypes.byref(self.cipher._ctx),  # noqa: SLF001
-            func,
-            size,
-            dst,
-            ciphertext,
-        )
-        return bytes(dst)
-
-
-class CBC(CipherMode):
-    """
-    Cipher Block Chaining.
-
-    When using CBC mode, plaintext blocks are not encrypted
-    independently of each other, like in Electronic Cook Book mode.
-    Instead, when encrypting a block in CBC mode, the previous
-    ciphertext block is XORed with the plaintext before it is fed to
-    the block cipher. When encrypting the first block, a random block
-    called an IV, or Initialization Vector, is used as the “previous
-    ciphertext block”. The IV should be chosen randomly, but it need
-    not be kept secret, and can even be transmitted in the clear
-    together with the encrypted data.
-
-    """
-
-    _prefix = "nettle_cbc"
-
-    def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
-        self.cipher = cipher
-        self.iv = iv
-
-
-class _NettleBlock16(ctypes.Union):
-    _align_ = 16
-    _fields_ = [("b", ctypes.c_uint8 * 16), ("u64", ctypes.c_uint64 * 2)]  # noqa: RUF012
-
-
-class _GCMCtx(_AEADContext):
-    _fields_ = [
-        ("iv", _NettleBlock16),
-        ("ctr", _NettleBlock16),
-        ("x", _NettleBlock16),
-        ("auth_size", ctypes.c_uint64),
-        ("data_size", ctypes.c_uint64),
-    ]
-
-
-class _GCMKey(_AEADKey):
-    _fields_ = [("h", _NettleBlock16 * 0x80)]
-
-
-class GCM(AEADCipherMode):
-    """Galois Counter Mode."""
-
-    _prefix = "nettle_gcm"
-
-    def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
-        cipher.check_initialized()
-
-        self.cipher = cipher
-        self.iv = iv
-
-        ctx = cipher._ctx  # noqa: SLF001
-        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-
-        self._key = _GCMKey()
-        libnettle.nettle[f"{self._prefix}_set_key"](
-            ctypes.byref(self._key), ctypes.byref(ctx), func
-        )
-
-        self._ctx = _GCMCtx()
-        libnettle.nettle[f"{self._prefix}_set_iv"](
-            ctypes.byref(self._ctx), ctypes.byref(self._key), len(iv), iv
-        )

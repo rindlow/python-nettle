@@ -1,5 +1,5 @@
 #
-# __init__.py
+# exception.py
 #
 # Copyright (C) 2017-2026 Henrik Rindlöw
 #
@@ -29,17 +29,20 @@
 # the GNU Lesser General Public License along with this program.  If
 # not, see http://www.gnu.org/licenses/.
 
-# Import all exceptions
+"""Nettle exceptions."""
 
-"""
-Python bindings for the `Nettle cryptographic library by Niels Möller.
 
-https://www.lysator.liu.se/~nisse/nettle/
-"""
+class AuthenticationError(Exception):
+    """Wrapped key is not authenticated.."""
 
-from .cipher_modes import *  # noqa: F403
-from .ciphers import *  # noqa: F403
-from .exceptions import *  # noqa: F403
-from .hashes import *  # noqa: F403
-from .macs import *  # noqa: F403
 
+class DataLenError(Exception):
+    """Data length not multiple of block size."""
+
+
+class KeyLenError(Exception):
+    """Key not of expected length."""
+
+
+class NotInitializedError(Exception):
+    """Cipher not initialized."""

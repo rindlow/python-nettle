@@ -1,32 +1,26 @@
-import nettle
+import nettle.ciphers
 import pytest
 
-
-def sdata(string: str) -> bytes:
-    return string.encode("ascii")
-
-
-def shex(hexstring: str) -> bytes:
-    return bytes.fromhex(hexstring)
+from .utils import shex
 
 
 @pytest.mark.parametrize(
     ("cipher", "key", "cleartext", "ciphertext"),
     [
         (
-            nettle.AES128,
+            nettle.ciphers.AES128,
             shex("0001020305060708 0A0B0C0D0F101112"),
             shex("506812A45F08C889 B97F5980038B8359"),
             shex("D8F532538289EF7D 06B506A4FD5BE9C9"),
         ),
         (
-            nettle.AES192,
+            nettle.ciphers.AES192,
             shex("0001020305060708 0A0B0C0D0F10111214151617191A1B1C"),
             shex("2D33EEF2C0430A8A 9EBF45E809C40BB6"),
             shex("DFF4945E0336DF4C 1C56BC700EFF837F"),
         ),
         (
-            nettle.AES256,
+            nettle.ciphers.AES256,
             shex("0001020305060708 0A0B0C0D0F10111214151617191A1B1C 1E1F202123242526"),
             shex("834EADFCCAC7E1B30664B1ABA44815AB"),
             shex("1946DABF6A03A2A2 C3D0B05080AED6FC"),
@@ -34,7 +28,7 @@ def shex(hexstring: str) -> bytes:
     ],
 )
 def test_cipher(
-    cipher: type[nettle.Cipher],
+    cipher: type[nettle.ciphers.Cipher],
     key: bytes,
     cleartext: bytes,
     ciphertext: bytes,
@@ -47,9 +41,11 @@ def test_cipher(
     c.set_decrypt_key(key)
     assert c.decrypt(ciphertext) == cleartext
 
-    c = cipher(encrypt_key=key)
+    c = cipher()
+    c.set_encrypt_key(key)
     assert c.encrypt(cleartext) == ciphertext
-    c = cipher(decrypt_key=key)
+    c = cipher()
+    c.set_decrypt_key(key)
     assert c.decrypt(ciphertext) == cleartext
 
     c = cipher()
@@ -76,7 +72,7 @@ def test_cipher(
     ("cipher", "key", "cleartext", "ciphertext"),
     [
         (
-            nettle.AES128,
+            nettle.ciphers.AES128,
             shex("0001020305060708 0A0B0C0D0F101112"),
             shex("506812A45F08C889 B97F5980038B8359"),
             shex("D8F532538289EF7D 06B506A4FD5BE9C9"),
@@ -84,7 +80,7 @@ def test_cipher(
     ],
 )
 def test_invert(
-    cipher: type[nettle.InvertibleKeyCipher],
+    cipher: type[nettle.ciphers.InvertibleKeyCipher],
     key: bytes,
     cleartext: bytes,
     ciphertext: bytes,
@@ -101,19 +97,19 @@ def test_invert(
     ("cipher", "key", "cleartext", "ciphertext"),
     [
         (
-            nettle.AES128,
+            nettle.ciphers.AES128,
             shex("0001020304050607 08090A0B0C0D0E0F"),
             shex("0011223344556677 8899AABBCCDDEEFF"),
             shex("1FA68B0A8112B447 AEF34BD8FB5A7B82 9D3E862371D2CFE5"),
         ),
         (
-            nettle.AES192,
+            nettle.ciphers.AES192,
             shex("0001020304050607 08090A0B0C0D0E0F 1011121314151617"),
             shex("0011223344556677 8899AABBCCDDEEFF"),
             shex("96778B25AE6CA435 F92B5B97C050AED2 468AB8A17AD84E5D"),
         ),
         (
-            nettle.AES256,
+            nettle.ciphers.AES256,
             shex("0001020304050607 08090A0B0C0D0E0F 1011121314151617 18191A1B1C1D1E1F"),
             shex("0011223344556677 8899AABBCCDDEEFF"),
             shex("64E8C3F9CE0F5BA2 63E9777905818A2A 93C8191E7D6E8AE7"),
@@ -121,7 +117,7 @@ def test_invert(
     ],
 )
 def test_keywrap(
-    cipher: type[nettle.KeyWrapCipher],
+    cipher: type[nettle.ciphers.KeyWrapCipher],
     key: bytes,
     cleartext: bytes,
     ciphertext: bytes,
@@ -558,149 +554,6 @@ def test_keywrap(
 #                    shex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"))
 #
 #
-
-
-@pytest.mark.parametrize(
-    ("cipher", "key", "cleartext", "ciphertext", "iv"),
-    [
-        (
-            nettle.AES128,
-            shex("2b7e151628aed2a6abf7158809cf4f3c"),
-            shex(
-                "6bc1bee22e409f96e93d7e117393172a"
-                "ae2d8a571e03ac9c9eb76fac45af8e51"
-                "30c81c46a35ce411e5fbc1191a0a52ef"
-                "f69f2445df4f9b17ad2b417be66c3710"
-            ),
-            shex(
-                "7649abac8119b246cee98e9b12e9197d"
-                "5086cb9b507219ee95db113a917678b2"
-                "73bed6b8e3c1743b7116e69e22229516"
-                "3ff1caa1681fac09120eca307586e1a7"
-            ),
-            shex("000102030405060708090a0b0c0d0e0f"),
-        ),
-        (
-            nettle.AES192,
-            shex("8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b"),
-            shex(
-                "6bc1bee22e409f96e93d7e117393172a"
-                "ae2d8a571e03ac9c9eb76fac45af8e51"
-                "30c81c46a35ce411e5fbc1191a0a52ef"
-                "f69f2445df4f9b17ad2b417be66c3710"
-            ),
-            shex(
-                "4f021db243bc633d7178183a9fa071e8"
-                "b4d9ada9ad7dedf4e5e738763f69145a"
-                "571b242012fb7ae07fa9baac3df102e0"
-                "08b0e27988598881d920a9e64f5615cd"
-            ),
-            shex("000102030405060708090a0b0c0d0e0f"),
-        ),
-        (
-            nettle.AES256,
-            shex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4"),
-            shex(
-                "6bc1bee22e409f96e93d7e117393172a"
-                "ae2d8a571e03ac9c9eb76fac45af8e51"
-                "30c81c46a35ce411e5fbc1191a0a52ef"
-                "f69f2445df4f9b17ad2b417be66c3710"
-            ),
-            shex(
-                "f58c4c04d6e5f1ba779eabfb5f7bfbd6"
-                "9cfc4e967edb808d679f777bc6702c7d"
-                "39f23369a9d9bacfa530e26304231461"
-                "b2eb05e2c39be9fcda6c19078c6a9d1b"
-            ),
-            shex("000102030405060708090a0b0c0d0e0f"),
-        ),
-    ],
-)
-def test_cbc(
-    cipher: type[nettle.BlockCipher],
-    key: bytes,
-    cleartext: bytes,
-    ciphertext: bytes,
-    iv: bytes,
-) -> None:
-
-    assert len(cleartext) == len(ciphertext)
-
-    c = cipher(encrypt_key=key)
-    cbc = nettle.CBC(c, iv)
-    assert cbc.encrypt(cleartext) == ciphertext
-
-    c = cipher()
-    c.set_decrypt_key(key)
-    cbc = nettle.CBC(c, iv)
-    assert cbc.decrypt(ciphertext) == cleartext
-
-    c = cipher()
-    cbc = nettle.CBC(c, iv)
-    with pytest.raises(nettle.NotInitializedError):
-        cbc.encrypt(cleartext)
-    with pytest.raises(nettle.NotInitializedError):
-        cbc.decrypt(cleartext)
-
-
-@pytest.mark.parametrize(
-    ("cipher", "mode", "key", "authtext", "cleartext", "ciphertext", "iv", "digest"),
-    [
-        (
-            nettle.AES128,
-            nettle.GCM,
-            shex("feffe9928665731c6d6a8f9467308308"),
-            shex("feedfacedeadbeeffeedfacedeadbeefabaddad2"),
-            shex(
-                "d9313225f88406e5a55909c5aff5269a"
-                "86a7a9531534f7da2e4c303d8a318a72"
-                "1c3c0c95956809532fcf0e2449a6b525"
-                "b16aedf5aa0de657ba637b39"
-            ),
-            shex(
-                "42831ec2217774244b7221b784d0d49c"
-                "e3aa212f2c02a4e035c17e2329aca12e"
-                "21d514b25466931c7d8f6a5aac84aa05"
-                "1ba30b396a0aac973d58e091"
-            ),
-            shex("cafebabefacedbaddecaf888"),
-            shex("5bc94fbc3221a5db94fae95ae7121a47"),
-        )
-    ],
-)
-def test_aead(
-    cipher: type[nettle.BlockCipher],
-    mode: type[nettle.AEADCipherMode],
-    key: bytes,
-    authtext: bytes,
-    cleartext: bytes,
-    ciphertext: bytes,
-    iv: bytes,
-    digest: bytes,
-):
-    assert len(cleartext) == len(ciphertext)
-
-    c = cipher(encrypt_key=key)
-    assert c.key_size == len(key)
-    aead = mode(c, iv)
-    aead.update(authtext)
-    assert aead.encrypt(cleartext) == ciphertext
-    assert aead.digest() == digest
-
-    c = cipher(encrypt_key=key)
-    aead = mode(c, iv)
-    aead.update(authtext)
-    aead.encrypt(cleartext)
-    assert shex(aead.hexdigest()) == digest
-
-    c = cipher(encrypt_key=key)
-    aead = mode(c, iv)
-    aead.update(authtext)
-    assert aead.decrypt(ciphertext) == cleartext
-
-    c = cipher()
-    with pytest.raises(nettle.NotInitializedError):
-        aead = mode(c, iv)
 
 
 #
