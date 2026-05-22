@@ -55,10 +55,11 @@ class Hash:
         """If data is given, it is used to update hash."""
         self._ctx = self._ctxclass()
         self._ctx.initialize()
-        ctxp = ctypes.byref(self._ctx)
 
         if (datalen := len(data)) > 0:
-            libnettle.nettle[f"{self._prefix}_update"](ctxp, datalen, data)
+            libnettle.nettle[f"{self._prefix}_update"](
+                ctypes.byref(self._ctx), datalen, data
+            )
 
     def copy(self) -> Self:
         """Return a copy of self."""
@@ -123,7 +124,7 @@ class _SHA1Ctx(_HashContext):
     _fields_ = [
         ("state", ctypes.c_uint32 * 5),
         ("count", ctypes.c_uint64),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 64),
     ]
 
@@ -150,7 +151,7 @@ class _SHA256Ctx(_HashContext):
     _fields_ = [
         ("state", ctypes.c_uint32 * 8),
         ("count", ctypes.c_uint64),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 64),
     ]
 
@@ -175,7 +176,7 @@ class _SHA512Ctx(_HashContext):
         ("state", ctypes.c_uint64 * 8),
         ("count_low", ctypes.c_uint64),
         ("count_high", ctypes.c_uint64),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 128),
     ]
 
@@ -212,7 +213,7 @@ class _NettleBlock8(ctypes.Union):
 class _SHA3Ctx(_HashContext):
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("shake_flag", ctypes.c_int),
         ("block", _NettleBlock8),
     ]
@@ -225,7 +226,7 @@ class _SHA3Ctx(_HashContext):
 class _SHA3_128Ctx(_HashContext):  # noqa: N801
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 168),
     ]
 
@@ -236,7 +237,7 @@ class _SHA3_128Ctx(_HashContext):  # noqa: N801
 class _SHA3_224Ctx(_HashContext):  # noqa: N801
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 144),
     ]
 
@@ -247,7 +248,7 @@ class _SHA3_224Ctx(_HashContext):  # noqa: N801
 class _SHA3_256Ctx(_HashContext):  # noqa: N801
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 136),
     ]
 
@@ -258,7 +259,7 @@ class _SHA3_256Ctx(_HashContext):  # noqa: N801
 class _SHA3_384Ctx(_HashContext):  # noqa: N801
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 104),
     ]
 
@@ -269,7 +270,7 @@ class _SHA3_384Ctx(_HashContext):  # noqa: N801
 class _SHA3_512Ctx(_HashContext):  # noqa: N801
     _fields_ = [
         ("sha3_state", _SHA3state),
-        ("index", ctypes.c_uint32),
+        ("index", ctypes.c_uint),
         ("block", ctypes.c_uint8 * 72),
     ]
 
