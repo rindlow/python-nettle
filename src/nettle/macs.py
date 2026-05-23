@@ -124,27 +124,10 @@ class _SHA1Prefix(ctypes.Structure):
     _fields_ = [("state", ctypes.c_uint32 * 5), ("count", ctypes.c_uint64)]
 
 
-class _HMACSHA1Ctx(_MACContext):
-    _fields_ = [
-        ("outer", _SHA1Prefix),
-        ("inner", _SHA1Prefix),
-        ("state", hashes._SHA1Ctx),  # noqa: SLF001
-    ]
-
-
 class _SHA256Prefix(ctypes.Structure):
     _fields_ = [
         ("state", ctypes.c_uint32 * 8),
-        ("count_low", ctypes.c_uint64),
-        ("count_high", ctypes.c_uint64),
-    ]
-
-
-class _HMACSHA256Ctx(_MACContext):
-    _fields_ = [
-        ("outer", _SHA256Prefix),
-        ("inner", _SHA256Prefix),
-        ("state", hashes._SHA256Ctx),  # noqa: SLF001
+        ("count", ctypes.c_uint64),
     ]
 
 
@@ -153,6 +136,28 @@ class _SHA512Prefix(ctypes.Structure):
         ("state", ctypes.c_uint64 * 8),
         ("count_low", ctypes.c_uint64),
         ("count_high", ctypes.c_uint64),
+    ]
+
+
+if libnettle.major < 4:  # noqa: PLR2004
+    _SHA1Prefix = hashes._SHA1Ctx  # noqa: SLF001
+    _SHA256Prefix = hashes._SHA256Ctx  # noqa: SLF001
+    _SHA512Prefix = hashes._SHA512Ctx  # noqa: SLF001
+
+
+class _HMACSHA1Ctx(_MACContext):
+    _fields_ = [
+        ("outer", _SHA1Prefix),
+        ("inner", _SHA1Prefix),
+        ("state", hashes._SHA1Ctx),  # noqa: SLF001
+    ]
+
+
+class _HMACSHA256Ctx(_MACContext):
+    _fields_ = [
+        ("outer", _SHA256Prefix),
+        ("inner", _SHA256Prefix),
+        ("state", hashes._SHA256Ctx),  # noqa: SLF001
     ]
 
 
