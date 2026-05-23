@@ -91,7 +91,20 @@ class MAC:
     def pbkdf2(self, iterations: int, salt: bytes, length: int) -> bytes:
         """Derive symmetric key from a password according to PKCS #5 PBKDF2."""
         self._check_initialized()
-        key = (ctypes.c_uint8 * length)()
+        key = (ctypes.c_char * length)()
+
+        # argtypes normally not needed, but in this case...
+        libnettle.nettle.nettle_pbkdf2.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_uint,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_char),
+        ]
         libnettle.nettle.nettle_pbkdf2(
             ctypes.byref(self._ctx),
             libnettle.nettle[f"{self._prefix}_update"],
