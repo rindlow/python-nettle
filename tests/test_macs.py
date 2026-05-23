@@ -19,6 +19,17 @@ from .utils import sdata, shex
             sdata("Hi There"),
             shex("b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
         ),
+        (
+            nettle.macs.HMAC_SHA512,
+            shex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"),
+            sdata("Hi There"),
+            shex(
+                "87aa7cdea5ef619d4ff0b4241a1d6cb0"
+                "2379f4e2ce4ec2787ad0b30545e17cde"
+                "daa833b7d6b8a702038b274eaea3f4e4"
+                "be9d914eeb61f1702e696c203a126854"
+            ),
+        ),
     ],
 )
 def test_without_nonce(
@@ -66,14 +77,13 @@ def xtest_with_nonce(
 
 
 @pytest.mark.parametrize(
-    ("macclass", "iterations", "password", "salt", "length", "expected"),
+    ("macclass", "iterations", "password", "salt", "expected"),
     [
         (
             nettle.macs.HMAC_SHA1,
             1,
             b"password",
             b"salt",
-            20,
             shex("0c60c80f961f0e71f3a9b524af6012062fe037a6"),
         ),
         (
@@ -81,7 +91,6 @@ def xtest_with_nonce(
             2,
             b"password",
             b"salt",
-            20,
             shex("ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957"),
         ),
         (
@@ -89,7 +98,6 @@ def xtest_with_nonce(
             4096,
             b"password",
             b"salt",
-            20,
             shex("4b007901b765489abead49d926f721d065a429c1"),
         ),
         (
@@ -97,7 +105,6 @@ def xtest_with_nonce(
             80000,
             b"Password",
             b"NaCl",
-            16,
             shex("4ddcd8f60b98be21830cee5ef22701f9"),
         ),
         (
@@ -105,7 +112,6 @@ def xtest_with_nonce(
             50,
             b"passwordPASSWORDpassword",
             b"salt\0\0\0",
-            64,
             shex(
                 "016871a4c4b75f96857fd2b9f8ca28023b30ee2a39f5adcac8c9375f9bda1ccd"
                 "1b6f0b2fc3adda505412e79d890056c62e524c7d51154b1a8534575bd02dee39"
@@ -118,11 +124,10 @@ def test_pbkdf2(
     iterations: int,
     password: bytes,
     salt: bytes,
-    length: int,
     expected: bytes,
 ) -> None:
     mac = macclass(key=password)
-    assert mac.pbkdf2(iterations, salt, length) == expected
+    assert mac.pbkdf2(iterations, salt, len(expected)) == expected
 
 
 #    def test_hmac_sha512(self):

@@ -42,20 +42,23 @@ def test_aead(
 ) -> None:
     assert len(cleartext) == len(ciphertext)
 
-    c = cipher(encrypt_key=key)
+    c = cipher()
+    c.set_encrypt_key(key)
     assert c.key_size == len(key)
     aead = mode(c, iv)
     aead.update(authtext)
     assert aead.encrypt(cleartext) == ciphertext
     assert aead.digest() == digest
 
-    c = cipher(encrypt_key=key)
+    c = cipher()
+    c.set_encrypt_key(key)
     aead = mode(c, iv)
     aead.update(authtext)
     aead.encrypt(cleartext)
     assert shex(aead.hexdigest()) == digest
 
-    c = cipher(encrypt_key=key)
+    c = cipher()
+    c.set_encrypt_key(key)
     aead = mode(c, iv)
     aead.update(authtext)
     assert aead.decrypt(ciphertext) == cleartext

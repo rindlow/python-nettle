@@ -5,7 +5,7 @@ from .utils import sdata, shex
 
 
 @pytest.mark.parametrize(
-    ("hashfunc", "msg", "digest"),
+    ("hashfunc", "msg", "expected"),
     [
         (
             nettle.hashes.SHA1,
@@ -40,15 +40,15 @@ from .utils import sdata, shex
     ],
 )
 def test_digest(
-    hashfunc: type[nettle.hashes.DigestableHash], msg: bytes, digest: bytes
+    hashfunc: type[nettle.hashes.DigestableHash], msg: bytes, expected: bytes
 ) -> None:
     h = hashfunc()
     h.update(msg)
-    assert h.digest() == digest
+    assert h.digest() == expected
     h.update(msg)
-    assert shex(h.hexdigest()) == digest
+    assert shex(h.hexdigest()) == expected
     h.update(msg)
-    assert hashfunc(msg).digest() == digest
+    assert hashfunc(msg).digest() == expected
 
     assert h.digest_size > 0
 
@@ -64,7 +64,7 @@ def test_digest(
 
 
 @pytest.mark.parametrize(
-    ("hashfunc", "msg", "digest"),
+    ("hashfunc", "msg", "expected"),
     [
         (
             nettle.hashes.SHA3_128,
@@ -145,13 +145,13 @@ def test_digest(
     ],
 )
 def test_shake(
-    hashfunc: type[nettle.hashes.ShakeableHash], msg: bytes, digest: bytes
+    hashfunc: type[nettle.hashes.ShakeableHash], msg: bytes, expected: bytes
 ) -> None:
     h = hashfunc()
     h.update(msg)
-    assert h.shake(512) == digest
+    assert h.shake(512) == expected
     h.update(msg)
-    assert h.shake_output(512) == digest
+    assert h.shake_output(512) == expected
 
 
 # def test_gosthash94() -> None:
