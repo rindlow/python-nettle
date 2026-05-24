@@ -46,3 +46,7 @@ class KeyLenError(Exception):
 
 class NotInitializedError(Exception):
     """Cipher not initialized."""
+
+
+class ShortSeedError(Exception):
+    """Seed is not of the required size."""
