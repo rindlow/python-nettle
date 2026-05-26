@@ -7,7 +7,7 @@ license = "GPL-3.0-or-later"
 authors = [
     { name = "Henrik Rindlöw", email = "henrik@rindlow.se" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = []
 
 [build-system]

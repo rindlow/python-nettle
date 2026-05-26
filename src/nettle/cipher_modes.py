@@ -1,12 +1,9 @@
 """Cipher modes."""
 
 import ctypes
-import typing
 
+from .ciphers import BlockCipher
 from .libnettle import libnettle
-
-if typing.TYPE_CHECKING:
-    from .ciphers import BlockCipher
 
 
 class CipherMode:

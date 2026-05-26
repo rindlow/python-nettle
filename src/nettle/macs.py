@@ -37,9 +37,7 @@ from . import hashes
 from .exceptions import NotInitializedError
 from .libnettle import libnettle
 
-
-class _MACContext(ctypes.Structure):
-    """Base class for MAC contexts."""
+V4 = 4
 
 
 class MAC:
@@ -48,13 +46,13 @@ class MAC:
     #: Size of digest in bytes
     digest_size: int
 
-    _ctx: _MACContext
-    _ctxclass: type[_MACContext]
+    _ctx: ctypes.Array[ctypes.c_byte]
+    _ctx_size: int
     _prefix: str
     _initialized: bool = False
 
     def __init__(self, key: bytes | None = None) -> None:
-        self._ctx = self._ctxclass()
+        self._ctx = (ctypes.c_byte * self._ctx_size)()
         if key is not None:
             self.set_key(key)
 
@@ -133,61 +131,12 @@ class NonceMAC(MAC):
         """Set nonce."""
 
 
-class _SHA1Prefix(ctypes.Structure):
-    _fields_ = [("state", ctypes.c_uint32 * 5), ("count", ctypes.c_uint64)]
-
-
-class _SHA256Prefix(ctypes.Structure):
-    _fields_ = [
-        ("state", ctypes.c_uint32 * 8),
-        ("count", ctypes.c_uint64),
-    ]
-
-
-class _SHA512Prefix(ctypes.Structure):
-    _fields_ = [
-        ("state", ctypes.c_uint64 * 8),
-        ("count_low", ctypes.c_uint64),
-        ("count_high", ctypes.c_uint64),
-    ]
-
-
-if libnettle.major < 4:  # noqa: PLR2004
-    _SHA1Prefix = hashes._SHA1Ctx  # noqa: SLF001
-    _SHA256Prefix = hashes._SHA256Ctx  # noqa: SLF001
-    _SHA512Prefix = hashes._SHA512Ctx  # noqa: SLF001
-
-
-class _HMACSHA1Ctx(_MACContext):
-    _fields_ = [
-        ("outer", _SHA1Prefix),
-        ("inner", _SHA1Prefix),
-        ("state", hashes._SHA1Ctx),  # noqa: SLF001
-    ]
-
-
-class _HMACSHA256Ctx(_MACContext):
-    _fields_ = [
-        ("outer", _SHA256Prefix),
-        ("inner", _SHA256Prefix),
-        ("state", hashes._SHA256Ctx),  # noqa: SLF001
-    ]
-
-
-class _HMACSHA512Ctx(_MACContext):
-    _fields_ = [
-        ("outer", _SHA512Prefix),
-        ("inner", _SHA512Prefix),
-        ("state", hashes._SHA512Ctx),  # noqa: SLF001
-    ]
-
-
 class HMAC_SHA1(MAC):  # noqa: N801
     """SHA1 based HMAC."""
 
     digest_size = hashes.SHA1.digest_size
     _prefix = "nettle_hmac_sha1"
-    _ctxclass = _HMACSHA1Ctx
+    _ctx_size = 312 if libnettle.major < V4 else 168
 
 
 class HMAC_SHA256(MAC):  # noqa: N801
@@ -195,7 +144,7 @@ class HMAC_SHA256(MAC):  # noqa: N801
 
     digest_size = hashes.SHA256.digest_size
     _prefix = "nettle_hmac_sha256"
-    _ctxclass = _HMACSHA256Ctx
+    _ctx_size = 336 if libnettle.major < V4 else 192
 
 
 class HMAC_SHA512(MAC):  # noqa: N801
@@ -203,4 +152,4 @@ class HMAC_SHA512(MAC):  # noqa: N801
 
     digest_size = hashes.SHA512.digest_size
     _prefix = "nettle_hmac_sha512"
-    _ctxclass = _HMACSHA512Ctx
+    _ctx_size = 648 if libnettle.major < V4 else 376

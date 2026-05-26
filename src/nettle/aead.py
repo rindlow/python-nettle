@@ -1,20 +1,9 @@
 """Authenticated Encryption with Associated Data."""
 
 import ctypes
-import typing
 
+from .ciphers import BlockCipher
 from .libnettle import libnettle
-
-if typing.TYPE_CHECKING:
-    from .ciphers import BlockCipher
-
-
-class _AEADContext(ctypes.Structure):
-    """Base class for AEAD contexts."""
-
-
-class _AEADKey(ctypes.Structure):
-    """Base class for AEAD keys."""
 
 
 class AEAD:
@@ -24,8 +13,8 @@ class AEAD:
     block_size = 16
     cipher: BlockCipher
     iv: bytes
-    _ctx: _AEADContext
-    _key: _AEADKey
+    _ctx: ctypes.Array[ctypes.c_char]
+    _key: ctypes.Array[ctypes.c_char]
     _prefix: str
 
     def update(self, msg: bytes) -> None:
@@ -103,23 +92,11 @@ class _NettleBlock16(ctypes.Union):
     _fields_ = [("b", ctypes.c_uint8 * 16), ("u64", ctypes.c_uint64 * 2)]  # noqa: RUF012
 
 
-class _GCMCtx(_AEADContext):
-    _fields_ = [
-        ("iv", _NettleBlock16),
-        ("ctr", _NettleBlock16),
-        ("x", _NettleBlock16),
-        ("auth_size", ctypes.c_uint64),
-        ("data_size", ctypes.c_uint64),
-    ]
-
-
-class _GCMKey(_AEADKey):
-    _fields_ = [("h", _NettleBlock16 * 0x80)]
-
-
 class GCM(AEAD):
     """Galois Counter Mode."""
 
+    _ctx_size = 64
+    _key_size = 2048
     _prefix = "nettle_gcm"
 
     def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
@@ -131,12 +108,12 @@ class GCM(AEAD):
         ctx = cipher._ctx  # noqa: SLF001
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
 
-        self._key = _GCMKey()
+        self._key = ctypes.create_string_buffer(self._key_size)
         libnettle.nettle[f"{self._prefix}_set_key"](
             ctypes.byref(self._key), ctypes.byref(ctx), func
         )
 
-        self._ctx = _GCMCtx()
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
         libnettle.nettle[f"{self._prefix}_set_iv"](
             ctypes.byref(self._ctx), ctypes.byref(self._key), len(iv), iv
         )

@@ -42,16 +42,12 @@ from .exceptions import (
 from .libnettle import libnettle
 
 
-class _CipherContext(ctypes.Structure):
-    """Base class for cipher contexts."""
-
-
 class Cipher:
     """Base cipher class."""
 
     key_size: int
-    _ctx: _CipherContext
-    _ctxclass: type[_CipherContext]
+    _ctx: ctypes.Array[ctypes.c_char]
+    _ctx_size: int
     _prefix: str
     _initialized: int = 0
     _required: int = 1
@@ -226,7 +222,7 @@ class AesFamilyCipher(DoubleKeyCipher, InvertibleKeyCipher, KeyWrapCipher, Block
     def __init__(
         self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
     ) -> None:
-        self._ctx = self._ctxclass()
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
         if encrypt_key is not None:
             if len(encrypt_key) != self.key_size:
                 raise KeyLenError
@@ -240,23 +236,11 @@ class AesFamilyCipher(DoubleKeyCipher, InvertibleKeyCipher, KeyWrapCipher, Block
             self._initialized += 1
 
 
-class _AES128ctx(_CipherContext):
-    _fields_ = [("keys", ctypes.c_uint32 * 4 * 11)]
-
-
-class _AES192ctx(_CipherContext):
-    _fields_ = [("keys", ctypes.c_uint32 * 4 * 13)]
-
-
-class _AES256ctx(_CipherContext):
-    _fields_ = [("keys", ctypes.c_uint32 * 4 * 15)]
-
-
 class AES128(AesFamilyCipher):
     """AES with 128 bit key sie."""
 
     key_size = 16
-    _ctxclass = _AES128ctx
+    _ctx_size = 176
     _prefix = "nettle_aes128"
 
 
@@ -264,7 +248,7 @@ class AES192(AesFamilyCipher):
     """AES with 192 bit key sie."""
 
     key_size = 24
-    _ctxclass = _AES192ctx
+    _ctx_size = 208
     _prefix = "nettle_aes192"
 
 
@@ -272,5 +256,5 @@ class AES256(AesFamilyCipher):
     """AES with 256 bit key sie."""
 
     key_size = 32
-    _ctxclass = _AES256ctx
+    _ctx_size = 240
     _prefix = "nettle_aes256"

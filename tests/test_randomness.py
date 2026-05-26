@@ -27,4 +27,7 @@ def test_random(cls: type[nettle.Random], seed: bytes, expected: bytes) -> None:
     assert rnd.random(16) == expected
 
     with pytest.raises(nettle.ShortSeedError):
-        rnd = cls(seed[:-1])
+        _ = cls(seed[:-1])
+
+    rnd = cls()
+    assert len(rnd.random(2)) == 2

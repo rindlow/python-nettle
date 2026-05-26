@@ -34,27 +34,21 @@
 import ctypes
 import random
 
-from .aead import _NettleBlock16
-from .ciphers import AES256, _AES256ctx
+from .ciphers import AES256
 from .exceptions import ShortSeedError
-from .hashes import _SHA256Ctx
 from .libnettle import libnettle
-
-
-class _RandomCtx(ctypes.Structure):
-    """Base class for random contexts."""
 
 
 class Random:
     """Base class for random functions."""
 
-    _ctx: _RandomCtx
-    _ctxclass: type[_RandomCtx]
+    _ctx: ctypes.Array[ctypes.c_char]
+    _ctx_size: int
     _prefix: str
     _seed_size: int
 
     def __init__(self, seed: bytes | None = None) -> None:
-        self._ctx = self._ctxclass()
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
 
         if seed is None:
             # No seed is given, seed with system random
@@ -75,22 +69,11 @@ class Random:
         return bytes(data)
 
 
-class _Yarrow256Ctx(_RandomCtx):
-    _fields_ = [
-        ("pools", _SHA256Ctx * 2),
-        ("seeded", ctypes.c_int),
-        ("key", _AES256ctx),
-        ("counter", ctypes.c_uint8 * AES256.block_size),
-        ("nsources", ctypes.c_uint),
-        ("sources", ctypes.c_void_p),
-    ]
-
-
 class Yarrow256(Random):
     """Yarrow is a family of pseudo-randomness generators."""
 
     _prefix = "nettle_yarrow256"
-    _ctxclass = _Yarrow256Ctx
+    _ctx_size = 512
     _seed_size = 2 * AES256.block_size
 
     def _initialize(self, seed: bytes) -> None:
@@ -98,18 +81,11 @@ class Yarrow256(Random):
         libnettle.nettle.nettle_yarrow256_seed(ctypes.byref(self._ctx), len(seed), seed)
 
 
-class _DRBG_CTR_AES256Ctx(_RandomCtx):  # noqa: N801
-    _fields_ = [
-        ("key", _AES256ctx),
-        ("V", _NettleBlock16),
-    ]
-
-
 class DRBG_CTR_AES256(Random):  # noqa: N801
     """The Deterministic Random Bit Generator (DRBG)."""
 
     _prefix = "nettle_drbg_ctr_aes256"
-    _ctxclass = _DRBG_CTR_AES256Ctx
+    _ctx_size = 256
     _seed_size = AES256.block_size + AES256.key_size
 
     def _initialize(self, seed: bytes) -> None:
