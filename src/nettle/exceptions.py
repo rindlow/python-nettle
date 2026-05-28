@@ -48,5 +48,9 @@ class NotInitializedError(Exception):
     """Cipher not initialized."""
 
 
+class RSAError(Exception):
+    """Error in RSA."""
+
+
 class ShortSeedError(Exception):
     """Seed is not of the required size."""

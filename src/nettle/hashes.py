@@ -39,13 +39,6 @@ from .libnettle import libnettle
 V4 = 4
 
 
-class _HashContext(ctypes.Structure):
-    """Base hash context class."""
-
-    def initialize(self) -> None:
-        """Call initalizer."""
-
-
 class Hash:
     """Base hash class."""
 

@@ -87,11 +87,6 @@ class AEAD:
         return bytes(dst)
 
 
-class _NettleBlock16(ctypes.Union):
-    _align_ = 16
-    _fields_ = [("b", ctypes.c_uint8 * 16), ("u64", ctypes.c_uint64 * 2)]  # noqa: RUF012
-
-
 class GCM(AEAD):
     """Galois Counter Mode."""
 

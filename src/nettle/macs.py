@@ -46,13 +46,13 @@ class MAC:
     #: Size of digest in bytes
     digest_size: int
 
-    _ctx: ctypes.Array[ctypes.c_byte]
+    _ctx: ctypes.Array[ctypes.c_char]
     _ctx_size: int
     _prefix: str
     _initialized: bool = False
 
     def __init__(self, key: bytes | None = None) -> None:
-        self._ctx = (ctypes.c_byte * self._ctx_size)()
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
         if key is not None:
             self.set_key(key)
 
