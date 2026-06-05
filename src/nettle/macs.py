@@ -74,7 +74,7 @@ class MAC:
         """Extract the MAC and return it as bytes."""
         self._check_initialized()
         dgst = (ctypes.c_uint8 * self.digest_size)()
-        if libnettle.major < 4:  # noqa: PLR2004
+        if libnettle.major < 4:
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx), self.digest_size, dgst
             )

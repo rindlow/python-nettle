@@ -31,17 +31,40 @@
 
 """Nettle public key ciphers."""
 
-import ctypes
+from __future__ import annotations
 
-from .exceptions import RSAError
-from .hashes import SHA1, SHA256, SHA512
+import base64
+import ctypes
+import pathlib
+import re
+from typing import TYPE_CHECKING
+
+from .asn1 import (
+    OID,
+    ASN1Error,
+    BitString,
+    Integer,
+    Null,
+    OctetString,
+)
+from .asn1types import (
+    AlgorithmIdentifier,
+    Certificate,
+    PrivateKeyInfo,
+    RSAPrivateKey,
+    RSAPublicKey,
+    SubjectPublicKeyInfo,
+)
+from .exceptions import ParseError, RSAError
 from .libgmp import libgmp
 from .libhogweed import libhogweed
 from .libnettle import libnettle
 from .randomness import Yarrow256
 
+if TYPE_CHECKING:
+    from .hashes import SHA1, SHA256, SHA512
 
-# _MPZ_T = ctypes.c_char * 16
+RSAENCRYPTION = "1.2.840.113549.1.1.1"
 
 
 class _MPZStruct(ctypes.Structure):
@@ -53,6 +76,14 @@ class _MPZStruct(ctypes.Structure):
 
 
 _MPZ_T = _MPZStruct * 1
+
+
+def _mpz_to_int(mpz: ctypes.Array[_MPZStruct]) -> int:
+    datalen = libgmp.gmp["__gmpz_sizeinbase"](ctypes.byref(mpz), 256)
+    data = ctypes.create_string_buffer(datalen)
+    count = ctypes.c_size_t()
+    libgmp.gmp["__gmpz_export"](data, ctypes.byref(count), 1, 1, 0, 0, mpz)
+    return int.from_bytes(bytes(data)[: count.value])
 
 
 class _RSAPrivateKey(ctypes.Structure):
@@ -78,7 +109,7 @@ class _RSAPublicKey(ctypes.Structure):
 class RSAKeyPair:
     """The RSA algorithm."""
 
-    public_key: "RSAPubKey"
+    public_key: RSAPubKey
     yarrow: Yarrow256
     _key: _RSAPrivateKey
     _pub: _RSAPublicKey
@@ -98,9 +129,51 @@ class RSAKeyPair:
         self.public_key._pub = self._pub  # noqa: SLF001
 
     def __del__(self) -> None:
-        """Deallocate memory upon destruction."""
         libhogweed.hogweed.nettle_rsa_private_key_clear(ctypes.byref(self._key))
         libhogweed.hogweed.nettle_rsa_public_key_clear(ctypes.byref(self._pub))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, RSAKeyPair):
+            return False
+        return all(
+            [
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._pub.n), ctypes.byref(other._pub.n)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._pub.e), ctypes.byref(other._pub.e)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.d), ctypes.byref(other._key.d)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.p), ctypes.byref(other._key.p)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.q), ctypes.byref(other._key.q)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.a), ctypes.byref(other._key.a)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.b), ctypes.byref(other._key.b)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._key.c), ctypes.byref(other._key.c)
+                )
+                == 0,
+            ]
+        )
+
+    def __hash__(self) -> int:
+        return hash(self._key) + hash(self._pub)
 
     @property
     def size(self) -> int:
@@ -119,8 +192,6 @@ class RSAKeyPair:
         c: bytes,
     ) -> None:
         """Initialize keypair from params."""
-        print(type(self._pub), type(self._pub.n))
-
         libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.n), len(n), 1, 1, 0, 0, n)
         libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.e), len(e), 1, 1, 0, 0, e)
         libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.d), len(d), 1, 1, 0, 0, d)
@@ -161,14 +232,49 @@ class RSAKeyPair:
         libgmp.gmp["__gmpz_clear"](ctypes.byref(ciphertext))
         return bytes(data)[: datalen.value]
 
-    # def oaep_sha256_decrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def oaep_sha256_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def oaep_sha384_decrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def oaep_sha384_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def oaep_sha512_decrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def oaep_sha512_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    # def from_pkcs1(self, buffer: bytes) -> None: ...
-    # def from_pkcs8(self, buffer: bytes) -> None: ...
+    def _oaep_decrypt(self, hashalg: str, msg: bytes, label: bytes) -> bytes:
+        datalen = ctypes.c_size_t(256)
+        data = ctypes.create_string_buffer(datalen.value)
+        if (
+            libhogweed.hogweed[f"nettle_rsa_oaep_{hashalg}_decrypt"](
+                ctypes.byref(self._pub),
+                ctypes.byref(self._key),
+                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
+                libnettle.nettle.nettle_yarrow256_random,
+                len(label),
+                label,
+                ctypes.byref(datalen),
+                data,
+                msg,
+            )
+            != 1
+        ):
+            raise RSAError("Failed to decrypt data")
+        return bytes(data)[: datalen.value]
+
+    def oaep_sha256_decrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Decrypt a cipher text message using RSA with the OAEP padding scheme."""
+        return self._oaep_decrypt("sha256", msg, label)
+
+    def oaep_sha384_decrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Decrypt a cipher text message using RSA with the OAEP padding scheme."""
+        return self._oaep_decrypt("sha384", msg, label)
+
+    def oaep_sha512_decrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Decrypt a cipher text message using RSA with the OAEP padding scheme."""
+        return self._oaep_decrypt("sha512", msg, label)
+
+    def oaep_sha256_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self.public_key._oaep_encrypt("sha256", msg, label)  # noqa: SLF001
+
+    def oaep_sha384_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self.public_key._oaep_encrypt("sha384", msg, label)  # noqa: SLF001
+
+    def oaep_sha512_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self.public_key._oaep_encrypt("sha512", msg, label)  # noqa: SLF001
 
     def genkey(self, n_size: int, e_size: int) -> None:
         """Generate a new RSA keypair."""
@@ -187,10 +293,6 @@ class RSAKeyPair:
         ):
             raise RSAError
 
-    #     def read_key(self, filename: str) -> None: ...
-    #     def read_pkcs1_key(self, key: bytes) -> None: ...
-    #     def read_pkcs8_key(self, key: bytes) -> None: ...
-
     def sign(self, hsh: SHA1 | SHA256 | SHA512) -> bytes:
         """Sign hash."""
         signature = _MPZ_T()
@@ -207,13 +309,95 @@ class RSAKeyPair:
         libgmp.gmp["__gmpz_clear"](ctypes.byref(signature))
         return bytes(data)[: count.value]
 
-    # def to_pkcs1_key(self) -> bytes: ...
-
     def verify(self, signature: bytes, hsh: SHA1 | SHA256 | SHA512) -> bool:
         """Verify signature."""
         return self.public_key.verify(signature, hsh)
 
-    def write_key(self, filename: str) -> None: ...
+    def to_der(self) -> bytes:
+        """Serialize key (keypair) to PKCS#1 RSAPrivateKey."""
+        return RSAPrivateKey(
+            Integer(0),
+            Integer(_mpz_to_int(self._pub.n)),
+            Integer(_mpz_to_int(self._pub.e)),
+            Integer(_mpz_to_int(self._key.d)),
+            Integer(_mpz_to_int(self._key.p)),
+            Integer(_mpz_to_int(self._key.q)),
+            Integer(_mpz_to_int(self._key.a)),
+            Integer(_mpz_to_int(self._key.b)),
+            Integer(_mpz_to_int(self._key.c)),
+        ).to_der()
+
+    def to_pkcs8_key(self) -> bytes:
+        """Encapsulate key in PKCS #8 structure."""
+        return PrivateKeyInfo(
+            Integer(0),
+            AlgorithmIdentifier(OID(RSAENCRYPTION), Null()),
+            OctetString(self.to_der()),
+        ).to_der()
+
+    def from_pkcs1(self, data: bytes) -> None:
+        """Deserialize PKCS #8 DER."""
+        privkey = RSAPrivateKey.from_der(data)
+        if int(privkey.version) != 0:
+            raise RSAError(f"Unknown RSAPrivateKey version: {int(privkey.version) + 1}")
+        self.from_params(
+            n=privkey.modulus.data,
+            e=privkey.public_exponent.data,
+            d=privkey.private_exponent.data,
+            p=privkey.prime1.data,
+            q=privkey.prime2.data,
+            a=privkey.exponent1.data,
+            b=privkey.exponent2.data,
+            c=privkey.coefficient.data,
+        )
+
+    def from_pkcs8(self, data: bytes) -> None:
+        """Deserialize PKCS #8 DER."""
+        pki = PrivateKeyInfo.from_der(data)
+        if int(pki.version) != 0:
+            raise RSAError(f"Unknown RSAPrivateKey version: {int(pki.version) + 1}")
+        if str(pki.private_key_algorithm.algorithm) != RSAENCRYPTION:
+            raise NotImplementedError(
+                f"algorithm {pki.private_key_algorithm.algorithm} not implemented"
+            )
+        self.from_pkcs1(bytes(pki.private_key))
+
+    def read_key(self, filename: str) -> None:
+        """Read key from filename, DER or PEM."""
+        with pathlib.Path(filename).open("rb") as f:
+            pem = bytes(f.read(1))[0] != 0x30
+
+        if pem:
+            with pathlib.Path(filename).open(encoding="ascii") as f:
+                data = f.read()
+                m = re.search(
+                    r"^-----BEGIN ([^-]+)-----$"
+                    "^([^-]+)$"
+                    "^-----END[^-]+-----$",
+                    data,
+                    re.MULTILINE,
+                )
+                if m:
+                    keytype = m.group(1)
+                    b64 = m.group(2)
+                    if keytype == "RSA PRIVATE KEY":
+                        self.from_pkcs1(base64.b64decode(b64))
+                    elif keytype == "PRIVATE KEY":
+                        self.from_pkcs8(base64.b64decode(b64))
+                    else:
+                        raise NotImplementedError
+        else:
+            with pathlib.Path(filename).open("rb") as f:
+                data = f.read()
+                try:
+                    self.from_pkcs1(data)
+                except ASN1Error:
+                    self.from_pkcs8(data)
+
+    def write_key(self, filename: str) -> None:
+        """Write key to filename."""
+        with pathlib.Path(filename).open("wb") as f:
+            f.write(self.to_pkcs8_key())
 
 
 class RSAPubKey:
@@ -229,6 +413,26 @@ class RSAPubKey:
 
     def __init__(self, yarrow: Yarrow256 | None = None) -> None:
         self.yarrow = yarrow or Yarrow256()
+        self._pub = _RSAPublicKey()
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, RSAPubKey):
+            return False
+        return all(
+            [
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._pub.n), ctypes.byref(other._pub.n)
+                )
+                == 0,
+                libgmp.gmp["__gmpz_cmp"](
+                    ctypes.byref(self._pub.e), ctypes.byref(other._pub.e)
+                )
+                == 0,
+            ]
+        )
+
+    def __hash__(self) -> int:
+        return hash(self._pub)
 
     def encrypt(self, msg: bytes) -> bytes:
         """Encrypt data."""
@@ -269,13 +473,122 @@ class RSAPubKey:
         libgmp.gmp["__gmpz_clear"](ctypes.byref(sign))
         return bool(res)
 
-    def oaep_sha256_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    def oaep_sha384_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    def oaep_sha512_encrypt(self, msg: bytes, label: bytes | None = None) -> bytes: ...
-    def from_cert(self, cert: bytes) -> None: ...
-    def from_pkcs1(self, key: bytes) -> None: ...
-    def from_pkcs8(self, key: bytes) -> None: ...
-    def from_params(self, n: bytes, e: bytes) -> None: ...
-    def to_pkcs8_key(self) -> bytes: ...
-    def read_key(self, filename: str) -> None: ...
-    def write_key(self, filename: str) -> None: ...
+    def from_params(
+        self,
+        n: bytes,
+        e: bytes,
+    ) -> None:
+        """Initialize keypair from params."""
+        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.n), len(n), 1, 1, 0, 0, n)
+        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.e), len(e), 1, 1, 0, 0, e)
+        if (
+            libhogweed.hogweed.nettle_rsa_public_key_prepare(ctypes.byref(self._pub))
+            != 1
+        ):
+            raise RSAError
+
+    def to_der(self) -> bytes:
+        """Serialize key to PKCS#1 RSAPublicKey."""
+        return RSAPublicKey(
+            Integer(_mpz_to_int(self._pub.n)),
+            Integer(_mpz_to_int(self._pub.e)),
+        ).to_der()
+
+    def to_pkcs8_key(self) -> bytes:
+        """Serialize key to pkcs8 DER."""
+        return SubjectPublicKeyInfo(
+            AlgorithmIdentifier(OID(RSAENCRYPTION), Null()),
+            BitString(self.to_der()),
+        ).to_der()
+
+    def from_pkcs1(self, data: bytes) -> None:
+        """Deserialize pkcs1 DER."""
+        pubkey = RSAPublicKey.from_der(data)
+        n = int(pubkey.modulus)
+        e = int(pubkey.public_exponent)
+        self.from_params(
+            n=n.to_bytes(n.bit_length() // 8 + 1), e=e.to_bytes(e.bit_length() // 8 + 1)
+        )
+
+    def from_pkcs8(self, data: bytes) -> None:
+        """Deserialize pkcs8 DER."""
+        spki = SubjectPublicKeyInfo.from_der(data)
+        if str(spki.algorithm.algorithm) != RSAENCRYPTION:
+            raise ParseError("Not pkcs#8 key")
+        self.from_pkcs1(bytes(spki.subject_public_key))
+
+    def from_cert(self, data: bytes) -> None:
+        """Deserialize certificate."""
+        cert = Certificate.from_der(data)
+        self.from_pkcs8(cert.tbs_certificate.subject_public_key_info.to_der())
+
+    def read_key(self, filename: str) -> None:
+        """Read key from PEM or DER file."""
+        path = pathlib.Path(filename)
+        with path.open("rb") as f:
+            pem = bytes(f.read(1))[0] != 0x30
+
+        if pem:
+            with path.open("r", encoding="ascii") as f:
+                data = f.read()
+                m = re.search(
+                    r"^-----BEGIN ([^-]+)-----$"
+                    "([^-]+)"
+                    "^-----END[^-]+-----$",
+                    data,
+                    re.MULTILINE,
+                )
+                if m:
+                    keytype = m.group(1)
+                    b64 = m.group(2)
+                    if keytype == "RSA PUBLIC KEY":
+                        self.from_pkcs1(base64.b64decode(b64))
+                    elif keytype == "PUBLIC KEY":
+                        self.from_pkcs8(base64.b64decode(b64))
+                    elif keytype == "CERTIFICATE":
+                        self.from_cert(base64.b64decode(b64))
+                    else:
+                        raise NotImplementedError
+        else:
+            with path.open("rb") as f:
+                data = f.read()
+                try:
+                    self.from_pkcs1(data)
+                except ASN1Error:
+                    self.from_pkcs8(data)
+
+    def write_key(self, filename: str) -> None:
+        """Write key to filename."""
+        with pathlib.Path(filename).open("wb") as f:
+            f.write(self.to_pkcs8_key())
+
+    def _oaep_encrypt(self, hashalg: str, msg: bytes, label: bytes) -> bytes:
+        datalen = ctypes.c_size_t(self.size)
+        data = ctypes.create_string_buffer(datalen.value)
+        if (
+            libhogweed.hogweed[f"nettle_rsa_oaep_{hashalg}_encrypt"](
+                ctypes.byref(self._pub),
+                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
+                libnettle.nettle.nettle_yarrow256_random,
+                len(label),
+                label,
+                len(msg),
+                msg,
+                data,
+            )
+            != 1
+        ):
+            raise RSAError("Failed to encrypt data")
+        return bytes(data)
+
+    def oaep_sha256_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self._oaep_encrypt("sha256", msg, label)
+
+    def oaep_sha384_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self._oaep_encrypt("sha384", msg, label)
+
+    def oaep_sha512_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
+        """Encrypt a clear text message using RSA with the OAEP padding scheme."""
+        return self._oaep_encrypt("sha512", msg, label)

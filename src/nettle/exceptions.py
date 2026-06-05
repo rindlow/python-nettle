@@ -48,6 +48,10 @@ class NotInitializedError(Exception):
     """Cipher not initialized."""
 
 
+class ParseError(Exception):
+    """Error parsing data."""
+
+
 class RSAError(Exception):
     """Error in RSA."""
 

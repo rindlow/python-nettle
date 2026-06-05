@@ -31,7 +31,6 @@
 
 """Interface to the hogweed C library."""
 
-import contextlib
 import ctypes
 import pathlib
 import sys
