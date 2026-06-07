@@ -613,6 +613,8 @@ class SLH_DSAKeyPair(KeyPair):  # noqa: N801
     _pubkey_cls: type[SLH_DSAPubKey]
 
     def __init__(self, random: Random) -> None:
+        if libnettle.major < 4:
+            raise NotImplementedError("SLH-DSA first appeared in nettle 4.0")
         self.random = random or Yarrow256()
 
     def genkey(self) -> None:
@@ -639,7 +641,6 @@ class SLH_DSAKeyPair(KeyPair):  # noqa: N801
 
     def sign(self, msg: bytes) -> bytes:
         """Sign msg."""
-
         signature = ctypes.create_string_buffer(self.signature_size)
         libnettle.nettle[f"{self._prefix}_sign"].argtypes = [
             ctypes.c_char_p,
@@ -672,6 +673,8 @@ class SLH_DSAPubKey(PublicKey):  # noqa: N801
     _prefix: str
 
     def __init__(self, random: Random) -> None:
+        if libnettle.major < 4:
+            raise NotImplementedError("SLH-DSA first appeared in nettle 4.0")
         self.random = random or Yarrow256()
 
     def verify(self, msg: bytes, signature: bytes) -> bool:
