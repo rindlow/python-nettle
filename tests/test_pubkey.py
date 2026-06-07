@@ -197,6 +197,9 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
     assert pub.size == 256
 
 
+@pytest.mark.skipif(
+    nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+)
 @pytest.mark.parametrize(
     ("slhalg", "public", "private", "msg", "expected"),
     [

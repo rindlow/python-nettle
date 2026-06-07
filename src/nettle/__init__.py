@@ -36,3 +36,6 @@ https://www.lysator.liu.se/~nisse/nettle/
 """
 
 from .exceptions import *  # noqa: F403
+from .libnettle import libnettle as _libnettle
+
+version = (_libnettle.major, _libnettle.minor)
