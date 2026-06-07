@@ -55,11 +55,11 @@ from .asn1types import (
     RSAPublicKey,
     SubjectPublicKeyInfo,
 )
-from .exceptions import ParseError, RSAError
+from .exceptions import KeyLenError, ParseError, RSAError
 from .libgmp import libgmp
 from .libhogweed import libhogweed
 from .libnettle import libnettle
-from .randomness import Yarrow256
+from .randomness import Random, Yarrow256
 
 if TYPE_CHECKING:
     from .hashes import SHA1, SHA256, SHA512
@@ -106,26 +106,33 @@ class _RSAPublicKey(ctypes.Structure):
     ]
 
 
-class RSAKeyPair:
+class PublicKey:
+    """Base class for Public Keys."""
+
+
+class KeyPair:
+    """Base class for Key Pairs."""
+
+    public_key: PublicKey
+    random: Random
+
+
+class RSAKeyPair(KeyPair):
     """The RSA algorithm."""
 
     public_key: RSAPubKey
-    yarrow: Yarrow256
     _key: _RSAPrivateKey
     _pub: _RSAPublicKey
 
-    def __init__(self, yarrow: Yarrow256 | None = None) -> None:
-        if yarrow is None:
-            self.yarrow = Yarrow256()
-        else:
-            self.yarrow = yarrow
+    def __init__(self, random: Random | None = None) -> None:
+        self.random = random or Yarrow256()
         self._key = _RSAPrivateKey()
         self._pub = _RSAPublicKey()
 
         libhogweed.hogweed.nettle_rsa_private_key_init(ctypes.byref(self._key))
         libhogweed.hogweed.nettle_rsa_public_key_init(ctypes.byref(self._pub))
 
-        self.public_key = RSAPubKey(self.yarrow)
+        self.public_key = RSAPubKey(self.random)
         self.public_key._pub = self._pub  # noqa: SLF001
 
     def __del__(self) -> None:
@@ -239,8 +246,8 @@ class RSAKeyPair:
             libhogweed.hogweed[f"nettle_rsa_oaep_{hashalg}_decrypt"](
                 ctypes.byref(self._pub),
                 ctypes.byref(self._key),
-                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
-                libnettle.nettle.nettle_yarrow256_random,
+                ctypes.byref(self.random._ctx),  # noqa: SLF001
+                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
                 len(label),
                 label,
                 ctypes.byref(datalen),
@@ -282,8 +289,8 @@ class RSAKeyPair:
             libhogweed.hogweed.nettle_rsa_generate_keypair(
                 ctypes.byref(self._pub),
                 ctypes.byref(self._key),
-                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
-                libnettle.nettle.nettle_yarrow256_random,
+                ctypes.byref(self.random._ctx),  # noqa: SLF001
+                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
                 None,
                 None,
                 n_size,
@@ -403,7 +410,7 @@ class RSAKeyPair:
 class RSAPubKey:
     """A RSA Public Key."""
 
-    yarrow: Yarrow256
+    random: Random
     _pub: _RSAPublicKey
 
     @property
@@ -411,8 +418,8 @@ class RSAPubKey:
         """Get key size."""
         return self._pub.size
 
-    def __init__(self, yarrow: Yarrow256 | None = None) -> None:
-        self.yarrow = yarrow or Yarrow256()
+    def __init__(self, random: Random | None = None) -> None:
+        self.random = random or Yarrow256()
         self._pub = _RSAPublicKey()
 
     def __eq__(self, other: object) -> bool:
@@ -441,8 +448,8 @@ class RSAPubKey:
         if (
             libhogweed.hogweed.nettle_rsa_encrypt(
                 ctypes.byref(self._pub),
-                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
-                libnettle.nettle.nettle_yarrow256_random,
+                ctypes.byref(self.random._ctx),  # noqa: SLF001
+                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
                 len(msg),
                 msg,
                 ciphertext,
@@ -568,8 +575,8 @@ class RSAPubKey:
         if (
             libhogweed.hogweed[f"nettle_rsa_oaep_{hashalg}_encrypt"](
                 ctypes.byref(self._pub),
-                ctypes.byref(self.yarrow._ctx),  # noqa: SLF001
-                libnettle.nettle.nettle_yarrow256_random,
+                ctypes.byref(self.random._ctx),  # noqa: SLF001
+                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
                 len(label),
                 label,
                 len(msg),
@@ -592,3 +599,142 @@ class RSAPubKey:
     def oaep_sha512_encrypt(self, msg: bytes, label: bytes = b"") -> bytes:
         """Encrypt a clear text message using RSA with the OAEP padding scheme."""
         return self._oaep_encrypt("sha512", msg, label)
+
+
+class SLH_DSAKeyPair(KeyPair):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. Base class for Key Pair."""
+
+    public_key: SLH_DSAPubKey
+    key_size: int = 32
+    signature_size: int
+    _key: ctypes.Array[ctypes.c_char]
+    _pub: ctypes.Array[ctypes.c_char]
+    _prefix: str
+    _pubkey_cls: type[SLH_DSAPubKey]
+
+    def __init__(self, random: Random) -> None:
+        self.random = random or Yarrow256()
+
+    def genkey(self) -> None:
+        """Generate a key pair."""
+        self._key = ctypes.create_string_buffer(self.key_size)
+        self._pub = ctypes.create_string_buffer(self.key_size)
+        libnettle.nettle[f"{self._prefix}_generate_keypair"](
+            ctypes.byref(self._pub),
+            ctypes.byref(self._key),
+            ctypes.byref(self.random._ctx),  # noqa: SLF001
+            libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
+        )
+        self.public_key = self._pubkey_cls(self.random)
+        self.public_key._pub = self._pub  # noqa: SLF001
+
+    def from_param(self, key: bytes, pub: bytes) -> None:
+        """Make key pair from parameters."""
+        if len(key) != self.key_size or len(pub) != self.key_size:
+            raise KeyLenError
+        self._key = ctypes.create_string_buffer(key, size=self.key_size)
+        self._pub = ctypes.create_string_buffer(pub, size=self.key_size)
+        self.public_key = self._pubkey_cls(self.random)
+        self.public_key._pub = self._pub  # noqa: SLF001
+
+    def sign(self, msg: bytes) -> bytes:
+        """Sign msg."""
+        signature = ctypes.create_string_buffer(self.signature_size)
+        breakpoint()
+        libnettle.nettle[f"{self._prefix}_sign"](
+            ctypes.byref(self._pub),
+            ctypes.byref(self._key),
+            len(msg),
+            msg,
+            signature,
+        )
+        return bytes(signature)
+
+    def verify(self, msg: bytes, signature: bytes) -> bool:
+        """Verify signature."""
+        return self.public_key.verify(msg, signature)
+
+
+class SLH_DSAPubKey(PublicKey):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. Base class for Public Key."""
+
+    key_size: int = 32
+    signature_size: int
+    _pub: ctypes.Array[ctypes.c_char]
+    _prefix: str
+
+    def __init__(self, random: Random) -> None:
+        self.random = random or Yarrow256()
+
+    def verify(self, msg: bytes, signature: bytes) -> bool:
+        """Verify signature."""
+        sig = ctypes.create_string_buffer(signature)
+        return (
+            libnettle.nettle[f"{self._prefix}_verify"](
+                ctypes.byref(self._pub),
+                len(msg),
+                msg,
+                ctypes.byref(sig),
+            )
+            == 1
+        )
+
+
+class SLH_DSA_SHAKE_128SPubKey(SLH_DSAPubKey):  # noqa: N801
+    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
+
+    signature_size = 7856
+    _prefix = "nettle_slh_dsa_shake_128s"
+
+
+class SLH_DSA_SHAKE_128SKeyPair(SLH_DSAKeyPair):  # noqa: N801
+    """Stateless hash-based digital signature Key Pair. SHAKE256 based and small."""
+
+    signature_size = 7856
+    _prefix = "nettle_slh_dsa_shake_128s"
+    _pubkey_cls = SLH_DSA_SHAKE_128SPubKey
+
+
+class SLH_DSA_SHAKE_128FPubKey(SLH_DSAPubKey):  # noqa: N801
+    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
+
+    signature_size = 17088
+    _prefix = "nettle_slh_dsa_shake_128f"
+
+
+class SLH_DSA_SHAKE_128FKeyPair(SLH_DSAKeyPair):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. SHAKE256 based and fast."""
+
+    signature_size = 17088
+    _prefix = "nettle_slh_dsa_shake_128f"
+    _pubkey_cls = SLH_DSA_SHAKE_128FPubKey
+
+
+class SLH_DSA_SHA2_128SPubKey(SLH_DSAPubKey):  # noqa: N801
+    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
+
+    signature_size = 7856
+    _prefix = "nettle_slh_dsa_sha2_128s"
+
+
+class SLH_DSA_SHA2_128SKeyPair(SLH_DSAKeyPair):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. SHA256 based and small."""
+
+    signature_size = 7856
+    _prefix = "nettle_slh_dsa_sha2_128s"
+    _pubkey_cls = SLH_DSA_SHA2_128SPubKey
+
+
+class SLH_DSA_SHA2_128FPubKey(SLH_DSAPubKey):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. SHA256 based and small."""
+
+    signature_size = 17088
+    _prefix = "nettle_slh_dsa_sha2_128f"
+
+
+class SLH_DSA_SHA2_128FKeyPair(SLH_DSAKeyPair):  # noqa: N801
+    """Stateless hash-based digital signature algorithm. SHA256 based and fast."""
+
+    signature_size = 17088
+    _prefix = "nettle_slh_dsa_sha2_128f"
+    _pubkey_cls = SLH_DSA_SHA2_128FPubKey

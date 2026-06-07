@@ -1,41 +1,46 @@
-import nettle
 import pathlib
+
+import nettle.hashes
+import nettle.pubkey
+import nettle.randomness
 import pytest
 
-
-@pytest.fixture(scope="module")
-def yarrow() -> nettle.Yarrow256:
-    return nettle.Yarrow256()
+from .utils import read_hex_file, shex
 
 
 @pytest.fixture(scope="module")
-def keypair(yarrow: nettle.Yarrow256) -> nettle.RSAKeyPair:
-    keypair = nettle.RSAKeyPair(yarrow)
+def yarrow() -> nettle.randomness.Yarrow256:
+    return nettle.randomness.Yarrow256()
+
+
+@pytest.fixture(scope="module")
+def keypair(yarrow: nettle.randomness.Yarrow256) -> nettle.pubkey.RSAKeyPair:
+    keypair = nettle.pubkey.RSAKeyPair(yarrow)
     keypair.genkey(2048, 20)
     return keypair
 
 
-def test_read_write(keypair: nettle.RSAKeyPair) -> None:
+def test_read_write(keypair: nettle.pubkey.RSAKeyPair) -> None:
     privfile = "/tmp/privkey.der"  # noqa: S108
     pubfile = "/tmp/pubkey.der"  # noqa: S108
 
     kp = keypair
 
     kp.write_key(privfile)
-    kp2 = nettle.RSAKeyPair(keypair.yarrow)
+    kp2 = nettle.pubkey.RSAKeyPair(keypair.random)
     kp2.read_key(privfile)
     assert kp == kp2
     del kp2
 
     pk = kp.public_key
     pk.write_key(pubfile)
-    pk2 = nettle.RSAPubKey(keypair.yarrow)
+    pk2 = nettle.pubkey.RSAPubKey(keypair.random)
     pk2.read_key(pubfile)
     assert pk == pk2
     del pk2
 
 
-def test_encrypt_decrypt(keypair: nettle.RSAKeyPair) -> None:
+def test_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
@@ -54,16 +59,16 @@ def test_encrypt_decrypt(keypair: nettle.RSAKeyPair) -> None:
         pk.encrypt(cleartext)
 
 
-def test_sign_verify(keypair: nettle.RSAKeyPair) -> None:
+def test_sign_verify(keypair: nettle.pubkey.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
     cleartext = b"Urtica dioica"
 
-    h = nettle.SHA256()
+    h = nettle.hashes.SHA256()
     h.update(cleartext)
     signature = kp.sign(h)
-    h2 = nettle.SHA256()
+    h2 = nettle.hashes.SHA256()
     h2.update(cleartext)
     assert pk.verify(signature, h2)
     h2.update(b"gibberish")
@@ -71,7 +76,7 @@ def test_sign_verify(keypair: nettle.RSAKeyPair) -> None:
 
 
 def test_kp_params() -> None:
-    kp = nettle.RSAKeyPair()
+    kp = nettle.pubkey.RSAKeyPair()
     kp.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
@@ -120,7 +125,7 @@ def test_kp_params() -> None:
 
 
 def test_pk_params() -> None:
-    pk = nettle.RSAPubKey()
+    pk = nettle.pubkey.RSAPubKey()
     pk.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
@@ -135,7 +140,7 @@ def test_pk_params() -> None:
     assert pk.size == 125
 
 
-def test_oaep_encrypt_decrypt(keypair: nettle.RSAKeyPair):
+def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
@@ -187,6 +192,58 @@ sgoN3A1+OUpbjGR6v9crxp3zGNrNHjDonlw+WByIAB627+Vmzz8gK5/D6e7O0h99
 elkmpGICXFrPJ0rPsX6w3NV1vFU8X9+bPkHG7GOh0GTMn+JqOsHI+858RQYXxg5x
 aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 -----END CERTIFICATE-----""")
-    pub = nettle.RSAPubKey()
+    pub = nettle.pubkey.RSAPubKey()
     pub.read_key(certfile)
     assert pub.size == 256
+
+
+@pytest.mark.parametrize(
+    ("slhalg", "private", "public", "msg", "expected"),
+    [
+        (
+            nettle.pubkey.SLH_DSA_SHA2_128FKeyPair,  # tcId 7
+            shex("0C04FABC4FCA7F356AC36C28B99D7A1FCFEF78F38B167CA9D0AB8772910C3945"),
+            shex("704555B4E5DD1B979A4C3B7A0A0E4EE241D59AE0779CAF0DF58300F21066DDA7"),
+            read_hex_file("slh-dsa-sha2-128f-tc7.msg"),
+            read_hex_file("slh-dsa-sha2-128f-tc7.sig"),
+        ),
+        (
+            nettle.pubkey.SLH_DSA_SHAKE_128FKeyPair,  # tcId 64
+            shex("C9A7900E931AFBA2B52A5BC55A2DC4D12DDC9BF8E0B2ED0BDE83E674F1ECE7AA"),
+            shex("0E87FF20256E0E499A53B52DF91467C01F0431C07250AFE93DE814117B5D66D3"),
+            read_hex_file("slh-dsa-shake-128f-tc64.msg"),
+            read_hex_file("slh-dsa-shake-128f-tc64.sig"),
+        ),
+        (
+            nettle.pubkey.SLH_DSA_SHA2_128SKeyPair,  # tcId 162
+            shex("0FD12C3F990748CF9B1426413B64128EDF9242E50B9E29378BD24CAD4D547540"),
+            shex("438E444071BD643C2407BD9FEB0071EC21DAA14113518133D6161EF420EE629D"),
+            read_hex_file("slh-dsa-sha2-128s-tc162.msg"),
+            read_hex_file("slh-dsa-sha2-128s-tc162.sig"),
+        ),
+        (
+            nettle.pubkey.SLH_DSA_SHAKE_128SKeyPair,  # tcId 215
+            shex("DD286FF370CB50BC1B23894AA3F7025A534A788E697B94942AB845EFB753A30B"),
+            shex("4738AC60C561FFBE15AB96EFFA1A09291A79332E1CA3C38B2FEF40ACA7CFE285"),
+            read_hex_file("slh-dsa-shake-128s-tc215.msg"),
+            read_hex_file("slh-dsa-shake-128s-tc215.sig"),
+        ),
+    ],
+)
+def test_slh_dsa(
+    yarrow: nettle.randomness.Random,
+    slhalg: type[nettle.pubkey.SLH_DSAKeyPair],
+    private: bytes,
+    public: bytes,
+    msg: bytes,
+    expected: bytes,
+) -> None:
+    kp = slhalg(yarrow)
+    assert len(private) == kp.key_size
+    assert len(public) == kp.key_size
+    kp.from_param(key=private, pub=public)
+
+    pk = kp.public_key
+    sig = kp.sign(msg)
+    assert sig == expected
+    assert pk.verify(msg, expected)

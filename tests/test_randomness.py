@@ -1,4 +1,4 @@
-import nettle
+import nettle.randomness
 import pytest
 
 from .utils import shex
@@ -8,12 +8,12 @@ from .utils import shex
     ("cls", "seed", "expected"),
     [
         (
-            nettle.Yarrow256,
+            nettle.randomness.Yarrow256,
             shex("0000000000000000000000000000000000000000000000000000000000000000"),
             shex("200fe7972e93822621682027def98729"),
         ),
         (
-            nettle.DRBG_CTR_AES256,
+            nettle.randomness.DRBG_CTR_AES256,
             shex(
                 "0000000000000000000000000000000000000000000000000000000000000000"
                 "00000000000000000000000000000000"
@@ -22,7 +22,9 @@ from .utils import shex
         ),
     ],
 )
-def test_random(cls: type[nettle.Random], seed: bytes, expected: bytes) -> None:
+def test_random(
+    cls: type[nettle.randomness.Random], seed: bytes, expected: bytes
+) -> None:
     rnd = cls(seed)
     assert rnd.random(16) == expected
 
