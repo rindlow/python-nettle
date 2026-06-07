@@ -639,11 +639,19 @@ class SLH_DSAKeyPair(KeyPair):  # noqa: N801
 
     def sign(self, msg: bytes) -> bytes:
         """Sign msg."""
+
         signature = ctypes.create_string_buffer(self.signature_size)
-        breakpoint()
+        libnettle.nettle[f"{self._prefix}_sign"].argtypes = [
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_size_t,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+        ]
+
         libnettle.nettle[f"{self._prefix}_sign"](
-            ctypes.byref(self._pub),
-            ctypes.byref(self._key),
+            self._pub,
+            self._key,
             len(msg),
             msg,
             signature,

@@ -198,7 +198,7 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 
 
 @pytest.mark.parametrize(
-    ("slhalg", "private", "public", "msg", "expected"),
+    ("slhalg", "public", "private", "msg", "expected"),
     [
         (
             nettle.pubkey.SLH_DSA_SHA2_128FKeyPair,  # tcId 7
@@ -233,8 +233,8 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 def test_slh_dsa(
     yarrow: nettle.randomness.Random,
     slhalg: type[nettle.pubkey.SLH_DSAKeyPair],
-    private: bytes,
     public: bytes,
+    private: bytes,
     msg: bytes,
     expected: bytes,
 ) -> None:
