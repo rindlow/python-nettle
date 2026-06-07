@@ -7,8 +7,10 @@ For a good primer on ASN.1, see Kaliski's
 
 from __future__ import annotations
 
-import collections.abc
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import collections.abc
 
 
 class ASN1Error(Exception):
@@ -49,7 +51,7 @@ class Object:
     _headerlen: int
     _offset: int
     _header: bytes
-    data: bytes
+    _data: bytes
     children: list[Object]
 
     def __repr__(self) -> str:
@@ -96,18 +98,6 @@ class Object:
                 s += item.describe(indent + 1)
         return s
 
-    #     def from_object(self, obj: Object):
-    #         """Cast an object into this."""
-    #         self.tag_class = obj.tag_class
-    #         self._is_constructed = obj.is_constructed
-    #         self.tag = obj.tag
-    #         self.headerlen = obj.hlen
-    #         self.datalen = obj.len
-    #         self.header = obj.header
-    #         self.data = obj.data
-    #         self.offset = obj.offset
-    #         self.validate()
-
     @classmethod
     def from_object(cls, obj: Object, context: int | None = None) -> Self:
         """Cast a basic object to class."""
@@ -122,7 +112,7 @@ class Object:
         self = cls.__new__(cls)
         self.tag = obj.tag
         self.tag_class = obj.tag_class
-        self.data = obj.data
+        self._data = obj._data
         self._datalen = obj._datalen
         self._parse_data()
         return self
@@ -172,7 +162,7 @@ class Object:
         self._datalen = datalen
         self._is_constructed = is_constructed
         self._header = data[:i]
-        self.data = data[i : i + datalen]
+        self._data = data[i : i + datalen]
         self.tag = tag
         self.tag_class = tag_class
         self._parse_data()
@@ -183,142 +173,11 @@ class Object:
 
     def to_der(self) -> bytes:
         """Serialize self to DER format."""
-        return self._header + self.data
+        return self._header + self._data
 
     def is_context(self, tag: int) -> bool:
         """Return true if object is CONTEXT [tag]."""
         return self.tag_class == 2 and self.tag == tag
-
-    #     def boolean(self) -> bool:
-    #         """Return boolean value if existing."""
-    #         if self.tag != 1:
-    #             raise TagError
-    #         if self.datalen < 1:
-    #             raise ParseError
-    #         return self.data[0] > 0
-    #
-    #     def integer(self) -> int:
-    #         """Return integer value if existing."""
-    #         if self.tag != 2:
-    #             raise TagError
-    #         return int.from_bytes(self.data, signed=True)
-    #
-    #     def bit_string(self) -> bytes:
-    #         """Return bit string value if existing."""
-    #         if self.tag != 3:
-    #             raise TagError
-    #         return self.data
-    #
-    #     def octet_string(self) -> bytes:
-    #         """Return octet string value if existing."""
-    #         if self.tag != 4:
-    #             raise TagError
-    #         return self.data
-    #
-    #     def oid(self) -> str:
-    #         """Return object identifier if existing."""
-    #         if self.tag != 6:
-    #             raise TagError
-    #         if self.datalen < 1:
-    #             raise ParseError
-    #         oid = [self.data[0] // 40, self.data[0] % 40]
-    #         value = 0
-    #         for b in self.data[1:]:
-    #             value <<= 7
-    #             value |= b & 0x7F
-    #             if b & 0x80 == 0:
-    #                 oid.append(value)
-    #                 value = 0
-    #         return ".".join(str(x) for x in oid)
-    #
-    #     def null(self) -> None:
-    #         """Return octet string value if existing."""
-    #         if self.tag != 5:
-    #             raise TagError
-    #
-    #     def utf8_string(self) -> str:
-    #         """Return octet string value if existing."""
-    #         if self.tag != 12:
-    #             raise TagError
-    #         return self.data.decode("utf-8")
-
-    #     def constructed(self) -> list[Self]:
-    #         """Return constructed value if existing."""
-    #         if not self._is_constructed:
-    #             raise TagError
-    #         seq: list[Self] = []
-    #         offset = 0
-    #         while offset < self.datalen:
-    #             obj = Object().from_der(
-    #                 self.data[offset:], self.offset + self.headerlen + offset
-    #             )
-    #             offset += obj.hlen + obj.len
-    #             seq.append(obj)
-    #         self.children = seq
-    #         return seq
-
-    #     def num_children(self) -> int:
-    #         """Return number of children."""
-    #         if len(self.children) == 0:
-    #             self.constructed()
-    #         return len(self.children)
-    #
-    #     def child(self, n: int) -> Object:
-    #         """Return the nth child."""
-    #         if n > self.num_children():
-    #             raise OutOfBoundsError
-    #         return self.children[n]
-    #
-    #     def sequence(self) -> list[Object]:
-    #         """Return sequence value if existing."""
-    #         if self.tag != 16:
-    #             raise TagError
-    #         return self.constructed()
-    #
-    #     def set(self) -> list[Object]:
-    #         """Return set value if existing."""
-    #         if self.tag != 17:
-    #             raise TagError
-    #         return self.constructed()
-    #
-    #     def printable_string(self) -> str:
-    #         """Return octet string value if existing."""
-    #         if self.tag != 19:
-    #             raise TagError
-    #         return self.data.decode("ascii")
-    #
-    #     def utctime(self) -> str:
-    #         """Return UTCTime value if existing."""
-    #         if self.tag != 23:
-    #             raise TagError
-    #         return self.data.decode("ascii")
-    #
-    #     def generalized_time(self) -> str:
-    #         """Return generalized time value if existing."""
-    #         if self.tag != 24:
-    #             raise TagError
-    #         return self.data.decode("ascii")
-    #
-    #
-    #     def is_boolean(self) -> bool:
-    #         """Return true if object is BOOLEAN."""
-    #         return self.tag_class == 0 and self.tag == 1
-    #
-    #     def is_integer(self) -> bool:
-    #         """Return true if object is INTEGER."""
-    #         return self.tag_class == 0 and self.tag == 2
-    #
-    #     def is_bit_string(self) -> bool:
-    #         """Return true if object is BIT STRING."""
-    #         return self.tag_class == 0 and self.tag == 3
-    #
-    #     def is_sequence(self) -> bool:
-    #         """Return true if object is SEQUENCE."""
-    #         return self.tag_class == 0 and self.tag == 16
-    #
-    #     def is_set(self) -> bool:
-    #         """Return true if object is SET."""
-    #         return self.tag_class == 0 and self.tag == 17
 
 
 class Boolean(Object):
@@ -337,9 +196,9 @@ class Boolean(Object):
         return f"BOOLEAN {self.value}"
 
     def _parse_data(self) -> None:
-        if len(self.data) < 1:
+        if len(self._data) < 1:
             raise ParseError
-        self.value = self.data[0] != 0
+        self.value = self._data[0] != 0
 
     def to_der(self) -> bytes:
         """Serialize self to DER format."""
@@ -359,15 +218,22 @@ class Integer(Object):
     def __int__(self) -> int:
         return self.value
 
+    def __bytes__(self) -> bytes:
+        if hasattr(self, "_data"):
+            return self._data
+        blen = self.value.bit_length()
+        n = blen // 8 + 1
+        return self.value.to_bytes(n, signed=True)
+
     def __repr__(self) -> str:
         return f"INTEGER {self.value}"
 
     def _parse_data(self) -> None:
         if self.tag != 2:
             raise TagError
-        if len(self.data) < 1:
+        if len(self._data) < 1:
             raise ParseError
-        self.value = int.from_bytes(self.data, signed=True)
+        self.value = int.from_bytes(self._data, signed=True)
 
     def to_der(self) -> bytes:
         """Serialize self to DER format."""
@@ -394,7 +260,7 @@ class BaseString(Object):
         return self.value
 
     def _parse_data(self) -> None:
-        self.value = self.data
+        self.value = self._data
 
     def to_der(self) -> bytes:
         """Serialize self to DER format."""
@@ -417,8 +283,8 @@ class BitString(BaseString):
         return self.value
 
     def _parse_data(self) -> None:
-        self.unused_bits = int(self.data[0])
-        self.value = self.data[1:]
+        self.unused_bits = int(self._data[0])
+        self.value = self._data[1:]
 
     def to_der(self) -> bytes:
         """Serialize self to DER format."""
@@ -471,9 +337,9 @@ class OID(Object):
         return f"OBJECT IDENTIFIER {self.value}"
 
     def _parse_data(self) -> None:
-        oid = [self.data[0] // 40, self.data[0] % 40]
+        oid = [self._data[0] // 40, self._data[0] % 40]
         value = 0
-        for b in self.data[1:]:
+        for b in self._data[1:]:
             value <<= 7
             value |= b & 0x7F
             if b & 0x80 == 0:
@@ -518,12 +384,12 @@ class Constructed(Object):
         self.children = []
         offset = 0
         while offset < self._datalen:
-            obj = Object().from_der(self.data[offset:])
+            obj = Object().from_der(self._data[offset:])
             offset += obj._headerlen + obj._datalen  # noqa: SLF001
             self.children.append(obj)
         self._assign_children()
 
-    def _assign_children(self):
+    def _assign_children(self) -> None:
         pass
 
     def to_der(self) -> bytes:
@@ -604,7 +470,7 @@ class ContextSpecific(Constructed):
         self.children = []
         offset = 0
         while offset < self._datalen:
-            obj = Object().from_der(self.data[offset:])
+            obj = Object().from_der(self._data[offset:])
             offset += obj._headerlen + obj._datalen  # noqa: SLF001
             self.children.append(obj)
         if len(self.children) != 1:

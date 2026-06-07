@@ -83,7 +83,7 @@ class DigestableHash(Hash):
 
     def digest(self) -> bytes:
         """Generate a digest of digest_size bytes."""
-        dgst = (ctypes.c_uint8 * self.digest_size)()
+        dgst = ctypes.create_string_buffer(self.digest_size)
         if libnettle.major < V4:
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx), self.digest_size, dgst
@@ -102,13 +102,13 @@ class ShakeableHash(Hash):
 
     def shake(self, length: int) -> bytes:
         """Generate a shake of length bytes. Also reset the context."""
-        dgst = (ctypes.c_uint8 * length)()
+        dgst = ctypes.create_string_buffer(length)
         libnettle.nettle[f"{self._prefix}_shake"](ctypes.byref(self._ctx), length, dgst)
         return bytes(dgst)
 
     def shake_output(self, length: int) -> bytes:
         """Generate a shake of length bytes. Does not reset the context."""
-        dgst = (ctypes.c_uint8 * length)()
+        dgst = ctypes.create_string_buffer(length)
         libnettle.nettle[f"{self._prefix}_shake_output"](
             ctypes.byref(self._ctx), length, dgst
         )

@@ -62,7 +62,7 @@ class Random:
 
     def random(self, length: int) -> bytes:
         """Generate length bytes of randomness."""
-        data = (ctypes.c_uint8 * length)()
+        data = ctypes.create_string_buffer(length)
         libnettle.nettle[f"{self._prefix}_random"](
             ctypes.byref(self._ctx), length, data
         )

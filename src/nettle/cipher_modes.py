@@ -21,7 +21,7 @@ class CipherMode:
         bsize = self.cipher.block_size
         iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
         size = len(cleartext)
-        dst = (ctypes.c_uint8 * size)()
+        dst = ctypes.create_string_buffer(size)
         libnettle.nettle[f"{self._prefix}_encrypt"](
             ctypes.byref(ctx), func, bsize, iv, size, dst, cleartext
         )
@@ -35,7 +35,7 @@ class CipherMode:
         bsize = self.cipher.block_size
         iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
         size = len(ciphertext)
-        dst = (ctypes.c_uint8 * size)()
+        dst = ctypes.create_string_buffer(size)
         libnettle.nettle[f"{self._prefix}_decrypt"](
             ctypes.byref(ctx), func, bsize, iv, size, dst, ciphertext
         )

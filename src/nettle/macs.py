@@ -73,7 +73,7 @@ class MAC:
     def digest(self) -> bytes:
         """Extract the MAC and return it as bytes."""
         self._check_initialized()
-        dgst = (ctypes.c_uint8 * self.digest_size)()
+        dgst = ctypes.create_string_buffer(self.digest_size)
         if libnettle.major < 4:
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx), self.digest_size, dgst
@@ -89,7 +89,7 @@ class MAC:
     def pbkdf2(self, iterations: int, salt: bytes, length: int) -> bytes:
         """Derive symmetric key from a password according to PKCS #5 PBKDF2."""
         self._check_initialized()
-        key = (ctypes.c_char * length)()
+        key = ctypes.create_string_buffer(length)
 
         # argtypes normally not needed, but in this case...
         libnettle.nettle.nettle_pbkdf2.argtypes = [

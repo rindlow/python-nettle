@@ -25,9 +25,9 @@ class AEAD:
 
     def digest(self) -> bytes:
         """Generate a digest of digest_size bytes."""
-        dgst = (ctypes.c_uint8 * self.digest_size)()
+        dgst = ctypes.create_string_buffer(self.digest_size)
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
-        if libnettle.major < 4:  # noqa: PLR2004
+        if libnettle.major < 4:
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx),
                 ctypes.byref(self._key),
@@ -56,7 +56,7 @@ class AEAD:
 
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
         size = len(cleartext)
-        dst = (ctypes.c_uint8 * size)()
+        dst = ctypes.create_string_buffer(size)
 
         libnettle.nettle[f"{self._prefix}_encrypt"](
             ctypes.byref(self._ctx),
@@ -74,7 +74,7 @@ class AEAD:
         self.cipher.check_initialized()
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
         size = len(ciphertext)
-        dst = (ctypes.c_uint8 * size)()
+        dst = ctypes.create_string_buffer(size)
         libnettle.nettle[f"{self._prefix}_decrypt"](
             ctypes.byref(self._ctx),
             ctypes.byref(self._key),

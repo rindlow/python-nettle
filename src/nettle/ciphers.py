@@ -75,7 +75,7 @@ class Cipher:
         self._check_msg_len(msg)
         self.check_initialized()
         msglen = len(msg)
-        dst = (ctypes.c_uint8 * msglen)()
+        dst = ctypes.create_string_buffer(msglen)
         libnettle.nettle[f"{self._prefix}_encrypt"](
             ctypes.byref(self._ctx), msglen, dst, msg
         )
@@ -86,7 +86,7 @@ class Cipher:
         self._check_msg_len(msg)
         self.check_initialized()
         msglen = len(msg)
-        dst = (ctypes.c_uint8 * msglen)()
+        dst = ctypes.create_string_buffer(msglen)
         libnettle.nettle[f"{self._prefix}_decrypt"](
             ctypes.byref(self._ctx), msglen, dst, msg
         )
@@ -110,7 +110,7 @@ class SingleFuncCipher(Cipher):
         if self._initialized < self._required:
             raise NotInitializedError
         msglen = len(msg)
-        dst = (ctypes.c_uint8 * msglen)()
+        dst = ctypes.create_string_buffer(msglen)
         libnettle.nettle[f"{self._prefix}_crypt"](self._ctx, msglen, dst, msg)
         return bytes(dst)
 
@@ -183,7 +183,7 @@ class KeyWrapCipher(Cipher):
         if len(cleartext) % 8 != 0:
             raise DataLenError
         dstlen = len(cleartext) + 8
-        dst = (ctypes.c_uint8 * dstlen)()
+        dst = ctypes.create_string_buffer(dstlen)
         libnettle.nettle.nettle_nist_keywrap16(
             ctypes.byref(self._ctx),
             libnettle.nettle[f"{self._prefix}_encrypt"],
@@ -201,7 +201,7 @@ class KeyWrapCipher(Cipher):
         if len(ciphertext) % 8 != 0:
             raise DataLenError
         dstlen = len(ciphertext) - 8
-        dst = (ctypes.c_uint8 * dstlen)()
+        dst = ctypes.create_string_buffer(dstlen)
         if libnettle.nettle.nettle_nist_keyunwrap16(
             ctypes.byref(self._ctx),
             libnettle.nettle[f"{self._prefix}_decrypt"],

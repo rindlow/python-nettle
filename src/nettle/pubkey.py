@@ -348,14 +348,14 @@ class RSAKeyPair(KeyPair):
         if int(privkey.version) != 0:
             raise RSAError(f"Unknown RSAPrivateKey version: {int(privkey.version) + 1}")
         self.from_params(
-            n=privkey.modulus.data,
-            e=privkey.public_exponent.data,
-            d=privkey.private_exponent.data,
-            p=privkey.prime1.data,
-            q=privkey.prime2.data,
-            a=privkey.exponent1.data,
-            b=privkey.exponent2.data,
-            c=privkey.coefficient.data,
+            n=bytes(privkey.modulus),
+            e=bytes(privkey.public_exponent),
+            d=bytes(privkey.private_exponent),
+            p=bytes(privkey.prime1),
+            q=bytes(privkey.prime2),
+            a=bytes(privkey.exponent1),
+            b=bytes(privkey.exponent2),
+            c=bytes(privkey.coefficient),
         )
 
     def from_pkcs8(self, data: bytes) -> None:
@@ -458,7 +458,7 @@ class RSAPubKey:
         ):
             raise RSAError
         datalen = libgmp.gmp["__gmpz_sizeinbase"](ctypes.byref(ciphertext), 256)
-        data = (ctypes.c_byte * datalen)()
+        data = ctypes.create_string_buffer(datalen)
         count = ctypes.c_size_t()
         libgmp.gmp["__gmpz_export"](data, ctypes.byref(count), 1, 1, 0, 0, ciphertext)
         libgmp.gmp["__gmpz_clear"](ctypes.byref(ciphertext))
