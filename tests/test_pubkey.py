@@ -15,9 +15,7 @@ def yarrow() -> nettle.randomness.Yarrow256:
 
 @pytest.fixture(scope="module")
 def keypair(yarrow: nettle.randomness.Yarrow256) -> nettle.pubkey.RSAKeyPair:
-    keypair = nettle.pubkey.RSAKeyPair(yarrow)
-    keypair.genkey(2048, 20)
-    return keypair
+    return nettle.pubkey.RSAKeyPair(2048, 20, yarrow)
 
 
 def test_read_write(keypair: nettle.pubkey.RSAKeyPair) -> None:
@@ -27,15 +25,13 @@ def test_read_write(keypair: nettle.pubkey.RSAKeyPair) -> None:
     kp = keypair
 
     kp.write_key(privfile)
-    kp2 = nettle.pubkey.RSAKeyPair(keypair.random)
-    kp2.read_key(privfile)
+    kp2 = nettle.pubkey.RSAKeyPair.read_key(privfile, random=kp.random)
     assert kp == kp2
     del kp2
 
     pk = kp.public_key
     pk.write_key(pubfile)
-    pk2 = nettle.pubkey.RSAPubKey(keypair.random)
-    pk2.read_key(pubfile)
+    pk2 = nettle.pubkey.RSAPubKey.read_key(pubfile, random=kp.random)
     assert pk == pk2
     del pk2
 
@@ -76,8 +72,7 @@ def test_sign_verify(keypair: nettle.pubkey.RSAKeyPair) -> None:
 
 
 def test_kp_params() -> None:
-    kp = nettle.pubkey.RSAKeyPair()
-    kp.from_params(
+    kp = nettle.pubkey.RSAKeyPair.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
             "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -125,8 +120,7 @@ def test_kp_params() -> None:
 
 
 def test_pk_params() -> None:
-    pk = nettle.pubkey.RSAPubKey()
-    pk.from_params(
+    pk = nettle.pubkey.RSAPubKey.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
             "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -192,8 +186,7 @@ sgoN3A1+OUpbjGR6v9crxp3zGNrNHjDonlw+WByIAB627+Vmzz8gK5/D6e7O0h99
 elkmpGICXFrPJ0rPsX6w3NV1vFU8X9+bPkHG7GOh0GTMn+JqOsHI+858RQYXxg5x
 aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 -----END CERTIFICATE-----""")
-    pub = nettle.pubkey.RSAPubKey()
-    pub.read_key(certfile)
+    pub = nettle.pubkey.RSAPubKey.read_key(certfile)
     assert pub.size == 256
 
 
@@ -204,28 +197,28 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
     ("slhalg", "public", "private", "msg", "expected"),
     [
         (
-            nettle.pubkey.SLH_DSA_SHA2_128FKeyPair,  # tcId 7
+            "slh_dsa_sha2_128f",  # tcId 7
             shex("0C04FABC4FCA7F356AC36C28B99D7A1FCFEF78F38B167CA9D0AB8772910C3945"),
             shex("704555B4E5DD1B979A4C3B7A0A0E4EE241D59AE0779CAF0DF58300F21066DDA7"),
             read_hex_file("slh-dsa-sha2-128f-tc7.msg"),
             read_hex_file("slh-dsa-sha2-128f-tc7.sig"),
         ),
         (
-            nettle.pubkey.SLH_DSA_SHAKE_128FKeyPair,  # tcId 64
+            "slh_dsa_shake_128f",  # tcId 64
             shex("C9A7900E931AFBA2B52A5BC55A2DC4D12DDC9BF8E0B2ED0BDE83E674F1ECE7AA"),
             shex("0E87FF20256E0E499A53B52DF91467C01F0431C07250AFE93DE814117B5D66D3"),
             read_hex_file("slh-dsa-shake-128f-tc64.msg"),
             read_hex_file("slh-dsa-shake-128f-tc64.sig"),
         ),
         (
-            nettle.pubkey.SLH_DSA_SHA2_128SKeyPair,  # tcId 162
+            "slh_dsa_sha2_128s",  # tcId 162
             shex("0FD12C3F990748CF9B1426413B64128EDF9242E50B9E29378BD24CAD4D547540"),
             shex("438E444071BD643C2407BD9FEB0071EC21DAA14113518133D6161EF420EE629D"),
             read_hex_file("slh-dsa-sha2-128s-tc162.msg"),
             read_hex_file("slh-dsa-sha2-128s-tc162.sig"),
         ),
         (
-            nettle.pubkey.SLH_DSA_SHAKE_128SKeyPair,  # tcId 215
+            "slh_dsa_shake_128s",  # tcId 215
             shex("DD286FF370CB50BC1B23894AA3F7025A534A788E697B94942AB845EFB753A30B"),
             shex("4738AC60C561FFBE15AB96EFFA1A09291A79332E1CA3C38B2FEF40ACA7CFE285"),
             read_hex_file("slh-dsa-shake-128s-tc215.msg"),
@@ -235,16 +228,15 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
 )
 def test_slh_dsa(
     yarrow: nettle.randomness.Random,
-    slhalg: type[nettle.pubkey.SLH_DSAKeyPair],
+    slhalg: str,
     public: bytes,
     private: bytes,
     msg: bytes,
     expected: bytes,
 ) -> None:
-    kp = slhalg(yarrow)
-    assert len(private) == kp.key_size
-    assert len(public) == kp.key_size
-    kp.from_param(key=private, pub=public)
+    kp = nettle.pubkey.SLHDSAKeyPair.from_param(
+        key=private, pub=public, alg=slhalg, random=yarrow
+    )
 
     pk = kp.public_key
     sig = kp.sign(msg)

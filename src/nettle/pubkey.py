@@ -37,7 +37,8 @@ import base64
 import ctypes
 import pathlib
 import re
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Self
 
 from .asn1 import (
     OID,
@@ -120,17 +121,33 @@ class KeyPair:
 class RSAKeyPair(KeyPair):
     """The RSA algorithm."""
 
+    random: Random
     public_key: RSAPubKey
     _key: _RSAPrivateKey
     _pub: _RSAPublicKey
 
-    def __init__(self, random: Random | None = None) -> None:
+    def __init__(self, n_size: int, e_size: int, random: Random | None = None) -> None:
         self.random = random or Yarrow256()
         self._key = _RSAPrivateKey()
         self._pub = _RSAPublicKey()
 
         libhogweed.hogweed.nettle_rsa_private_key_init(ctypes.byref(self._key))
         libhogweed.hogweed.nettle_rsa_public_key_init(ctypes.byref(self._pub))
+
+        if (
+            libhogweed.hogweed.nettle_rsa_generate_keypair(
+                ctypes.byref(self._pub),
+                ctypes.byref(self._key),
+                ctypes.byref(self.random._ctx),  # noqa: SLF001
+                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
+                None,
+                None,
+                n_size,
+                e_size,
+            )
+            == 0
+        ):
+            raise RSAError
 
         self.public_key = RSAPubKey(self.random)
         self.public_key._pub = self._pub  # noqa: SLF001
@@ -186,37 +203,6 @@ class RSAKeyPair(KeyPair):
     def size(self) -> int:
         """Get key size."""
         return self._key.size
-
-    def from_params(  # noqa: PLR0913
-        self,
-        n: bytes,
-        e: bytes,
-        d: bytes,
-        p: bytes,
-        q: bytes,
-        a: bytes,
-        b: bytes,
-        c: bytes,
-    ) -> None:
-        """Initialize keypair from params."""
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.n), len(n), 1, 1, 0, 0, n)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.e), len(e), 1, 1, 0, 0, e)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.d), len(d), 1, 1, 0, 0, d)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.p), len(p), 1, 1, 0, 0, p)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.q), len(q), 1, 1, 0, 0, q)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.a), len(a), 1, 1, 0, 0, a)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.b), len(b), 1, 1, 0, 0, b)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._key.c), len(c), 1, 1, 0, 0, c)
-        if (
-            libhogweed.hogweed.nettle_rsa_public_key_prepare(ctypes.byref(self._pub))
-            != 1
-        ):
-            raise RSAError
-        if (
-            libhogweed.hogweed.nettle_rsa_private_key_prepare(ctypes.byref(self._key))
-            != 1
-        ):
-            raise RSAError
 
     def encrypt(self, msg: bytes) -> bytes:
         """Encrypt data."""
@@ -283,23 +269,6 @@ class RSAKeyPair(KeyPair):
         """Encrypt a clear text message using RSA with the OAEP padding scheme."""
         return self.public_key._oaep_encrypt("sha512", msg, label)  # noqa: SLF001
 
-    def genkey(self, n_size: int, e_size: int) -> None:
-        """Generate a new RSA keypair."""
-        if (
-            libhogweed.hogweed.nettle_rsa_generate_keypair(
-                ctypes.byref(self._pub),
-                ctypes.byref(self._key),
-                ctypes.byref(self.random._ctx),  # noqa: SLF001
-                libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
-                None,
-                None,
-                n_size,
-                e_size,
-            )
-            == 0
-        ):
-            raise RSAError
-
     def sign(self, hsh: SHA1 | SHA256 | SHA512) -> bytes:
         """Sign hash."""
         signature = _MPZ_T()
@@ -319,6 +288,11 @@ class RSAKeyPair(KeyPair):
     def verify(self, signature: bytes, hsh: SHA1 | SHA256 | SHA512) -> bool:
         """Verify signature."""
         return self.public_key.verify(signature, hsh)
+
+    def write_key(self, filename: str) -> None:
+        """Write key to filename."""
+        with pathlib.Path(filename).open("wb") as f:
+            f.write(self.to_pkcs8_key())
 
     def to_der(self) -> bytes:
         """Serialize key (keypair) to PKCS#1 RSAPrivateKey."""
@@ -342,12 +316,13 @@ class RSAKeyPair(KeyPair):
             OctetString(self.to_der()),
         ).to_der()
 
-    def from_pkcs1(self, data: bytes) -> None:
+    @classmethod
+    def from_pkcs1(cls, data: bytes, random: Random | None = None) -> Self:
         """Deserialize PKCS #8 DER."""
         privkey = RSAPrivateKey.from_der(data)
         if int(privkey.version) != 0:
             raise RSAError(f"Unknown RSAPrivateKey version: {int(privkey.version) + 1}")
-        self.from_params(
+        return cls.from_params(
             n=bytes(privkey.modulus),
             e=bytes(privkey.public_exponent),
             d=bytes(privkey.private_exponent),
@@ -356,9 +331,11 @@ class RSAKeyPair(KeyPair):
             a=bytes(privkey.exponent1),
             b=bytes(privkey.exponent2),
             c=bytes(privkey.coefficient),
+            random=random,
         )
 
-    def from_pkcs8(self, data: bytes) -> None:
+    @classmethod
+    def from_pkcs8(cls, data: bytes, random: Random | None = None) -> Self:
         """Deserialize PKCS #8 DER."""
         pki = PrivateKeyInfo.from_der(data)
         if int(pki.version) != 0:
@@ -367,9 +344,55 @@ class RSAKeyPair(KeyPair):
             raise NotImplementedError(
                 f"algorithm {pki.private_key_algorithm.algorithm} not implemented"
             )
-        self.from_pkcs1(bytes(pki.private_key))
+        return cls.from_pkcs1(bytes(pki.private_key), random=random)
 
-    def read_key(self, filename: str) -> None:
+    @classmethod
+    def from_params(  # noqa: PLR0913
+        cls,
+        n: bytes,
+        e: bytes,
+        d: bytes,
+        p: bytes,
+        q: bytes,
+        a: bytes,
+        b: bytes,
+        c: bytes,
+        random: Random | None = None,
+    ) -> Self:
+        """Initialize keypair from params."""
+        keypair = cls.__new__(cls)
+        keypair.random = random
+        keypair._key = _RSAPrivateKey()  # noqa: SLF001
+        keypair._pub = _RSAPublicKey()  # noqa: SLF001
+        libhogweed.hogweed.nettle_rsa_private_key_init(ctypes.byref(keypair._key))  # noqa: SLF001
+        libhogweed.hogweed.nettle_rsa_public_key_init(ctypes.byref(keypair._pub))  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._pub.n), len(n), 1, 1, 0, 0, n)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._pub.e), len(e), 1, 1, 0, 0, e)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.d), len(d), 1, 1, 0, 0, d)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.p), len(p), 1, 1, 0, 0, p)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.q), len(q), 1, 1, 0, 0, q)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.a), len(a), 1, 1, 0, 0, a)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.b), len(b), 1, 1, 0, 0, b)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(keypair._key.c), len(c), 1, 1, 0, 0, c)  # noqa: SLF001
+        if (
+            libhogweed.hogweed.nettle_rsa_public_key_prepare(ctypes.byref(keypair._pub))  # noqa: SLF001
+            != 1
+        ):
+            raise RSAError
+        if (
+            libhogweed.hogweed.nettle_rsa_private_key_prepare(
+                ctypes.byref(keypair._key)  # noqa: SLF001
+            )
+            != 1
+        ):
+            raise RSAError
+
+        keypair.public_key = RSAPubKey(keypair.random)
+        keypair.public_key._pub = keypair._pub  # noqa: SLF001
+        return keypair
+
+    @classmethod
+    def read_key(cls, filename: str, random: Random | None = None) -> Self:
         """Read key from filename, DER or PEM."""
         with pathlib.Path(filename).open("rb") as f:
             pem = bytes(f.read(1))[0] != 0x30
@@ -388,23 +411,18 @@ class RSAKeyPair(KeyPair):
                     keytype = m.group(1)
                     b64 = m.group(2)
                     if keytype == "RSA PRIVATE KEY":
-                        self.from_pkcs1(base64.b64decode(b64))
-                    elif keytype == "PRIVATE KEY":
-                        self.from_pkcs8(base64.b64decode(b64))
-                    else:
-                        raise NotImplementedError
+                        return cls.from_pkcs1(base64.b64decode(b64), random)
+                    if keytype == "PRIVATE KEY":
+                        return cls.from_pkcs8(base64.b64decode(b64), random)
+                    raise NotImplementedError
         else:
             with pathlib.Path(filename).open("rb") as f:
                 data = f.read()
                 try:
-                    self.from_pkcs1(data)
+                    return cls.from_pkcs1(data, random)
                 except ASN1Error:
-                    self.from_pkcs8(data)
-
-    def write_key(self, filename: str) -> None:
-        """Write key to filename."""
-        with pathlib.Path(filename).open("wb") as f:
-            f.write(self.to_pkcs8_key())
+                    return cls.from_pkcs8(data, random)
+        raise RSAError
 
 
 class RSAPubKey:
@@ -480,20 +498,6 @@ class RSAPubKey:
         libgmp.gmp["__gmpz_clear"](ctypes.byref(sign))
         return bool(res)
 
-    def from_params(
-        self,
-        n: bytes,
-        e: bytes,
-    ) -> None:
-        """Initialize keypair from params."""
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.n), len(n), 1, 1, 0, 0, n)
-        libgmp.gmp["__gmpz_import"](ctypes.byref(self._pub.e), len(e), 1, 1, 0, 0, e)
-        if (
-            libhogweed.hogweed.nettle_rsa_public_key_prepare(ctypes.byref(self._pub))
-            != 1
-        ):
-            raise RSAError
-
     def to_der(self) -> bytes:
         """Serialize key to PKCS#1 RSAPublicKey."""
         return RSAPublicKey(
@@ -507,62 +511,6 @@ class RSAPubKey:
             AlgorithmIdentifier(OID(RSAENCRYPTION), Null()),
             BitString(self.to_der()),
         ).to_der()
-
-    def from_pkcs1(self, data: bytes) -> None:
-        """Deserialize pkcs1 DER."""
-        pubkey = RSAPublicKey.from_der(data)
-        n = int(pubkey.modulus)
-        e = int(pubkey.public_exponent)
-        self.from_params(
-            n=n.to_bytes(n.bit_length() // 8 + 1), e=e.to_bytes(e.bit_length() // 8 + 1)
-        )
-
-    def from_pkcs8(self, data: bytes) -> None:
-        """Deserialize pkcs8 DER."""
-        spki = SubjectPublicKeyInfo.from_der(data)
-        if str(spki.algorithm.algorithm) != RSAENCRYPTION:
-            raise ParseError("Not pkcs#8 key")
-        self.from_pkcs1(bytes(spki.subject_public_key))
-
-    def from_cert(self, data: bytes) -> None:
-        """Deserialize certificate."""
-        cert = Certificate.from_der(data)
-        self.from_pkcs8(cert.tbs_certificate.subject_public_key_info.to_der())
-
-    def read_key(self, filename: str) -> None:
-        """Read key from PEM or DER file."""
-        path = pathlib.Path(filename)
-        with path.open("rb") as f:
-            pem = bytes(f.read(1))[0] != 0x30
-
-        if pem:
-            with path.open("r", encoding="ascii") as f:
-                data = f.read()
-                m = re.search(
-                    r"^-----BEGIN ([^-]+)-----$"
-                    "([^-]+)"
-                    "^-----END[^-]+-----$",
-                    data,
-                    re.MULTILINE,
-                )
-                if m:
-                    keytype = m.group(1)
-                    b64 = m.group(2)
-                    if keytype == "RSA PUBLIC KEY":
-                        self.from_pkcs1(base64.b64decode(b64))
-                    elif keytype == "PUBLIC KEY":
-                        self.from_pkcs8(base64.b64decode(b64))
-                    elif keytype == "CERTIFICATE":
-                        self.from_cert(base64.b64decode(b64))
-                    else:
-                        raise NotImplementedError
-        else:
-            with path.open("rb") as f:
-                data = f.read()
-                try:
-                    self.from_pkcs1(data)
-                except ASN1Error:
-                    self.from_pkcs8(data)
 
     def write_key(self, filename: str) -> None:
         """Write key to filename."""
@@ -600,44 +548,152 @@ class RSAPubKey:
         """Encrypt a clear text message using RSA with the OAEP padding scheme."""
         return self._oaep_encrypt("sha512", msg, label)
 
+    @classmethod
+    def from_pkcs1(cls, data: bytes, random: Random | None = None) -> Self:
+        """Deserialize pkcs1 DER."""
+        pubkey = RSAPublicKey.from_der(data)
+        n = int(pubkey.modulus)
+        e = int(pubkey.public_exponent)
+        return cls.from_params(
+            n=n.to_bytes(n.bit_length() // 8 + 1),
+            e=e.to_bytes(
+                e.bit_length() // 8 + 1,
+            ),
+            random=random,
+        )
 
-class SLH_DSAKeyPair(KeyPair):  # noqa: N801
+    @classmethod
+    def from_pkcs8(cls, data: bytes, random: Random | None = None) -> Self:
+        """Deserialize pkcs8 DER."""
+        spki = SubjectPublicKeyInfo.from_der(data)
+        if str(spki.algorithm.algorithm) != RSAENCRYPTION:
+            raise ParseError("Not pkcs#8 key")
+        return cls.from_pkcs1(bytes(spki.subject_public_key), random)
+
+    @classmethod
+    def from_cert(cls, data: bytes, random: Random | None = None) -> Self:
+        """Deserialize certificate."""
+        cert = Certificate.from_der(data)
+        return cls.from_pkcs8(
+            cert.tbs_certificate.subject_public_key_info.to_der(), random
+        )
+
+    @classmethod
+    def read_key(cls, filename: str, random: Random | None = None) -> Self:
+        """Read key from PEM or DER file."""
+        path = pathlib.Path(filename)
+        with path.open("rb") as f:
+            pem = bytes(f.read(1))[0] != 0x30
+
+        if pem:
+            with path.open("r", encoding="ascii") as f:
+                data = f.read()
+                m = re.search(
+                    r"^-----BEGIN ([^-]+)-----$"
+                    "([^-]+)"
+                    "^-----END[^-]+-----$",
+                    data,
+                    re.MULTILINE,
+                )
+                if m:
+                    keytype = m.group(1)
+                    b64 = m.group(2)
+                    if keytype == "RSA PUBLIC KEY":
+                        return cls.from_pkcs1(base64.b64decode(b64), random)
+                    if keytype == "PUBLIC KEY":
+                        return cls.from_pkcs8(base64.b64decode(b64), random)
+                    if keytype == "CERTIFICATE":
+                        return cls.from_cert(base64.b64decode(b64), random)
+                    raise NotImplementedError
+        else:
+            with path.open("rb") as f:
+                data = f.read()
+                try:
+                    return cls.from_pkcs1(data, random)
+                except ASN1Error:
+                    return cls.from_pkcs8(data, random)
+        raise RSAError
+
+    @classmethod
+    def from_params(cls, n: bytes, e: bytes, random: Random | None = None) -> Self:
+        """Initialize public key from params."""
+        pubkey = cls.__new__(cls)
+        pubkey._random = random  # noqa: SLF001
+        pubkey._pub = _RSAPublicKey()  # noqa: SLF001
+        libhogweed.hogweed.nettle_rsa_public_key_init(ctypes.byref(pubkey._pub))  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(pubkey._pub.n), len(n), 1, 1, 0, 0, n)  # noqa: SLF001
+        libgmp.gmp["__gmpz_import"](ctypes.byref(pubkey._pub.e), len(e), 1, 1, 0, 0, e)  # noqa: SLF001
+        if (
+            libhogweed.hogweed.nettle_rsa_public_key_prepare(ctypes.byref(pubkey._pub))  # noqa: SLF001
+            != 1
+        ):
+            raise RSAError
+        return pubkey
+
+
+######################################################################
+# SLH-DSA
+
+
+@dataclass
+class _SlhParam:
+    signature_size: int
+    oid: str
+
+
+SLH_PARAM = {
+    "slh_dsa_shake_128s": _SlhParam(signature_size=7856, oid="2.16.840.1.101.3.4.3.20"),
+    "slh_dsa_shake_128f": _SlhParam(
+        signature_size=17088, oid="2.16.840.1.101.3.4.3.21"
+    ),
+    "slh_dsa_sha2_128s": _SlhParam(signature_size=7856, oid="2.16.840.1.101.3.4.3.26"),
+    "slh_dsa_sha2_128f": _SlhParam(signature_size=17088, oid="2.16.840.1.101.3.4.3.27"),
+}
+
+SLH_OID = {
+    "2.16.840.1.101.3.4.3.20": "slh_dsa_sha2_128s",
+    "2.16.840.1.101.3.4.3.21": "slh_dsa_sha2_128f",
+    "2.16.840.1.101.3.4.3.26": "slh_dsa_shake_128s",
+    "2.16.840.1.101.3.4.3.27": "slh_dsa_shake_128f",
+}
+
+
+class SLHDSAKeyPair(KeyPair):
     """Stateless hash-based digital signature algorithm. Base class for Key Pair."""
 
-    public_key: SLH_DSAPubKey
+    public_key: SLHDSAPubKey
     key_size: int = 32
     signature_size: int
+    random: Random
     _key: ctypes.Array[ctypes.c_char]
     _pub: ctypes.Array[ctypes.c_char]
     _prefix: str
-    _pubkey_cls: type[SLH_DSAPubKey]
+    _alg: str
 
-    def __init__(self, random: Random) -> None:
+    def __init__(self, alg: str, random: Random | None = None) -> None:
+        """Generate a key pair."""
         if libnettle.major < 4:
             raise NotImplementedError("SLH-DSA first appeared in nettle 4.0")
-        self.random = random or Yarrow256()
+        if alg not in SLH_PARAM:
+            raise NotImplementedError(f"SLH-DSA '{alg}' not implemented")
 
-    def genkey(self) -> None:
-        """Generate a key pair."""
+        self.signature_size = SLH_PARAM[alg].signature_size
+        self.random = random or Yarrow256()
         self._key = ctypes.create_string_buffer(self.key_size)
         self._pub = ctypes.create_string_buffer(self.key_size)
-        libnettle.nettle[f"{self._prefix}_generate_keypair"](
+        self._alg = alg
+        self._prefix = f"nettle_{alg}"
+        libnettle.nettle[f"{self._prefix}_generate_self"](
             ctypes.byref(self._pub),
             ctypes.byref(self._key),
             ctypes.byref(self.random._ctx),  # noqa: SLF001
             libnettle.nettle[f"{self.random._prefix}_random"],  # noqa: SLF001
         )
-        self.public_key = self._pubkey_cls(self.random)
+        self.public_key = SLHDSAPubKey()
+        self.public_key.signature_size = self.signature_size
         self.public_key._pub = self._pub  # noqa: SLF001
-
-    def from_param(self, key: bytes, pub: bytes) -> None:
-        """Make key pair from parameters."""
-        if len(key) != self.key_size or len(pub) != self.key_size:
-            raise KeyLenError
-        self._key = ctypes.create_string_buffer(key, size=self.key_size)
-        self._pub = ctypes.create_string_buffer(pub, size=self.key_size)
-        self.public_key = self._pubkey_cls(self.random)
-        self.public_key._pub = self._pub  # noqa: SLF001
+        self.public_key._prefix = self._prefix  # noqa: SLF001
+        self.public_key._alg = self._alg  # noqa: SLF001
 
     def sign(self, msg: bytes) -> bytes:
         """Sign msg."""
@@ -663,19 +719,80 @@ class SLH_DSAKeyPair(KeyPair):  # noqa: N801
         """Verify signature."""
         return self.public_key.verify(msg, signature)
 
+    def to_pkcs8(self) -> bytes:
+        """Serialize to PKCS#8."""
+        kp = bytes(self._key) + bytes(self._pub)
+        return PrivateKeyInfo(
+            Integer(0),
+            AlgorithmIdentifier(OID(SLH_PARAM[self._alg].oid), Null()),
+            OctetString(kp),
+        ).to_der()
 
-class SLH_DSAPubKey(PublicKey):  # noqa: N801
+    @classmethod
+    def slh_dsa_shake_128s(cls, random: Random | None = None) -> Self:
+        """Generate a slh_dsa_shake_128s key pair."""
+        return cls("slh_dsa_shake_128s", random)
+
+    @classmethod
+    def slh_dsa_shake_128f(cls, random: Random | None = None) -> Self:
+        """Generate a slh_dsa_shake_128f key pair."""
+        return cls("slh_dsa_shake_128f", random)
+
+    @classmethod
+    def slh_dsa_sha2_128s(cls, random: Random | None = None) -> Self:
+        """Generate a slh_dsa_shake_128s key pair."""
+        return cls("slh_dsa_sha2_128s", random)
+
+    @classmethod
+    def slh_dsa_sha2_128f(cls, random: Random | None = None) -> Self:
+        """Generate a slh_dsa_shake_128s key pair."""
+        return cls("slh_dsa_sha2_128f", random)
+
+    @classmethod
+    def from_param(
+        cls, key: bytes, pub: bytes, alg: str, random: Random | None = None
+    ) -> Self:
+        """Make key pair from parameters."""
+        if alg not in SLH_PARAM:
+            raise NotImplementedError(f"SLH-DSA '{alg}' not implemented")
+
+        keypair = cls.__new__(cls)
+        if len(key) != keypair.key_size or len(pub) != keypair.key_size:
+            raise KeyLenError
+        keypair.signature_size = SLH_PARAM[alg].signature_size
+        keypair.random = random or Yarrow256()
+        keypair._prefix = f"nettle_{alg}"  # noqa: SLF001
+        keypair._key = ctypes.create_string_buffer(key, size=keypair.key_size)  # noqa: SLF001
+        keypair._pub = ctypes.create_string_buffer(pub, size=keypair.key_size)  # noqa: SLF001
+        keypair.public_key = SLHDSAPubKey()
+        keypair.public_key._pub = keypair._pub  # noqa: SLF001
+        keypair.public_key._prefix = keypair._prefix  # noqa: SLF001
+        return keypair
+
+    @classmethod
+    def from_pkcs8(cls, data: bytes, random: Random | None = None) -> Self:
+        """Make key pair from pkcs8 der."""
+        pki = PrivateKeyInfo.from_der(data)
+        algid = str(pki.private_key_algorithm.algorithm)
+        if algid not in SLH_OID:
+            raise NotImplementedError
+        octetstring = OctetString.from_der(data)
+        pk = bytes(octetstring)
+        return cls.from_param(pk[:16], pk[16:], SLH_OID[algid], random)
+
+
+class SLHDSAPubKey(PublicKey):
     """Stateless hash-based digital signature algorithm. Base class for Public Key."""
 
     key_size: int = 32
     signature_size: int
     _pub: ctypes.Array[ctypes.c_char]
     _prefix: str
+    _alg: str
 
-    def __init__(self, random: Random) -> None:
+    def __init__(self) -> None:
         if libnettle.major < 4:
             raise NotImplementedError("SLH-DSA first appeared in nettle 4.0")
-        self.random = random or Yarrow256()
 
     def verify(self, msg: bytes, signature: bytes) -> bool:
         """Verify signature."""
@@ -690,62 +807,9 @@ class SLH_DSAPubKey(PublicKey):  # noqa: N801
             == 1
         )
 
-
-class SLH_DSA_SHAKE_128SPubKey(SLH_DSAPubKey):  # noqa: N801
-    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
-
-    signature_size = 7856
-    _prefix = "nettle_slh_dsa_shake_128s"
-
-
-class SLH_DSA_SHAKE_128SKeyPair(SLH_DSAKeyPair):  # noqa: N801
-    """Stateless hash-based digital signature Key Pair. SHAKE256 based and small."""
-
-    signature_size = 7856
-    _prefix = "nettle_slh_dsa_shake_128s"
-    _pubkey_cls = SLH_DSA_SHAKE_128SPubKey
-
-
-class SLH_DSA_SHAKE_128FPubKey(SLH_DSAPubKey):  # noqa: N801
-    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
-
-    signature_size = 17088
-    _prefix = "nettle_slh_dsa_shake_128f"
-
-
-class SLH_DSA_SHAKE_128FKeyPair(SLH_DSAKeyPair):  # noqa: N801
-    """Stateless hash-based digital signature algorithm. SHAKE256 based and fast."""
-
-    signature_size = 17088
-    _prefix = "nettle_slh_dsa_shake_128f"
-    _pubkey_cls = SLH_DSA_SHAKE_128FPubKey
-
-
-class SLH_DSA_SHA2_128SPubKey(SLH_DSAPubKey):  # noqa: N801
-    """Stateless hash-based digital signature Public Key. SHAKE256 based and small."""
-
-    signature_size = 7856
-    _prefix = "nettle_slh_dsa_sha2_128s"
-
-
-class SLH_DSA_SHA2_128SKeyPair(SLH_DSAKeyPair):  # noqa: N801
-    """Stateless hash-based digital signature algorithm. SHA256 based and small."""
-
-    signature_size = 7856
-    _prefix = "nettle_slh_dsa_sha2_128s"
-    _pubkey_cls = SLH_DSA_SHA2_128SPubKey
-
-
-class SLH_DSA_SHA2_128FPubKey(SLH_DSAPubKey):  # noqa: N801
-    """Stateless hash-based digital signature algorithm. SHA256 based and small."""
-
-    signature_size = 17088
-    _prefix = "nettle_slh_dsa_sha2_128f"
-
-
-class SLH_DSA_SHA2_128FKeyPair(SLH_DSAKeyPair):  # noqa: N801
-    """Stateless hash-based digital signature algorithm. SHA256 based and fast."""
-
-    signature_size = 17088
-    _prefix = "nettle_slh_dsa_sha2_128f"
-    _pubkey_cls = SLH_DSA_SHA2_128FPubKey
+    def to_pkcs8(self) -> bytes:
+        """Serialize to PKCS#8."""
+        return SubjectPublicKeyInfo(
+            AlgorithmIdentifier(OID(SLH_PARAM[self._alg].oid), Null()),
+            BitString(bytes(self._pub)),
+        ).to_der()

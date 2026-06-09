@@ -15,8 +15,6 @@ def test_boolean_from_der(der: str, expected: bool) -> None:  # noqa: FBT001
     """Test deserializing boolean objects."""
     obj = asn1.Boolean.from_der(bytes.fromhex(der))
     assert bool(obj) is expected
-    with pytest.raises(asn1.TagError):
-        asn1.Boolean.from_der(bytes.fromhex("020100"))
 
 
 @pytest.mark.parametrize(
@@ -29,6 +27,13 @@ def test_boolean_from_der(der: str, expected: bool) -> None:  # noqa: FBT001
 def test_boolean_to_der(value: bool, expected: str) -> None:  # noqa: FBT001
     """Test serializing boolean objects."""
     assert asn1.Boolean(value).to_der() == bytes.fromhex(expected)
+
+
+def test_boolean_exceptions() -> None:
+    with pytest.raises(asn1.TagError):
+        asn1.Boolean.from_der(bytes.fromhex("020100"))
+    with pytest.raises(asn1.ParseError):
+        asn1.Boolean.from_der(bytes.fromhex("0100"))
 
 
 @pytest.mark.parametrize(
@@ -65,7 +70,17 @@ def test_integer_from_der(der: str, expected: int) -> None:
 )
 def test_integer_to_der(value: int, expected: str) -> None:
     """Test serializing integer objects."""
-    assert asn1.Integer(value).to_der() == bytes.fromhex(expected)
+    i = asn1.Integer(value)
+    assert i.to_der() == bytes.fromhex(expected)
+    bitlen = value.bit_length()
+    assert bytes(i) == value.to_bytes(bitlen // 8 + 1, signed=True)
+
+
+def test_integer_exceptions() -> None:
+    with pytest.raises(asn1.TagError):
+        asn1.Integer.from_der(bytes.fromhex("010100"))
+    with pytest.raises(asn1.ParseError):
+        asn1.Integer.from_der(bytes.fromhex("0201"))
 
 
 def test_bit_string_from_der() -> None:

@@ -54,11 +54,11 @@ class Object:
     _data: bytes
     children: list[Object]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         """Return a string representation of object and it's children."""
         return self.describe()
 
-    def describe(self, indent: int = 0) -> str:  # noqa: C901,PLR0912
+    def describe(self, indent: int = 0) -> str:  # noqa: C901,PLR0912 # pragma: no cover
         """Describe object as a string."""
         constructed: Sequence | Set | None = None
         s: str = "| " * indent
@@ -192,7 +192,7 @@ class Boolean(Object):
     def __bool__(self) -> bool:
         return self.value
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"BOOLEAN {self.value}"
 
     def _parse_data(self) -> None:
@@ -225,12 +225,10 @@ class Integer(Object):
         n = blen // 8 + 1
         return self.value.to_bytes(n, signed=True)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"INTEGER {self.value}"
 
     def _parse_data(self) -> None:
-        if self.tag != 2:
-            raise TagError
         if len(self._data) < 1:
             raise ParseError
         self.value = int.from_bytes(self._data, signed=True)
@@ -291,7 +289,7 @@ class BitString(BaseString):
         data = bytes([self.unused_bits]) + self.value
         return bytes([self.tag]) + encodelen(data) + data
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"BIT STRING {self.value.hex()}"
 
 
@@ -300,7 +298,7 @@ class OctetString(BaseString):
 
     tag = 4
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"OCTET STRING {self.value.hex()}"
 
 
@@ -312,7 +310,7 @@ class Null(Object):
     def __init__(self) -> None:
         pass
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return "NULL"
 
     def _parse_data(self) -> None:
@@ -333,7 +331,7 @@ class OID(Object):
         """Initialize a oid with a dotted string."""
         self.value = [int(x) for x in arg.split(".")]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"OBJECT IDENTIFIER {self.value}"
 
     def _parse_data(self) -> None:
@@ -403,7 +401,7 @@ class UTF8String(BaseString):
 
     tag = 12
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"UTF8String '{self.value.decode('utf8')}'"
 
 
@@ -412,7 +410,7 @@ class Sequence(Constructed):
 
     tag = 16
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         s = "SEQUENCE\n"
         for child in self.children:
             s += f"    {child!r}\n"
@@ -424,7 +422,7 @@ class Set(Constructed):
 
     tag = 17
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         s = "SET\n"
         for child in self.children:
             s += f"    {child!r}\n"
@@ -436,7 +434,7 @@ class PrintableString(BaseString):
 
     tag = 19
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"PrintableString '{self.value.decode()}'"
 
 
@@ -445,7 +443,7 @@ class UTCTime(BaseString):
 
     tag = 23
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"UTCTime '{self.value}'"
 
 
@@ -454,7 +452,7 @@ class GeneralizedTime(BaseString):
 
     tag = 24
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"GeneralizedTime '{self.value}'"
 
 
@@ -483,7 +481,7 @@ class ContextSpecific(Constructed):
         return bytes([0x20 | self.tag]) + encodelen(b) + b
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import argparse
     import pathlib
 

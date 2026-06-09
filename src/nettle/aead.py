@@ -17,6 +17,8 @@ class AEAD:
     _key: ctypes.Array[ctypes.c_char]
     _prefix: str
 
+    def __init__(self, cipher: BlockCipher, iv: bytes) -> None: ...
+
     def update(self, msg: bytes) -> None:
         """Process associated data for authentication."""
         libnettle.nettle[f"{self._prefix}_update"](
