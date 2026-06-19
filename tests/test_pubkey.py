@@ -285,6 +285,7 @@ def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
         _ = pk.oaep_sha256_encrypt(longmessage)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
 )
@@ -340,9 +341,6 @@ def test_slh_dsa(
     assert kp.verify(msg, expected)
 
 
-@pytest.mark.skipif(
-    nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
-)
 def test_slh_dsa_gen(yarrow: nettle.randomness.Random) -> None:
     msg = b"Urtica dioica"
     kp = nettle.pubkey.SLHDSAKeyPair.slh_dsa_sha2_128f(yarrow)
