@@ -54,7 +54,7 @@ class AEAD:
 
     def encrypt(self, cleartext: bytes) -> bytes:
         """Encrypt cleartext."""
-        self.cipher.check_initialized()
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
 
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
         size = len(cleartext)
@@ -73,7 +73,7 @@ class AEAD:
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         """Decrypt ciphertext."""
-        self.cipher.check_initialized()
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
         size = len(ciphertext)
         dst = ctypes.create_string_buffer(size)
@@ -97,7 +97,7 @@ class GCM(AEAD):
     _prefix = "nettle_gcm"
 
     def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
-        cipher.check_initialized()
+        cipher._check_initialized_for_encryption()  # noqa: SLF001
 
         self.cipher = cipher
         self.iv = iv

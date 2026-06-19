@@ -220,64 +220,71 @@ def test_bcrypt_verify(key: str, hashed: str, expected: bool) -> None:
     assert nettle.ciphers.Blowfish.bcrypt_verify(key, hashed) == expected
 
 
-# class Camellia(TestCase):
-#
-#     def _test(self, cipher: type[nettle.CamelliaFamilyCipher],
-#               key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = cipher()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.crypt(cleartext)
-#         self.assertEqual(len(key), c.key_size)
-#         c.set_encrypt_key(key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c.set_decrypt_key(key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#         c = cipher(encrypt_key=key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c = cipher(decrypt_key=key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#         with pytest.raises(nettle.KeyLenError):
-#             c = cipher(encrypt_key=key[:-1])
-#
-#     def _test_invert(self, cipher: type[nettle.CamelliaFamilyCipher],
-#                      key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = cipher(encrypt_key=key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c.invert_key()
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#     def test_camellia128() -> None:
-#         _test(nettle.Camellia128,
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-#                    shex("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"))
-#
-#     def test_camellia192() -> None:
-#         _test(nettle.Camellia192,
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
-#                         "00 11 22 33 44 55 66 77"),
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-#                    shex("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"))
-#
-#     def test_camellia256() -> None:
-#         _test(nettle.Camellia256,
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
-#                         "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"),
-#                    shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
-#                    shex("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"))
-#
-#     def test_camellia128_invert() -> None:
-#         _test_invert(nettle.Camellia128,
-#                           shex("01 23 45 67 89 ab cd ef"
-#                                "fe dc ba 98 76 54 32 10"),
-#                           shex("01 23 45 67 89 ab cd ef"
-#                                "fe dc ba 98 76 54 32 10"),
-#                           shex("67 67 31 38 54 96 69 73"
-#                                "08 57 06 56 48 ea be 43"))
+@pytest.mark.parametrize(
+    ("cipher", "key", "cleartext", "ciphertext"),
+    [
+        (
+            nettle.ciphers.Camellia128,
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"),
+        ),
+        (
+            nettle.ciphers.Camellia192,
+            shex(
+                "01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 1000 11 22 33 44 55 66 77"
+            ),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"),
+        ),
+        (
+            nettle.ciphers.Camellia256,
+            shex(
+                "01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"
+            ),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"),
+        ),
+    ],
+)
+def test_camellia(
+    cipher: type[nettle.ciphers.CamelliaFamilyCipher],
+    key: bytes,
+    cleartext: bytes,
+    ciphertext: bytes,
+) -> None:
+    assert len(cleartext) == len(ciphertext)
+    c = cipher()
+    with pytest.raises(nettle.NotInitializedError):
+        c.crypt(cleartext)
+    assert len(key) == c.key_size
+    c.set_encrypt_key(key)
+    assert c.crypt(cleartext) == ciphertext
+    c.set_decrypt_key(key)
+    assert c.crypt(ciphertext) == cleartext
+
+    c = cipher(encrypt_key=key)
+    assert c.crypt(cleartext) == ciphertext
+    c = cipher(decrypt_key=key)
+    assert c.crypt(ciphertext) == cleartext
+
+    with pytest.raises(nettle.KeyLenError):
+        cipher(encrypt_key=key[:-1])
+
+
+def test_camellia_invert() -> None:
+    cipher = nettle.ciphers.Camellia128
+    key = shex("01 23 45 67 89 ab cd effe dc ba 98 76 54 32 10")
+    cleartext = shex("01 23 45 67 89 ab cd effe dc ba 98 76 54 32 10")
+    ciphertext = shex("67 67 31 38 54 96 69 7308 57 06 56 48 ea be 43")
+    assert len(cleartext) == len(ciphertext)
+    c = cipher(encrypt_key=key)
+    assert c.crypt(cleartext) == ciphertext
+    c.invert_key()
+    assert c.crypt(ciphertext) == cleartext
+
+
 #
 #
 # class CAST128(TestCase):

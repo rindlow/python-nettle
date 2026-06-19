@@ -51,8 +51,8 @@ class Cipher:
     _ctx: ctypes.Array[ctypes.c_char]
     _ctx_size: int
     _prefix: str
-    _initialized: int = 0
-    _required: int = 1
+    _encryption_key_initialized: bool
+    _decryption_key_initialized: bool
 
     def set_encrypt_key(self, key: bytes) -> None:
         """Set encrypt key to key."""
@@ -61,21 +61,27 @@ class Cipher:
         libnettle.nettle[f"{self._prefix}_set_encrypt_key"](
             ctypes.byref(self._ctx), key
         )
-        self._initialized += 1
+        self._encryption_key_initialized = True
 
     def set_decrypt_key(self, key: bytes) -> None:
         """Set encrypt key to key."""
         if len(key) != self.key_size:
             raise KeyLenError
-        libnettle.nettle[f"{self._prefix}_set_decrypt_key"](
-            ctypes.byref(self._ctx), key
-        )
-        self._initialized += 1
+        if self._prefix == "nettle_camellia128":
+            # Kludge since this is #defined in header file
+            libnettle.nettle["nettle_camellia_set_decrypt_key"](
+                ctypes.byref(self._ctx), key
+            )
+        else:
+            libnettle.nettle[f"{self._prefix}_set_decrypt_key"](
+                ctypes.byref(self._ctx), key
+            )
+        self._decryption_key_initialized = True
 
     def encrypt(self, msg: bytes) -> bytes:
         """Encrypt msg."""
         self._check_msg_len(msg)
-        self.check_initialized()
+        self._check_initialized_for_encryption()
         msglen = len(msg)
         dst = ctypes.create_string_buffer(msglen)
         libnettle.nettle[f"{self._prefix}_encrypt"](
@@ -86,7 +92,7 @@ class Cipher:
     def decrypt(self, msg: bytes) -> bytes:
         """Decrypt msg."""
         self._check_msg_len(msg)
-        self.check_initialized()
+        self._check_initialized_for_decryption()
         msglen = len(msg)
         dst = ctypes.create_string_buffer(msglen)
         libnettle.nettle[f"{self._prefix}_decrypt"](
@@ -97,9 +103,19 @@ class Cipher:
     def _check_msg_len(self, msg: bytes) -> None:
         """For non block ciphers: do nothing."""
 
-    def check_initialized(self) -> None:
-        """Check if all keys are initialized."""
-        if self._initialized < self._required:
+    def _check_initialized_for_encryption(self) -> None:
+        """Check if encryption key is initialized."""
+        if not self._encryption_key_initialized:
+            raise NotInitializedError
+
+    def _check_initialized_for_decryption(self) -> None:
+        """Check if decryption key is initialized."""
+        if not self._decryption_key_initialized:
+            raise NotInitializedError
+
+    def _check_initialized_for_any(self) -> None:
+        """Check if any key is initialized."""
+        if not (self._decryption_key_initialized or self._encryption_key_initialized):
             raise NotInitializedError
 
 
@@ -109,11 +125,14 @@ class SingleFuncCipher(Cipher):
     def crypt(self, msg: bytes) -> bytes:
         """Encrypt and decrypt."""
         self._check_msg_len(msg)
-        if self._initialized < self._required:
-            raise NotInitializedError
+        self._check_initialized_for_any()
         msglen = len(msg)
         dst = ctypes.create_string_buffer(msglen)
-        libnettle.nettle[f"{self._prefix}_crypt"](self._ctx, msglen, dst, msg)
+        if self._prefix == "nettle_camellia192":
+            # Kludge since this is #defined in header file
+            libnettle.nettle["nettle_camellia256_crypt"](self._ctx, msglen, dst, msg)
+        else:
+            libnettle.nettle[f"{self._prefix}_crypt"](self._ctx, msglen, dst, msg)
         return bytes(dst)
 
     def encrypt(self, msg: bytes) -> bytes:
@@ -133,7 +152,8 @@ class SingleKeyCipher(Cipher):
         libnettle.nettle[f"{self._prefix}_set_key"](
             ctypes.byref(self._ctx), len(key), key
         )
-        self._initialized += 1
+        self._decryption_key_initialized = True
+        self._encryption_key_initialized = True
 
 
 class DoubleKeyCipher(Cipher):
@@ -166,11 +186,12 @@ class InvertibleKeyCipher(Cipher):
 
     def invert_key(self) -> None:
         """Invert key."""
-        if self._initialized < self._required:
-            raise NotInitializedError
+        self._check_initialized_for_any()
         libnettle.nettle[f"{self._prefix}_invert_key"](
             ctypes.byref(self._ctx), ctypes.byref(self._ctx)
         )
+        self._decryption_key_initialized = True
+        self._encryption_key_initialized = True
 
 
 class ParitySensitiveCipher(Cipher):
@@ -190,8 +211,7 @@ class KeyWrapCipher(Cipher):
 
     def keywrap(self, cleartext: bytes) -> bytes:
         """Wrap key."""
-        if self._initialized < self._required:
-            raise NotInitializedError
+        self._check_initialized_for_encryption()
         if len(cleartext) % 8 != 0:
             raise DataLenError
         dstlen = len(cleartext) + 8
@@ -208,8 +228,7 @@ class KeyWrapCipher(Cipher):
 
     def keyunwrap(self, ciphertext: bytes) -> bytes:
         """Unwrap key."""
-        if self._initialized < self._required:
-            raise NotInitializedError
+        self._check_initialized_for_decryption()
         if len(ciphertext) % 8 != 0:
             raise DataLenError
         dstlen = len(ciphertext) - 8
@@ -235,17 +254,17 @@ class AesFamilyCipher(DoubleKeyCipher, InvertibleKeyCipher, KeyWrapCipher, Block
         self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
     ) -> None:
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        self._decryption_key_initialized = False
+        self._encryption_key_initialized = False
         if encrypt_key is not None:
             if len(encrypt_key) != self.key_size:
                 raise KeyLenError
             self.set_encrypt_key(encrypt_key)
-            self._initialized += 1
 
         if decrypt_key is not None:
             if len(decrypt_key) != self.key_size:
                 raise KeyLenError
             self.set_decrypt_key(decrypt_key)
-            self._initialized += 1
 
 
 class AES128(AesFamilyCipher):
@@ -288,6 +307,8 @@ class Arcfour(SingleFuncCipher, SingleKeyCipher):
     _prefix = "nettle_arcfour"
 
     def __init__(self, key: bytes | None = None) -> None:
+        self._decryption_key_initialized = False
+        self._encryption_key_initialized = False
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
         if key is not None:
             if not self.min_key_size <= len(key) <= self.max_key_size:
@@ -312,6 +333,8 @@ class Arctwo(BlockCipher, SingleKeyCipher):
     _prefix = "nettle_arctwo"
 
     def __init__(self, key: bytes | None = None) -> None:
+        self._decryption_key_initialized = False
+        self._encryption_key_initialized = False
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
         if key is not None:
             if not self.min_key_size <= len(key) <= self.max_key_size:
@@ -331,6 +354,8 @@ class Blowfish(BlockCipher, SingleKeyCipher):
     _prefix = "nettle_blowfish"
 
     def __init__(self, key: bytes | None = None) -> None:
+        self._decryption_key_initialized = False
+        self._encryption_key_initialized = False
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
         if key is not None:
             if not self.min_key_size <= len(key) <= self.max_key_size:
@@ -367,3 +392,59 @@ class Blowfish(BlockCipher, SingleKeyCipher):
             )
             == 1
         )
+
+
+class CamelliaFamilyCipher(
+    DoubleKeyCipher, InvertibleKeyCipher, SingleFuncCipher, BlockCipher
+):
+    """
+    Camellia is a block cipher developed by Mitsubishi and NTT.
+
+    It is recommended by some Japanese and European authorities as an
+    alternative to AES, and it is one of the selected algorithms in
+    the New European Schemes for Signatures, Integrity and Encryption
+    (NESSIE) project.
+
+    """
+
+    block_size: int = 16
+
+    def __init__(
+        self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
+    ) -> None:
+        self._decryption_key_initialized = False
+        self._encryption_key_initialized = False
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if encrypt_key is not None:
+            if len(encrypt_key) != self.key_size:
+                raise KeyLenError
+            self.set_encrypt_key(encrypt_key)
+
+        if decrypt_key is not None:
+            if len(decrypt_key) != self.key_size:
+                raise KeyLenError
+            self.set_decrypt_key(decrypt_key)
+
+
+class Camellia128(CamelliaFamilyCipher):
+    """Camellia with 128 bit key size."""
+
+    key_size = 16
+    _ctx_size = 192
+    _prefix = "nettle_camellia128"
+
+
+class Camellia192(CamelliaFamilyCipher):
+    """Camellia with 192 bit key size."""
+
+    key_size = 24
+    _ctx_size = 256
+    _prefix = "nettle_camellia192"
+
+
+class Camellia256(CamelliaFamilyCipher):
+    """Camellia with 256 bit key size."""
+
+    key_size = 32
+    _ctx_size = 256
+    _prefix = "nettle_camellia256"

@@ -15,7 +15,7 @@ class CipherMode:
 
     def encrypt(self, cleartext: bytes) -> bytes:
         """Encrypt cleartext."""
-        self.cipher.check_initialized()
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
         ctx = self.cipher._ctx  # noqa: SLF001
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
         bsize = self.cipher.block_size
@@ -29,7 +29,7 @@ class CipherMode:
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         """Decrypt ciphertext."""
-        self.cipher.check_initialized()
+        self.cipher._check_initialized_for_decryption()  # noqa: SLF001
         ctx = self.cipher._ctx  # noqa: SLF001
         func = libnettle.nettle[f"{self.cipher._prefix}_decrypt"]  # noqa: SLF001
         bsize = self.cipher.block_size
