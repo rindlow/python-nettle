@@ -44,6 +44,10 @@ class KeyLenError(Exception):
     """Key not of expected length."""
 
 
+class NettleError(Exception):
+    """Error returned from libnettle."""
+
+
 class NotInitializedError(Exception):
     """Cipher not initialized."""
 

@@ -1,11 +1,16 @@
+import filecmp
 import pathlib
+import tempfile
 
 import nettle.hashes
 import nettle.pubkey
+import nettle.pubkey.rsa
 import nettle.randomness
 import pytest
 
 from .utils import read_hex_file, shex
+
+TESTFILEPATH = pathlib.Path(__file__).with_name("testdata")
 
 
 @pytest.fixture(scope="module")
@@ -14,29 +19,105 @@ def yarrow() -> nettle.randomness.Yarrow256:
 
 
 @pytest.fixture(scope="module")
-def keypair(yarrow: nettle.randomness.Yarrow256) -> nettle.pubkey.RSAKeyPair:
-    return nettle.pubkey.RSAKeyPair(2048, 20, yarrow)
+def keypair(yarrow: nettle.randomness.Yarrow256) -> nettle.pubkey.rsa.RSAKeyPair:
+    return nettle.pubkey.rsa.RSAKeyPair(2048, 20, yarrow)
 
 
-def test_read_write(keypair: nettle.pubkey.RSAKeyPair) -> None:
-    privfile = "/tmp/privkey.der"  # noqa: S108
-    pubfile = "/tmp/pubkey.der"  # noqa: S108
+@pytest.mark.parametrize(
+    ("algoritm", "testfile"),
+    [
+        (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv.pem"),
+        (nettle.pubkey.rsa.RSAPubKey, "rsa_pub.pem"),
+        (nettle.pubkey.SLHDSAKeyPair, "slhdsa_priv.pem"),
+        (nettle.pubkey.SLHDSAPubKey, "slhdsa_pub.pem"),
+    ],
+)
+def test_read_write_pem(
+    yarrow: nettle.randomness.Random, algoritm: nettle.pubkey.KeyPair, testfile: str
+) -> None:
+    filename = str(TESTFILEPATH.joinpath(testfile))
+    kp = algoritm.from_file(filename, random=yarrow)
+    with tempfile.NamedTemporaryFile(delete_on_close=False) as fp:
+        kp.write_key_as_pem(fp.name)
+        fp.close()
+        assert filecmp.cmp(filename, fp.name, shallow=False)
+        kp2 = algoritm.from_file(fp.name)
+        assert kp2 == kp
 
-    kp = keypair
 
-    kp.write_key(privfile)
-    kp2 = nettle.pubkey.RSAKeyPair.read_key(privfile, random=kp.random)
-    assert kp == kp2
-    del kp2
+@pytest.mark.parametrize(
+    ("algoritm", "testfile"),
+    [
+        (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv.der"),
+        (nettle.pubkey.rsa.RSAPubKey, "rsa_pub.der"),
+        (nettle.pubkey.SLHDSAKeyPair, "slhdsa_priv.der"),
+        (nettle.pubkey.SLHDSAPubKey, "slhdsa_pub.der"),
+    ],
+)
+def test_read_write_der(
+    yarrow: nettle.randomness.Random, algoritm: nettle.pubkey.KeyPair, testfile: str
+) -> None:
+    filename = str(TESTFILEPATH.joinpath(testfile))
+    kp = algoritm.from_file(filename, random=yarrow)
+    with tempfile.NamedTemporaryFile(delete_on_close=False) as fp:
+        kp.write_key(fp.name)
+        fp.close()
+        assert filecmp.cmp(filename, fp.name, shallow=False)
+        kp2 = algoritm.from_file(fp.name)
+        assert kp2 == kp
 
-    pk = kp.public_key
-    pk.write_key(pubfile)
-    pk2 = nettle.pubkey.RSAPubKey.read_key(pubfile, random=kp.random)
-    assert pk == pk2
-    del pk2
+
+@pytest.mark.parametrize(
+    ("algoritm", "testfile"),
+    [
+        (nettle.pubkey.rsa.RSAPubKey, "rsa_cert.pem"),
+        (nettle.pubkey.rsa.RSAPubKey, "rsa_pub_trad.pem"),
+        (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv_trad.pem"),
+        (nettle.pubkey.SLHDSAPubKey, "slhdsa_cert.pem"),
+    ],
+)
+def test_read(
+    yarrow: nettle.randomness.Random, algoritm: nettle.pubkey.KeyPair, testfile: str
+) -> None:
+    filename = str(TESTFILEPATH.joinpath(testfile))
+    assert algoritm.from_file(filename, random=yarrow) != "random string"
 
 
-def test_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
+@pytest.mark.parametrize(
+    ("algoritm", "testfile"),
+    [
+        (nettle.pubkey.rsa.RSAPubKey, "slhdsa_priv.pem"),
+        (nettle.pubkey.rsa.RSAPubKey, "rsa_priv.pem"),
+        (nettle.pubkey.rsa.RSAKeyPair, "rsa_pub.pem"),
+        (nettle.pubkey.SLHDSAPubKey, "rsa_cert.pem"),
+    ],
+)
+def test_read_exception(
+    yarrow: nettle.randomness.Random, algoritm: nettle.pubkey.KeyPair, testfile: str
+) -> None:
+    filename = str(TESTFILEPATH.joinpath(testfile))
+    with pytest.raises(NotImplementedError):
+        algoritm.from_file(filename, random=yarrow)
+
+
+@pytest.mark.parametrize(
+    ("algoritm", "testfile"),
+    [
+        (nettle.pubkey.rsa.RSAKeyPair, "broken.pem"),
+        (nettle.pubkey.rsa.RSAPubKey, "broken.pem"),
+        (nettle.pubkey.SLHDSAKeyPair, "broken.pem"),
+        (nettle.pubkey.SLHDSAPubKey, "broken.pem"),
+    ],
+)
+def test_parse_error(
+    yarrow: nettle.randomness.Random, algoritm: nettle.pubkey.KeyPair, testfile: str
+) -> None:
+    filename = str(TESTFILEPATH.joinpath(testfile))
+    with pytest.raises(nettle.ParseError):
+        algoritm.from_file(filename, random=yarrow)
+
+
+def test_encrypt_decrypt(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
@@ -55,7 +136,7 @@ def test_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
         pk.encrypt(cleartext)
 
 
-def test_sign_verify(keypair: nettle.pubkey.RSAKeyPair) -> None:
+def test_sign_verify(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
@@ -67,12 +148,14 @@ def test_sign_verify(keypair: nettle.pubkey.RSAKeyPair) -> None:
     h2 = nettle.hashes.SHA256()
     h2.update(cleartext)
     assert pk.verify(signature, h2)
+    h2.update(cleartext)
+    assert kp.verify(signature, h2)
     h2.update(b"gibberish")
     assert not pk.verify(signature, h2)
 
 
 def test_kp_params() -> None:
-    kp = nettle.pubkey.RSAKeyPair.from_params(
+    kp = nettle.pubkey.rsa.RSAKeyPair.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
             "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -120,7 +203,7 @@ def test_kp_params() -> None:
 
 
 def test_pk_params() -> None:
-    pk = nettle.pubkey.RSAPubKey.from_params(
+    pk = nettle.pubkey.rsa.RSAPubKey.from_params(
         n=bytes.fromhex(
             "69abd505285af66536ddc7c8f027e6f0ed435d6748b16088"
             "4fd60842b3a8d7fbbd8a3c98f0cc50ae4f6a9f7dd73122cc"
@@ -134,7 +217,7 @@ def test_pk_params() -> None:
     assert pk.size == 125
 
 
-def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
+def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
 
     kp = keypair
     pk = kp.public_key
@@ -154,42 +237,6 @@ def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.RSAKeyPair) -> None:
         _ = pk.oaep_sha256_encrypt(longmessage)
 
 
-def test_cert() -> None:
-    certfile = "/tmp/cert.pem"  # noqa: S108
-    with pathlib.Path(certfile).open("w") as f:
-        f.write("""-----BEGIN CERTIFICATE-----
-MIIFAjCCA+qgAwIBAgIRAIE9FoMy9cOOUjm9JU/55wswDQYJKoZIhvcNAQEFBQAw
-czELMAkGA1UEBhMCR0IxGzAZBgNVBAgTEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4G
-A1UEBxMHU2FsZm9yZDEaMBgGA1UEChMRQ09NT0RPIENBIExpbWl0ZWQxGTAXBgNV
-BAMTEFBvc2l0aXZlU1NMIENBIDIwHhcNMTMwODEyMDAwMDAwWhcNMTgwODExMjM1
-OTU5WjBTMSEwHwYDVQQLExhEb21haW4gQ29udHJvbCBWYWxpZGF0ZWQxFDASBgNV
-BAsTC1Bvc2l0aXZlU1NMMRgwFgYDVQQDEw9tdXBwLm5ldGNhbXAuc2UwggEiMA0G
-CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDH6PsKVWdTdr93gmYIkgh6MO0s10M7
-1nf5Biup6pnP3EOsqSdwt2jgAFI/vGpX9q/KACDeJ8IF5THh/9Jk5dcD2/9oi8Sa
-2VtZBnQGwqofwyMoUApocglCrYhWbZVBzD075h4I3io483BELl6tMD00EouWcZqz
-b1moD46HklcfJoXxcV0WJuicStzAZdbL+CGj78VrrfN+2JKrHZrGAK9AjsPJ+zN8
-Yn9olMsnBrBT844+YqG5uEuxx4grb02vs/mf4AMbxkelBCyKTsGYdCpBYC7oVvGy
-wbYyXtpbbyNPcPSwPqiUS8urzkHt29HQ3S+Ng5ypBTrupKmFdP8ZqcGXAgMBAAGj
-ggGvMIIBqzAfBgNVHSMEGDAWgBSZ5EBfaxRePgXZ3dNjVPxiuPcArDAdBgNVHQ4E
-FgQUo64YW2kKHbPuy7Hio4dxxtqGLZcwDgYDVR0PAQH/BAQDAgWgMAwGA1UdEwEB
-/wQCMAAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMFAGA1UdIARJMEcw
-OwYLKwYBBAGyMQECAgcwLDAqBggrBgEFBQcCARYeaHR0cDovL3d3dy5wb3NpdGl2
-ZXNzbC5jb20vQ1BTMAgGBmeBDAECATA7BgNVHR8ENDAyMDCgLqAshipodHRwOi8v
-Y3JsLmNvbW9kb2NhLmNvbS9Qb3NpdGl2ZVNTTENBMi5jcmwwbAYIKwYBBQUHAQEE
-YDBeMDYGCCsGAQUFBzAChipodHRwOi8vY3J0LmNvbW9kb2NhLmNvbS9Qb3NpdGl2
-ZVNTTENBMi5jcnQwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmNvbW9kb2NhLmNv
-bTAvBgNVHREEKDAmgg9tdXBwLm5ldGNhbXAuc2WCE3d3dy5tdXBwLm5ldGNhbXAu
-c2UwDQYJKoZIhvcNAQEFBQADggEBAA757IeJJvDxvUcDnMRLb1ELud3UNCS9nFn5
-H8m/FDOTr7jJaOO1bE5fG6SK7o71WEuT9N3EbAXtIk7lpLYWqQe4G0D8wwTVVBaS
-JgJH2f0bSlkHi9g2e+fcDH/Y8XGvRIoUrvndBcmPtfCn38DushHNOr31i4rKl48n
-sgoN3A1+OUpbjGR6v9crxp3zGNrNHjDonlw+WByIAB627+Vmzz8gK5/D6e7O0h99
-elkmpGICXFrPJ0rPsX6w3NV1vFU8X9+bPkHG7GOh0GTMn+JqOsHI+858RQYXxg5x
-aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
------END CERTIFICATE-----""")
-    pub = nettle.pubkey.RSAPubKey.read_key(certfile)
-    assert pub.size == 256
-
-
 @pytest.mark.skipif(
     nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
 )
@@ -200,29 +247,29 @@ aClfUZqTLvQwUMIWydXnDTuHedumUwbq40X7z9krch7Agys+KLA=
             "slh_dsa_sha2_128f",  # tcId 7
             shex("0C04FABC4FCA7F356AC36C28B99D7A1FCFEF78F38B167CA9D0AB8772910C3945"),
             shex("704555B4E5DD1B979A4C3B7A0A0E4EE241D59AE0779CAF0DF58300F21066DDA7"),
-            read_hex_file("slh-dsa-sha2-128f-tc7.msg"),
-            read_hex_file("slh-dsa-sha2-128f-tc7.sig"),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128f-tc7.msg")),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128f-tc7.sig")),
         ),
         (
             "slh_dsa_shake_128f",  # tcId 64
             shex("C9A7900E931AFBA2B52A5BC55A2DC4D12DDC9BF8E0B2ED0BDE83E674F1ECE7AA"),
             shex("0E87FF20256E0E499A53B52DF91467C01F0431C07250AFE93DE814117B5D66D3"),
-            read_hex_file("slh-dsa-shake-128f-tc64.msg"),
-            read_hex_file("slh-dsa-shake-128f-tc64.sig"),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128f-tc64.msg")),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128f-tc64.sig")),
         ),
         (
             "slh_dsa_sha2_128s",  # tcId 162
             shex("0FD12C3F990748CF9B1426413B64128EDF9242E50B9E29378BD24CAD4D547540"),
             shex("438E444071BD643C2407BD9FEB0071EC21DAA14113518133D6161EF420EE629D"),
-            read_hex_file("slh-dsa-sha2-128s-tc162.msg"),
-            read_hex_file("slh-dsa-sha2-128s-tc162.sig"),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128s-tc162.msg")),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128s-tc162.sig")),
         ),
         (
             "slh_dsa_shake_128s",  # tcId 215
             shex("DD286FF370CB50BC1B23894AA3F7025A534A788E697B94942AB845EFB753A30B"),
             shex("4738AC60C561FFBE15AB96EFFA1A09291A79332E1CA3C38B2FEF40ACA7CFE285"),
-            read_hex_file("slh-dsa-shake-128s-tc215.msg"),
-            read_hex_file("slh-dsa-shake-128s-tc215.sig"),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128s-tc215.msg")),
+            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128s-tc215.sig")),
         ),
     ],
 )
@@ -234,7 +281,7 @@ def test_slh_dsa(
     msg: bytes,
     expected: bytes,
 ) -> None:
-    kp = nettle.pubkey.SLHDSAKeyPair.from_param(
+    kp = nettle.pubkey.SLHDSAKeyPair.from_params(
         key=private, pub=public, alg=slhalg, random=yarrow
     )
 
@@ -242,3 +289,11 @@ def test_slh_dsa(
     sig = kp.sign(msg)
     assert sig == expected
     assert pk.verify(msg, expected)
+    assert kp.verify(msg, expected)
+
+
+def test_slh_dsa_gen(yarrow: nettle.randomness.Random) -> None:
+    msg = b"Urtica dioica"
+    kp = nettle.pubkey.SLHDSAKeyPair.slh_dsa_sha2_128f(yarrow)
+    sig = kp.sign(msg)
+    assert kp.verify(msg, sig)

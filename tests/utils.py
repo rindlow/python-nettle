@@ -11,7 +11,6 @@ def shex(hexstring: str) -> bytes:
     return bytes.fromhex(hexstring)
 
 
-def read_hex_file(filename: str) -> bytes:
-    path = pathlib.Path(__file__).with_name(filename)
+def read_hex_file(path: pathlib.Path) -> bytes:
     with path.open("r", encoding="ascii") as f:
         return bytes.fromhex(f.read())

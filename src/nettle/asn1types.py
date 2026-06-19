@@ -1,5 +1,7 @@
 """Common ASN.1 Types from assorted RFCs."""
 
+from typing import Self
+
 from .asn1 import (
     OID,
     BitString,
@@ -40,15 +42,28 @@ class AlgorithmIdentifier(Sequence):
 
     algorithm: OID
     params: Object
+    _params_absent: bool
 
     def __init__(self, algorithm: OID, params: Object) -> None:
         self.algorithm = algorithm
         self.params = params
         self.children = [algorithm, params]
+        self._params_absent = False
 
     def _assign_children(self) -> None:
         self.algorithm = OID.from_object(self.children[0])
-        self.params = self.children[1]
+        if len(self.children) > 1:
+            self.params = self.children[1]
+            self._params_absent = True
+
+    @classmethod
+    def without_params(cls, algorithm: OID) -> Self:
+        """RFC 5912 style AlgorithmIdentifier with optional parameters."""
+        ai = cls.__new__(cls)
+        ai.algorithm = algorithm
+        ai.children = [algorithm]
+        ai._params_absent = True  # noqa: SLF001
+        return ai
 
 
 ### RFC 4514

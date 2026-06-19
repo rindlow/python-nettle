@@ -1,7 +1,14 @@
 import nettle.ciphers
+import nettle.randomness
+
 import pytest
 
-from .utils import shex
+from .utils import sdata, shex
+
+
+@pytest.fixture(scope="module")
+def yarrow() -> nettle.randomness.Yarrow256:
+    return nettle.randomness.Yarrow256()
 
 
 @pytest.mark.parametrize(
@@ -136,80 +143,83 @@ def test_keywrap(
         c.keyunwrap(bytes([0] * len(ciphertext)))
 
 
-# class ARCFOUR(TestCase):
-#
-#     def _test(self, key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = nettle.Arcfour()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.crypt(cleartext)
-#         self.assertEqual(len(key), c.key_size)
-#         c.set_key(key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c.set_key(key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = nettle.Arcfour(key=key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c = nettle.Arcfour(key=key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#         with pytest.raises(nettle.NotInitializedError):
-#             c = nettle.Arcfour()
-#             c.crypt(cleartext)
-#
-#     def test_arcfour() -> None:
-#         _test(shex("01234567 89ABCDEF 00000000 00000000"),
-#                    shex("01234567 89ABCDEF"),
-#                    shex("69723659 1B5242B1"))
-#
-#
-# class ARCTWO(TestCase):
-#
-#     def _test(self, key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = nettle.Arctwo()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.encrypt(cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = nettle.Arctwo(key=key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         c = nettle.Arctwo(key=key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#     def test_arctwo() -> None:
-#         _test(shex("ffffffff ffffffff"),
-#                    shex("ffffffff ffffffff"),
-#                    shex("278b27e4 2e2f0d49"))
-#
-#
-# class Blowfish(TestCase):
-#
-#     def _test(self, key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = nettle.Blowfish()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.encrypt(cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = nettle.Blowfish(key=key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         c = nettle.Blowfish(key=key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#     def test_blowfish() -> None:
-#         _test(sdata("abcdefghijklmnopqrstuvwxyz"),
-#                    sdata("BLOWFISH"),
-#                    shex("32 4E D0 FE F4 13 A2 03"))
-#
-#
+def test_arcfour() -> None:
+    key = shex("01234567 89ABCDEF 00000000 00000000")
+    cleartext = shex("01234567 89ABCDEF")
+    ciphertext = shex("69723659 1B5242B1")
+
+    assert len(cleartext) == len(ciphertext)
+    c = nettle.ciphers.Arcfour()
+    with pytest.raises(nettle.NotInitializedError):
+        c.crypt(cleartext)
+    assert c.min_key_size <= len(key) <= c.max_key_size
+    c.set_key(key)
+    assert c.crypt(cleartext) == ciphertext
+    c.set_key(key)
+    assert c.crypt(ciphertext) == cleartext
+    c.set_key(key)
+    assert c.decrypt(ciphertext) == cleartext
+
+    c = nettle.ciphers.Arcfour(key=key)
+    assert c.crypt(cleartext) == ciphertext
+    c = nettle.ciphers.Arcfour(key=key)
+    assert c.crypt(ciphertext) == cleartext
+
+    c = nettle.ciphers.Arcfour()
+    with pytest.raises(nettle.NotInitializedError):
+        c.crypt(cleartext)
+
+
+@pytest.mark.parametrize(
+    ("cipher", "key", "cleartext", "ciphertext"),
+    [
+        (
+            nettle.ciphers.Arctwo,
+            shex("ffffffff ffffffff"),
+            shex("ffffffff ffffffff"),
+            shex("278b27e4 2e2f0d49"),
+        ),
+        (
+            nettle.ciphers.Blowfish,
+            sdata("abcdefghijklmnopqrstuvwxyz"),
+            sdata("BLOWFISH"),
+            shex("32 4E D0 FE F4 13 A2 03"),
+        ),
+    ],
+)
+def test_single_key_cipher(
+    cipher: type[nettle.ciphers.SingleKeyCipher],
+    key: bytes,
+    cleartext: bytes,
+    ciphertext: bytes,
+) -> None:
+
+    assert len(cleartext) == len(ciphertext)
+    c = cipher()
+    with pytest.raises(nettle.NotInitializedError):
+        c.encrypt(cleartext)
+    c.set_key(key)
+    assert c.encrypt(cleartext) == ciphertext
+    assert c.decrypt(ciphertext) == cleartext
+
+
+def test_bcrypt(yarrow: nettle.randomness.Random) -> None:
+    salt = yarrow.random(nettle.ciphers.Blowfish.bcrypt_binsalt_size)
+    hashed = nettle.ciphers.Blowfish.bcrypt_hash("U*U", "2a", 5, salt)
+    assert nettle.ciphers.Blowfish.bcrypt_verify("U*U", hashed)
+
+
+@pytest.mark.parametrize(
+    ("key", "hashed", "expected"),
+    [
+        ("U*U", "$2a$05$CCCCCCCCCCCCCCCCCCCCC.E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW", True),
+        ("", "$2a$03$CCCCCCCCCCCCCCCCCCCCC.", False),
+    ],
+)
+def test_bcrypt_verify(key: str, hashed: str, expected: bool) -> None:
+    assert nettle.ciphers.Blowfish.bcrypt_verify(key, hashed) == expected
+
+
 # class Camellia(TestCase):
 #
 #     def _test(self, cipher: type[nettle.CamelliaFamilyCipher],

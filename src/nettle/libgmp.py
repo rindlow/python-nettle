@@ -46,7 +46,7 @@ class Libgmp:
 
     gmp: ctypes.CDLL
     version: str
-    verbose: bool = False
+    verbose: bool = True
 
     def __init__(self) -> None:
         glob = "libgmp*.dylib" if sys.platform == "darwin" else "libgmp.so*"

@@ -37,7 +37,9 @@ from .exceptions import (
     AuthenticationError,
     DataLenError,
     KeyLenError,
+    NettleError,
     NotInitializedError,
+    ShortSeedError,
 )
 from .libnettle import libnettle
 
@@ -114,13 +116,23 @@ class SingleFuncCipher(Cipher):
         libnettle.nettle[f"{self._prefix}_crypt"](self._ctx, msglen, dst, msg)
         return bytes(dst)
 
+    def encrypt(self, msg: bytes) -> bytes:
+        """Encrypt msg."""
+        return self.crypt(msg)
+
+    def decrypt(self, msg: bytes) -> bytes:
+        """Encrypt msg."""
+        return self.crypt(msg)
+
 
 class SingleKeyCipher(Cipher):
     """A cipher with only one key for both encrypt and decrypt."""
 
     def set_key(self, key: bytes) -> None:
         """Set key."""
-        libnettle.nettle[f"{self._prefix}_set_key"](ctypes.byref(self._ctx), key)
+        libnettle.nettle[f"{self._prefix}_set_key"](
+            ctypes.byref(self._ctx), len(key), key
+        )
         self._initialized += 1
 
 
@@ -237,7 +249,7 @@ class AesFamilyCipher(DoubleKeyCipher, InvertibleKeyCipher, KeyWrapCipher, Block
 
 
 class AES128(AesFamilyCipher):
-    """AES with 128 bit key sie."""
+    """AES with 128 bit key size."""
 
     key_size = 16
     _ctx_size = 176
@@ -245,7 +257,7 @@ class AES128(AesFamilyCipher):
 
 
 class AES192(AesFamilyCipher):
-    """AES with 192 bit key sie."""
+    """AES with 192 bit key size."""
 
     key_size = 24
     _ctx_size = 208
@@ -253,8 +265,105 @@ class AES192(AesFamilyCipher):
 
 
 class AES256(AesFamilyCipher):
-    """AES with 256 bit key sie."""
+    """AES with 256 bit key size."""
 
     key_size = 32
     _ctx_size = 240
     _prefix = "nettle_aes256"
+
+
+class Arcfour(SingleFuncCipher, SingleKeyCipher):
+    """
+    ARCFOUR is a historic stream cipher, also known under the trade marked name RC4.
+
+    We do not recommend the use of ARCFOUR; the Nettle implementation
+    is provided primarily for interoperability with existing
+    applications and standards.
+
+    """
+
+    min_key_size = 1
+    max_key_size = 256
+    _ctx_size = 258
+    _prefix = "nettle_arcfour"
+
+    def __init__(self, key: bytes | None = None) -> None:
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if key is not None:
+            if not self.min_key_size <= len(key) <= self.max_key_size:
+                raise KeyLenError
+            self.set_key(key)
+
+
+class Arctwo(BlockCipher, SingleKeyCipher):
+    """
+    ARCTWO (also known as the trade marked name RC2) is a block cipher.
+
+    We do not recommend the use of ARCTWO; the Nettle implementation
+    is provided primarily for interoperability with existing
+    applications and standards.
+
+    """
+
+    block_size = 8
+    min_key_size = 1
+    max_key_size = 128
+    _ctx_size = 128
+    _prefix = "nettle_arctwo"
+
+    def __init__(self, key: bytes | None = None) -> None:
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if key is not None:
+            if not self.min_key_size <= len(key) <= self.max_key_size:
+                raise KeyLenError
+            self.set_key(key)
+
+
+class Blowfish(BlockCipher, SingleKeyCipher):
+    """BLOWFISH is a block cipher designed by Bruce Schneier."""
+
+    bcrypt_hash_size = 60
+    bcrypt_binsalt_size = 16
+    block_size = 8
+    min_key_size = 8
+    max_key_size = 56
+    _ctx_size = 4168
+    _prefix = "nettle_blowfish"
+
+    def __init__(self, key: bytes | None = None) -> None:
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if key is not None:
+            if not self.min_key_size <= len(key) <= self.max_key_size:
+                raise KeyLenError
+            self.set_key(key)
+
+    @classmethod
+    def bcrypt_hash(
+        cls, key: str, scheme: str, log2rounds: int = -1, salt: bytes | None = None
+    ) -> str:
+        """Compute the bcrypt password hash."""
+        if salt is not None and len(salt) != cls.bcrypt_binsalt_size:
+            raise ShortSeedError
+        dst = ctypes.create_string_buffer(cls.bcrypt_hash_size + 1)
+        bkey = key.encode("utf-8")
+        bscheme = scheme.encode("utf-8")
+        if (
+            libnettle.nettle.nettle_blowfish_bcrypt_hash(
+                dst, len(bkey), bkey, len(bscheme), bscheme, log2rounds, salt
+            )
+            < 1
+        ):
+            raise NettleError
+        return bytes(dst).decode()
+
+    @classmethod
+    def bcrypt_verify(cls, key: str, hashed: str) -> bool:
+        """Verify the bcrypt password hash against the supplied plaintext password."""
+        bkey = key.encode("utf-8")
+        bhashed = hashed.encode("utf-8")
+        return (
+            libnettle.nettle.nettle_blowfish_bcrypt_verify(
+                len(bkey), bkey, len(bhashed), bhashed
+            )
+            == 1
+        )

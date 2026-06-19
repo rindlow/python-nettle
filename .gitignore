@@ -8,32 +8,12 @@
 # Compiled python files
 *.pyc
 
-# Auto generated files
-nettle.c
-nettle_ciphers.c
-nettle_hashes.c
-nettle_macs.c
-nettle_pubkey.c
-nettle_random.c
-nettle.h
-nettle/autogen.py
-nettle/autogen.pyi
-doc/source/ciphermodes.rst
-doc/source/ciphers.rst
-doc/source/hashes.rst
-doc/source/macs.rst
-doc/source/pubkey.rst
-doc/source/random.rst
-
 # setuptools metadata
 nettle.egg-info/*
 dist/*
 
 # MacOS metadata
 .DS_Store
-
-# build directory
-build
 
 # VS Code config
 .vscode/
@@ -46,3 +26,10 @@ uv.lock
 
 # Compile commands for debugger
 compile_commands.json
+
+# Coverage
+htmlcov
+.coverage
+
+# Sphinx
+doc/_build
