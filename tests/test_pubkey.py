@@ -28,8 +28,20 @@ def keypair(yarrow: nettle.randomness.Yarrow256) -> nettle.pubkey.rsa.RSAKeyPair
     [
         (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv.pem"),
         (nettle.pubkey.rsa.RSAPubKey, "rsa_pub.pem"),
-        (nettle.pubkey.SLHDSAKeyPair, "slhdsa_priv.pem"),
-        (nettle.pubkey.SLHDSAPubKey, "slhdsa_pub.pem"),
+        pytest.param(
+            nettle.pubkey.SLHDSAKeyPair,
+            "slhdsa_priv.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
+        pytest.param(
+            nettle.pubkey.SLHDSAPubKey,
+            "slhdsa_pub.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
     ],
 )
 def test_read_write_pem(
@@ -50,8 +62,20 @@ def test_read_write_pem(
     [
         (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv.der"),
         (nettle.pubkey.rsa.RSAPubKey, "rsa_pub.der"),
-        (nettle.pubkey.SLHDSAKeyPair, "slhdsa_priv.der"),
-        (nettle.pubkey.SLHDSAPubKey, "slhdsa_pub.der"),
+        pytest.param(
+            nettle.pubkey.SLHDSAKeyPair,
+            "slhdsa_priv.der",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
+        pytest.param(
+            nettle.pubkey.SLHDSAPubKey,
+            "slhdsa_pub.der",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
     ],
 )
 def test_read_write_der(
@@ -73,7 +97,13 @@ def test_read_write_der(
         (nettle.pubkey.rsa.RSAPubKey, "rsa_cert.pem"),
         (nettle.pubkey.rsa.RSAPubKey, "rsa_pub_trad.pem"),
         (nettle.pubkey.rsa.RSAKeyPair, "rsa_priv_trad.pem"),
-        (nettle.pubkey.SLHDSAPubKey, "slhdsa_cert.pem"),
+        pytest.param(
+            nettle.pubkey.SLHDSAPubKey,
+            "slhdsa_cert.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
     ],
 )
 def test_read(
@@ -89,7 +119,13 @@ def test_read(
         (nettle.pubkey.rsa.RSAPubKey, "slhdsa_priv.pem"),
         (nettle.pubkey.rsa.RSAPubKey, "rsa_priv.pem"),
         (nettle.pubkey.rsa.RSAKeyPair, "rsa_pub.pem"),
-        (nettle.pubkey.SLHDSAPubKey, "rsa_cert.pem"),
+        pytest.param(
+            nettle.pubkey.SLHDSAPubKey,
+            "rsa_cert.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
     ],
 )
 def test_read_exception(
@@ -105,8 +141,20 @@ def test_read_exception(
     [
         (nettle.pubkey.rsa.RSAKeyPair, "broken.pem"),
         (nettle.pubkey.rsa.RSAPubKey, "broken.pem"),
-        (nettle.pubkey.SLHDSAKeyPair, "broken.pem"),
-        (nettle.pubkey.SLHDSAPubKey, "broken.pem"),
+        pytest.param(
+            nettle.pubkey.SLHDSAKeyPair,
+            "broken.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
+        pytest.param(
+            nettle.pubkey.SLHDSAPubKey,
+            "broken.pem",
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
+            ),
+        ),
     ],
 )
 def test_parse_error(
