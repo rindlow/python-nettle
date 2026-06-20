@@ -185,6 +185,12 @@ def test_arcfour() -> None:
             sdata("BLOWFISH"),
             shex("32 4E D0 FE F4 13 A2 03"),
         ),
+        (
+            nettle.ciphers.Cast128,
+            shex("01 23 45 67 12 34 56 78 23 45 67 89 34 56 78 9A"),
+            shex("01 23 45 67 89 AB CD EF"),
+            shex("23 8B 4F E5 84 7E 44 B2"),
+        ),
     ],
 )
 def test_single_key_cipher(
@@ -285,72 +291,99 @@ def test_camellia_invert() -> None:
     assert c.crypt(ciphertext) == cleartext
 
 
-#
-#
-# class CAST128(TestCase):
-#
-#     def _test(self, key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = nettle.CAST128()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.encrypt(cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = nettle.CAST128(key=key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         c = nettle.CAST128(key=key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#     def test_cast128() -> None:
-#         _test(shex("01 23 45 67 12 34 56 78"
-#                         "23 45 67 89 34 56 78 9A"),
-#                    shex("01 23 45 67 89 AB CD EF"),
-#                    shex("23 8B 4F E5 84 7E 44 B2"))
-#
-#
-# class Salsa(TestCase):
-#
-#     def _test(self, cipher: type[nettle.Salsa20] | type[nettle.ChaCha],
-#               key: bytes, nonce: bytes, expected: bytes) -> None:
-#         self.assertEqual(len(key), 32)
-#         data = b'\0' * len(expected)
-#         c = cipher(key=key, nonce=nonce)
-#         self.assertEqual(c.crypt(data), expected)
-#         c = cipher(key=key, nonce=nonce)
-#         self.assertEqual(c.crypt(expected), data)
-#
-#         c = cipher()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.crypt(data)
-#         c.set_key(key)
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.crypt(data)
-#         c.set_nonce(nonce)
-#         self.assertEqual(c.crypt(data), expected)
-#
-#     def test_salsa20() -> None:
-#         _test(nettle.Salsa20,
-#                    shex("80000000 00000000 00000000 00000000"
-#                         "00000000 00000000 00000000 00000000"),
-#                    shex("00000000 00000000"),
-#                    shex("E3BE8FDD 8BECA2E3"))
-#
-#     def test_chacha() -> None:
-#         _test(nettle.ChaCha,
-#                    shex("0000000000000000 0000000000000000"
-#                         "0000000000000000 0000000000000000"),
-#                    shex("0000000000000000"),
-#                    shex("76b8e0ada0f13d90 405d6ae55386bd28"
-#                         "bdd219b8a08ded1a a836efcc8b770dc7"
-#                         "da41597c5157488d 7724e03fb8d84a37"
-#                         "6a43b8f41518a11c c387b669b2ee6586"
-#
-#                         "9f07e7be5551387a 98ba977c732d080d"
-#                         "cb0f29a048e36569 12c6533e32ee7aed"
-#                         "29b721769ce64e43 d57133b074d839d5"
-#                         "31ed1f28510afb45 ace10a1f4b794d6f"))
+@pytest.mark.parametrize(
+    ("cipher", "key", "nonce", "expected"),
+    [
+        (
+            nettle.ciphers.ChaCha,
+            shex("0000000000000000000000000000000000000000000000000000000000000000"),
+            shex("0000000000000000"),
+            shex(
+                "76b8e0ada0f13d90 405d6ae55386bd28"
+                "bdd219b8a08ded1a a836efcc8b770dc7"
+                "da41597c5157488d 7724e03fb8d84a37"
+                "6a43b8f41518a11c c387b669b2ee6586"
+                "9f07e7be5551387a 98ba977c732d080d"
+                "cb0f29a048e36569 12c6533e32ee7aed"
+                "29b721769ce64e43 d57133b074d839d5"
+                "31ed1f28510afb45 ace10a1f4b794d6f"
+            ),
+        ),
+        (
+            nettle.ciphers.Salsa20_128,
+            shex("80000000000000000000000000000000"),
+            shex("0000000000000000"),
+            shex("4DFA5E481DA23EA0"),
+        ),
+        (
+            nettle.ciphers.Salsa20_256,
+            shex("8000000000000000000000000000000000000000000000000000000000000000"),
+            shex("0000000000000000"),
+            shex("E3BE8FDD8BECA2E3"),
+        ),
+    ],
+)
+def test_nonce_cipher(
+    cipher: type[nettle.ciphers.ChaCha], key: bytes, nonce: bytes, expected: bytes
+) -> None:
+    data = b"\0" * len(expected)
+    c = cipher(key=key, nonce=nonce)
+    assert c.crypt(data) == expected
+    c = cipher(key=key, nonce=nonce)
+    assert c.crypt(expected) == data
+
+    c = cipher()
+    with pytest.raises(nettle.NotInitializedError):
+        c.crypt(data)
+    c.set_key(key)
+    with pytest.raises(nettle.NotInitializedError):
+        c.crypt(data)
+    c.set_nonce(nonce)
+    assert c.crypt(data) == expected
+
+
+@pytest.mark.parametrize(
+    ("key", "nonce", "expected", "counter"),
+    [
+        (
+            shex("0001020304050607 08090a0b0c0d0e0f1011121314151617 18191a1b1c1d1e1f"),
+            shex("000000090000004a 00000000"),
+            shex(
+                "10f1e7e4d13b5915 500fdd1fa32071c4"
+                "c7d1f4c733c06803 0422aa9ac3d46c4e"
+                "d2826446079faa09 14c2d705d98b02a2"
+                "b5129cd1de164eb9 cbd083e8a2503c4e"
+            ),
+            shex("01000000"),
+        ),
+        (
+            shex("0001020304050607 08090a0b0c0d0e0f1011121314151617 18191a1b1c1d1e1f"),
+            shex("0000004a00000000"),
+            shex(
+                "10f1e7e4d13b5915 500fdd1fa32071c4"
+                "c7d1f4c733c06803 0422aa9ac3d46c4e"
+                "d2826446079faa09 14c2d705d98b02a2"
+                "b5129cd1de164eb9 cbd083e8a2503c4e"
+            ),
+            shex("0100000000000009"),
+        ),
+    ],
+)
+def test_chacha_with_counter(
+    key: bytes, nonce: bytes, expected: bytes, counter: bytes
+) -> None:
+    c = nettle.ciphers.ChaCha(key)
+    data = b"\0" * (len(expected))
+    if len(nonce) == c.nonce_size:
+        c.set_nonce(nonce)
+        c.set_counter(counter)
+        assert c.crypt(data) == expected
+    else:
+        c.set_nonce96(nonce)
+        c.set_counter32(counter)
+        assert c.crypt32(data) == expected
+
+
 #
 #
 # class DES(TestCase):

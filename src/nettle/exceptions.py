@@ -48,6 +48,10 @@ class NettleError(Exception):
     """Error returned from libnettle."""
 
 
+class NonceLenError(Exception):
+    """Nonce not of expected length."""
+
+
 class NotInitializedError(Exception):
     """Cipher not initialized."""
 

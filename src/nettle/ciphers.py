@@ -38,6 +38,7 @@ from .exceptions import (
     DataLenError,
     KeyLenError,
     NettleError,
+    NonceLenError,
     NotInitializedError,
     ShortSeedError,
 )
@@ -51,8 +52,9 @@ class Cipher:
     _ctx: ctypes.Array[ctypes.c_char]
     _ctx_size: int
     _prefix: str
-    _encryption_key_initialized: bool
-    _decryption_key_initialized: bool
+    _encryption_key_uninitialized: bool
+    _decryption_key_uninitialized: bool
+    _nonce_uninitialized: bool | None
 
     def set_encrypt_key(self, key: bytes) -> None:
         """Set encrypt key to key."""
@@ -61,7 +63,7 @@ class Cipher:
         libnettle.nettle[f"{self._prefix}_set_encrypt_key"](
             ctypes.byref(self._ctx), key
         )
-        self._encryption_key_initialized = True
+        self._encryption_key_uninitialized = False
 
     def set_decrypt_key(self, key: bytes) -> None:
         """Set encrypt key to key."""
@@ -76,7 +78,7 @@ class Cipher:
             libnettle.nettle[f"{self._prefix}_set_decrypt_key"](
                 ctypes.byref(self._ctx), key
             )
-        self._decryption_key_initialized = True
+        self._decryption_key_uninitialized = False
 
     def encrypt(self, msg: bytes) -> bytes:
         """Encrypt msg."""
@@ -105,17 +107,19 @@ class Cipher:
 
     def _check_initialized_for_encryption(self) -> None:
         """Check if encryption key is initialized."""
-        if not self._encryption_key_initialized:
+        if self._encryption_key_uninitialized or self._nonce_uninitialized:
             raise NotInitializedError
 
     def _check_initialized_for_decryption(self) -> None:
         """Check if decryption key is initialized."""
-        if not self._decryption_key_initialized:
+        if self._decryption_key_uninitialized or self._nonce_uninitialized:
             raise NotInitializedError
 
     def _check_initialized_for_any(self) -> None:
         """Check if any key is initialized."""
-        if not (self._decryption_key_initialized or self._encryption_key_initialized):
+        if (
+            self._decryption_key_uninitialized and self._encryption_key_uninitialized
+        ) or self._nonce_uninitialized:
             raise NotInitializedError
 
 
@@ -147,28 +151,82 @@ class SingleFuncCipher(Cipher):
 class SingleKeyCipher(Cipher):
     """A cipher with only one key for both encrypt and decrypt."""
 
+    min_key_size = 0
+    max_key_size = 0
+    key_size = 0
+
+    def __init__(self, key: bytes | None = None) -> None:
+        self._decryption_key_uninitialized = True
+        self._encryption_key_uninitialized = True
+        self._nonce_uninitialized = None
+        if self.min_key_size == 0 and self.max_key_size == 0:
+            self.min_key_size = self.max_key_size = self.key_size
+
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if key is not None:
+            self.set_key(key)
+
     def set_key(self, key: bytes) -> None:
         """Set key."""
-        libnettle.nettle[f"{self._prefix}_set_key"](
-            ctypes.byref(self._ctx), len(key), key
-        )
-        self._decryption_key_initialized = True
-        self._encryption_key_initialized = True
+        if not self.min_key_size <= len(key) <= self.max_key_size:
+            raise KeyLenError
+        if hasattr(self, "_set_key"):
+            setter = f"{self._prefix}{self._set_key}"
+        else:
+            setter = f"{self._prefix}_set_key"
+        if self.key_size == 0:
+            libnettle.nettle[setter](ctypes.byref(self._ctx), len(key), key)
+        else:
+            libnettle.nettle[setter](ctypes.byref(self._ctx), key)
+        self._decryption_key_uninitialized = False
+        self._encryption_key_uninitialized = False
 
 
 class DoubleKeyCipher(Cipher):
     """A cipher with separate keys for encrypt and decrypt."""
 
+    def __init__(
+        self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
+    ) -> None:
+        self._decryption_key_uninitialized = True
+        self._encryption_key_uninitialized = True
+        self._nonce_uninitialized = None
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if encrypt_key is not None:
+            if len(encrypt_key) != self.key_size:
+                raise KeyLenError
+            self.set_encrypt_key(encrypt_key)
 
-class NonceCipher(Cipher):
+        if decrypt_key is not None:
+            if len(decrypt_key) != self.key_size:
+                raise KeyLenError
+            self.set_decrypt_key(decrypt_key)
+
+
+class NonceCipher(SingleKeyCipher):
     """A cipher that uses a nonce."""
 
-    _initialized = 2
+    nonce_size = 0
+
+    def __init__(self, key: bytes | None = None, nonce: bytes | None = None) -> None:
+        self._decryption_key_uninitialized = True
+        self._encryption_key_uninitialized = True
+        self._nonce_uninitialized = True
+        if self.min_key_size == 0 and self.max_key_size == 0:
+            self.min_key_size = self.max_key_size = self.key_size
+
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        if key is not None:
+            self.set_key(key)
+        if nonce is not None:
+            self.set_nonce(nonce)
 
     def set_nonce(self, nonce: bytes) -> None:
         """Set nonce."""
+        if len(nonce) != self.nonce_size:
+            raise NonceLenError
         libnettle.nettle[f"{self._prefix}_set_nonce"](ctypes.byref(self._ctx), nonce)
-        self._initialized += 1
+        self._nonce_uninitialized = False
 
 
 class BlockCipher(Cipher):
@@ -186,12 +244,12 @@ class InvertibleKeyCipher(Cipher):
 
     def invert_key(self) -> None:
         """Invert key."""
-        self._check_initialized_for_any()
+        self._check_initialized_for_encryption()
         libnettle.nettle[f"{self._prefix}_invert_key"](
             ctypes.byref(self._ctx), ctypes.byref(self._ctx)
         )
-        self._decryption_key_initialized = True
-        self._encryption_key_initialized = True
+        self._decryption_key_uninitialized = False
+        self._encryption_key_uninitialized = False
 
 
 class ParitySensitiveCipher(Cipher):
@@ -250,22 +308,6 @@ class AesFamilyCipher(DoubleKeyCipher, InvertibleKeyCipher, KeyWrapCipher, Block
 
     block_size: int = 16
 
-    def __init__(
-        self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
-    ) -> None:
-        self._ctx = ctypes.create_string_buffer(self._ctx_size)
-        self._decryption_key_initialized = False
-        self._encryption_key_initialized = False
-        if encrypt_key is not None:
-            if len(encrypt_key) != self.key_size:
-                raise KeyLenError
-            self.set_encrypt_key(encrypt_key)
-
-        if decrypt_key is not None:
-            if len(decrypt_key) != self.key_size:
-                raise KeyLenError
-            self.set_decrypt_key(decrypt_key)
-
 
 class AES128(AesFamilyCipher):
     """AES with 128 bit key size."""
@@ -306,15 +348,6 @@ class Arcfour(SingleFuncCipher, SingleKeyCipher):
     _ctx_size = 258
     _prefix = "nettle_arcfour"
 
-    def __init__(self, key: bytes | None = None) -> None:
-        self._decryption_key_initialized = False
-        self._encryption_key_initialized = False
-        self._ctx = ctypes.create_string_buffer(self._ctx_size)
-        if key is not None:
-            if not self.min_key_size <= len(key) <= self.max_key_size:
-                raise KeyLenError
-            self.set_key(key)
-
 
 class Arctwo(BlockCipher, SingleKeyCipher):
     """
@@ -332,15 +365,6 @@ class Arctwo(BlockCipher, SingleKeyCipher):
     _ctx_size = 128
     _prefix = "nettle_arctwo"
 
-    def __init__(self, key: bytes | None = None) -> None:
-        self._decryption_key_initialized = False
-        self._encryption_key_initialized = False
-        self._ctx = ctypes.create_string_buffer(self._ctx_size)
-        if key is not None:
-            if not self.min_key_size <= len(key) <= self.max_key_size:
-                raise KeyLenError
-            self.set_key(key)
-
 
 class Blowfish(BlockCipher, SingleKeyCipher):
     """BLOWFISH is a block cipher designed by Bruce Schneier."""
@@ -352,15 +376,6 @@ class Blowfish(BlockCipher, SingleKeyCipher):
     max_key_size = 56
     _ctx_size = 4168
     _prefix = "nettle_blowfish"
-
-    def __init__(self, key: bytes | None = None) -> None:
-        self._decryption_key_initialized = False
-        self._encryption_key_initialized = False
-        self._ctx = ctypes.create_string_buffer(self._ctx_size)
-        if key is not None:
-            if not self.min_key_size <= len(key) <= self.max_key_size:
-                raise KeyLenError
-            self.set_key(key)
 
     @classmethod
     def bcrypt_hash(
@@ -409,22 +424,6 @@ class CamelliaFamilyCipher(
 
     block_size: int = 16
 
-    def __init__(
-        self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
-    ) -> None:
-        self._decryption_key_initialized = False
-        self._encryption_key_initialized = False
-        self._ctx = ctypes.create_string_buffer(self._ctx_size)
-        if encrypt_key is not None:
-            if len(encrypt_key) != self.key_size:
-                raise KeyLenError
-            self.set_encrypt_key(encrypt_key)
-
-        if decrypt_key is not None:
-            if len(decrypt_key) != self.key_size:
-                raise KeyLenError
-            self.set_decrypt_key(decrypt_key)
-
 
 class Camellia128(CamelliaFamilyCipher):
     """Camellia with 128 bit key size."""
@@ -448,3 +447,80 @@ class Camellia256(CamelliaFamilyCipher):
     key_size = 32
     _ctx_size = 256
     _prefix = "nettle_camellia256"
+
+
+class Cast128(BlockCipher, SingleKeyCipher):
+    """CAST-128 is a block cipher, specified in RFC 2144."""
+
+    block_size = 8
+    key_size = 16
+    _ctx_size = 84
+    _prefix = "nettle_cast128"
+
+
+class ChaCha(SingleFuncCipher, NonceCipher):
+    """ChaCha is a variant of the stream cipher Salsa20."""
+
+    block_size = 64
+    counter_size = 8
+    key_size = 32
+    nonce_size = 8
+    _ctx_size = 64
+    _prefix = "nettle_chacha"
+
+    def set_counter(self, counter: bytes) -> None:
+        """Set the block counter."""
+        if len(counter) != self.counter_size:
+            raise NonceLenError
+        libnettle.nettle[f"{self._prefix}_set_counter"](
+            ctypes.byref(self._ctx), counter
+        )
+
+    def set_counter32(self, counter: bytes) -> None:
+        """Set the block counter."""
+        self.counter_size = 4
+        self.nonce_size = 12
+        if len(counter) != self.counter_size:
+            raise NonceLenError
+        libnettle.nettle[f"{self._prefix}_set_counter32"](
+            ctypes.byref(self._ctx), counter
+        )
+
+    def set_nonce96(self, nonce: bytes) -> None:
+        """Set a 96 bit nonce to be used with crypt32-method."""
+        self.nonce_size = 12
+        if len(nonce) != self.nonce_size:
+            raise NonceLenError
+        libnettle.nettle[f"{self._prefix}_set_nonce96"](ctypes.byref(self._ctx), nonce)
+        self._nonce_uninitialized = False
+
+    def crypt32(self, msg: bytes) -> bytes:
+        """Encrypt and decrypt with a 96 bit nonce."""
+        self._check_msg_len(msg)
+        self._check_initialized_for_any()
+        msglen = len(msg)
+        dst = ctypes.create_string_buffer(msglen)
+        libnettle.nettle[f"{self._prefix}_crypt32"](self._ctx, msglen, dst, msg)
+        return bytes(dst)
+
+
+class Salsa20_128(SingleFuncCipher, NonceCipher):  # noqa: N801
+    """Salsa20 is a fairly recent stream cipher designed by D. J. Bernstein."""
+
+    block_size = 64
+    key_size = 16
+    nonce_size = 8
+    _ctx_size = 64
+    _prefix = "nettle_salsa20"
+    _set_key = "_128_set_key"
+
+
+class Salsa20_256(SingleFuncCipher, NonceCipher):  # noqa: N801
+    """Salsa20 is a fairly recent stream cipher designed by D. J. Bernstein."""
+
+    block_size = 64
+    key_size = 32
+    nonce_size = 8
+    _ctx_size = 64
+    _prefix = "nettle_salsa20"
+    _set_key = "_256_set_key"
