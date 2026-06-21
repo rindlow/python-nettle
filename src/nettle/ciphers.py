@@ -255,13 +255,26 @@ class InvertibleKeyCipher(Cipher):
 class ParitySensitiveCipher(Cipher):
     """A cipher that is sensitive to parity."""
 
+    _check_parity: str
+    _fix_parity: str
+
     def check_parity(self, key: bytes) -> bool:
         """Check key parity."""
-        return libnettle.nettle[f"{self._prefix}_check_parity"](key)
+        if hasattr(self, "_check_parity"):
+            func = self._check_parity
+        else:
+            func = f"{self._prefix}_check_parity"
+        return libnettle.nettle[func](len(key), key) == 1
 
     def fix_parity(self, key: bytes) -> bytes:
         """Fix key parity."""
-        return libnettle.nettle[f"{self._prefix}_check_parity"](key)
+        fixed = ctypes.create_string_buffer(len(key))
+        if hasattr(self, "_fix_parity"):
+            func = self._fix_parity
+        else:
+            func = f"{self._prefix}_fix_parity"
+        libnettle.nettle[func](len(key), fixed, key)
+        return bytes(fixed)
 
 
 class KeyWrapCipher(Cipher):
@@ -504,6 +517,42 @@ class ChaCha(SingleFuncCipher, NonceCipher):
         return bytes(dst)
 
 
+class DES(BlockCipher, SingleKeyCipher, ParitySensitiveCipher):
+    """
+    DES is the old Data Encryption Standard, specified by NIST.
+
+    The key size of DES is so small that keys can be found by brute
+    force, using specialized hardware or lots of ordinary work
+    stations in parallel. One shouldn't be using plain DES at all
+    today, if one uses DES at all one should be using "triple DES",
+    DES3.
+    """
+
+    block_size = 8
+    key_size = 8
+    _ctx_size = 128
+    _prefix = "nettle_des"
+
+
+class DES3(BlockCipher, SingleKeyCipher, ParitySensitiveCipher):
+    """
+    DES is the old Data Encryption Standard, specified by NIST.
+
+    The key size of DES is so small that keys can be found by brute
+    force, using specialized hardware or lots of ordinary work
+    stations in parallel. One shouldn't be using plain DES at all
+    today, if one uses DES at all one should be using "triple DES",
+    DES3.
+    """
+
+    block_size = 8
+    key_size = 24
+    _ctx_size = 384
+    _prefix = "nettle_des3"
+    _check_parity = "nettle_des_check_parity"
+    _fix_parity = "nettle_des_fix_parity"
+
+
 class Salsa20_128(SingleFuncCipher, NonceCipher):  # noqa: N801
     """Salsa20 is a fairly recent stream cipher designed by D. J. Bernstein."""
 
@@ -524,3 +573,32 @@ class Salsa20_256(SingleFuncCipher, NonceCipher):  # noqa: N801
     _ctx_size = 64
     _prefix = "nettle_salsa20"
     _set_key = "_256_set_key"
+
+
+class Serpent(BlockCipher, SingleKeyCipher):
+    """SERPENT is one of the AES finalists."""
+
+    block_size = 16
+    min_key_size = 16
+    max_key_size = 32
+    _ctx_size = 528
+    _prefix = "nettle_serpent"
+
+
+class SM4(BlockCipher, DoubleKeyCipher, SingleFuncCipher):
+    """SM4 is a block cipher standard adopted by the government of the PRC."""
+
+    block_size = 16
+    key_size = 16
+    _ctx_size = 128
+    _prefix = "nettle_sm4"
+
+
+class Twofish(BlockCipher, SingleKeyCipher):
+    """Another AES finalist, this one designed by Bruce Schneier and others."""
+
+    block_size = 16
+    min_key_size = 16
+    max_key_size = 32
+    _ctx_size = 4256
+    _prefix = "nettle_twofish"

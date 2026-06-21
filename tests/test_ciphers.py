@@ -191,6 +191,42 @@ def test_arcfour() -> None:
             shex("01 23 45 67 89 AB CD EF"),
             shex("23 8B 4F E5 84 7E 44 B2"),
         ),
+        (
+            nettle.ciphers.Serpent,
+            shex("0000000000000000 0000000000000000"),
+            shex("D29D576FCEA3A3A7 ED9099F29273D78E"),
+            shex("B2288B968AE8B086 48D1CE9606FD992D"),
+        ),
+        (
+            nettle.ciphers.Serpent,
+            shex("0000000000000000 0000000000000000 0000000000000000"),
+            shex("D29D576FCEABA3A7 ED9899F2927BD78E"),
+            shex("130E353E1037C224 05E8FAEFB2C3C3E9"),
+        ),
+        (
+            nettle.ciphers.Serpent,
+            shex("0000000000000000 00000000000000000000000000000000 0000000000000000"),
+            shex("D095576FCEA3E3A7 ED98D9F29073D78E"),
+            shex("B90EE5862DE69168 F2BDD5125B45472B"),
+        ),
+        (
+            nettle.ciphers.Twofish,
+            shex("0000000000000000 0000000000000000"),
+            shex("0000000000000000 0000000000000000"),
+            shex("9F589F5CF6122C32 B6BFEC2F2AE8C35A"),
+        ),
+        (
+            nettle.ciphers.Twofish,
+            shex("0123456789ABCDEF FEDCBA98765432100011223344556677"),
+            shex("0000000000000000 0000000000000000"),
+            shex("CFD1D2E5A9BE9CDF 501F13B892BD2248"),
+        ),
+        (
+            nettle.ciphers.Twofish,
+            shex("0123456789ABCDEF FEDCBA98765432100011223344556677 8899AABBCCDDEEFF"),
+            shex("0000000000000000 0000000000000000"),
+            shex("37527BE0052334B8 9F0CFCCAE87CFA20"),
+        ),
     ],
 )
 def test_single_key_cipher(
@@ -252,10 +288,16 @@ def test_bcrypt_verify(key: str, hashed: str, expected: bool) -> None:
             shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
             shex("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"),
         ),
+        (
+            nettle.ciphers.SM4,
+            shex("0123456789ABCDEF FEDCBA9876543210"),
+            shex("0123456789ABCDEF FEDCBA9876543210"),
+            shex("681EDF34D206965E 86B3E94F536E4246"),
+        ),
     ],
 )
-def test_camellia(
-    cipher: type[nettle.ciphers.CamelliaFamilyCipher],
+def test_doublekey_singlefunc(
+    cipher: type[nettle.ciphers.CamelliaFamilyCipher | nettle.ciphers.SM4],
     key: bytes,
     cleartext: bytes,
     ciphertext: bytes,
@@ -384,114 +426,48 @@ def test_chacha_with_counter(
         assert c.crypt32(data) == expected
 
 
-#
-#
-# class DES(TestCase):
-#
-#     def _test(self, cipher: type[nettle.DesFamilyCipher],
-#               key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = cipher()
-#         self.assertTrue(c.check_parity(key))
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.encrypt(cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = cipher(key=key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         c = cipher(key=key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         key2 = bytearray(key)
-#         key2[-1] ^= 1
-#         self.assertFalse(c.check_parity(bytes(key2)))
-#         self.assertTrue(c.check_parity(c.fix_parity(bytes(key2))))
-#
-#     def test_des() -> None:
-#         _test(nettle.DES,
-#                    shex("01234567 89ABCDEF"),
-#                    shex("01234567 89ABCDE7"),
-#                    shex("C9574425 6A5ED31D"))
-#
-#     def test_des3() -> None:
-#         _test(nettle.DES3,
-#                    shex("3e 0b 10 b0 5d 49 c2 54"
-#                         "6b 46 e0 75 8a 91 61 85"
-#                         "cb 04 07 d3 20 16 cb a2"),
-#                    sdata("Now is t"),
-#                    shex("0a 5d b5 2d 85 74 d1 c9"))
-#
-#
-# class Serpent(TestCase):
-#
-#     def _test(self, cipher: type[nettle.SerpentFamilyCipher],
-#               key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = cipher()
-#         # SERPENT_KEY_SIZE is only the default key size
-#         # self.assertEqual(len(key), c.key_size)
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.encrypt(cleartext)
-#         c.set_key(key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#         c = cipher(key=key)
-#         self.assertEqual(c.encrypt(cleartext), ciphertext)
-#         c = cipher(key=key)
-#         self.assertEqual(c.decrypt(ciphertext), cleartext)
-#
-#     def test_serpent128() -> None:
-#         _test(nettle.Serpent,
-#                    shex("0000000000000000 0000000000000000"),
-#                    shex("D29D576FCEA3A3A7 ED9099F29273D78E"),
-#                    shex("B2288B968AE8B086 48D1CE9606FD992D"))
-#
-#     def test_serpent192() -> None:
-#         _test(nettle.Serpent,
-#                    shex("0000000000000000 0000000000000000 0000000000000000"),
-#                    shex("D29D576FCEABA3A7 ED9899F2927BD78E"),
-#                    shex("130E353E1037C224 05E8FAEFB2C3C3E9"))
-#
-#     def test_serpent256() -> None:
-#         _test(nettle.Serpent,
-#                    shex("0000000000000000 0000000000000000"
-#                         "0000000000000000 0000000000000000"),
-#                    shex("D095576FCEA3E3A7 ED98D9F29073D78E"),
-#                    shex("B90EE5862DE69168 F2BDD5125B45472B"))
-#
-#
-# class SM4(TestCase):
-#
-#     def _test(self, cipher: type[nettle.Sm4FamilyCipher],
-#               key: bytes, cleartext: bytes, ciphertext: bytes) -> None:
-#         self.assertEqual(len(cleartext), len(ciphertext))
-#         c = cipher()
-#         with pytest.raises(nettle.NotInitializedError):
-#             c.crypt(cleartext)
-#         self.assertEqual(len(key), c.key_size)
-#         c.set_encrypt_key(key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c.set_decrypt_key(key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#         c = cipher(encrypt_key=key)
-#         self.assertEqual(c.crypt(cleartext), ciphertext)
-#         c = cipher(decrypt_key=key)
-#         self.assertEqual(c.crypt(ciphertext), cleartext)
-#
-#         with pytest.raises(nettle.KeyLenError):
-#             c = cipher(encrypt_key=key[:-1])
-#
-#     def test_sm4() -> None:
-#         _test(nettle.SM4,
-#                    shex("0123456789ABCDEF FEDCBA9876543210"),
-#                    shex("0123456789ABCDEF FEDCBA9876543210"),
-#                    shex("681EDF34D206965E 86B3E94F536E4246"))
-#
-#
+@pytest.mark.parametrize(
+    ("cipher", "key", "cleartext", "ciphertext"),
+    [
+        (
+            nettle.ciphers.DES,
+            shex("01234567 89ABCDEF"),
+            shex("01234567 89ABCDE7"),
+            shex("C9574425 6A5ED31D"),
+        ),
+        (
+            nettle.ciphers.DES3,
+            shex(
+                "3e 0b 10 b0 5d 49 c2 546b 46 e0 75 8a 91 61 85cb 04 07 d3 20 16 cb a2"
+            ),
+            sdata("Now is t"),
+            shex("0a 5d b5 2d 85 74 d1 c9"),
+        ),
+    ],
+)
+def test_des(
+    cipher: type[nettle.ciphers.DES], key: bytes, cleartext: bytes, ciphertext: bytes
+) -> None:
+    assert len(cleartext) == len(ciphertext)
+    c = cipher()
+    assert c.check_parity(key)
+    with pytest.raises(nettle.NotInitializedError):
+        c.encrypt(cleartext)
+    c.set_key(key)
+    assert c.encrypt(cleartext) == ciphertext
+    assert c.decrypt(ciphertext) == cleartext
+
+    c = cipher(key=key)
+    assert c.encrypt(cleartext) == ciphertext
+    c = cipher(key=key)
+    assert c.decrypt(ciphertext) == cleartext
+
+    key2 = bytearray(key)
+    key2[-1] ^= 1
+    assert not c.check_parity(bytes(key2))
+    assert c.check_parity(c.fix_parity(bytes(key2)))
+
+
 # class Twofish(TestCase):
 #
 #     def _test(self, cipher: type[nettle.TwofishFamilyCipher],
@@ -514,25 +490,6 @@ def test_chacha_with_counter(
 #         # with pytest.raises(nettle.KeyLenError):
 #         #     c = cipher(key=key[:-1])
 #
-#     def test_twofish128() -> None:
-#         _test(nettle.Twofish,
-#                    shex("0000000000000000 0000000000000000"),
-#                    shex("0000000000000000 0000000000000000"),
-#                    shex("9F589F5CF6122C32 B6BFEC2F2AE8C35A"))
-#
-#     def test_twofish192() -> None:
-#         _test(nettle.Twofish,
-#                    shex("0123456789ABCDEF FEDCBA9876543210"
-#                         "0011223344556677"),
-#                    shex("0000000000000000 0000000000000000"),
-#                    shex("CFD1D2E5A9BE9CDF 501F13B892BD2248"))
-#
-#     def test_twofish256() -> None:
-#         _test(nettle.Twofish,
-#                    shex("0123456789ABCDEF FEDCBA9876543210"
-#                         "0011223344556677 8899AABBCCDDEEFF"),
-#                    shex("0000000000000000 0000000000000000"),
-#                    shex("37527BE0052334B8 9F0CFCCAE87CFA20"))
 #
 #
 # class CTR(TestCase):
