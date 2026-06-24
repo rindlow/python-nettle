@@ -12,13 +12,16 @@ from .utils import shex
             shex("0000000000000000000000000000000000000000000000000000000000000000"),
             shex("200fe7972e93822621682027def98729"),
         ),
-        (
+        pytest.param(
             nettle.randomness.DRBG_CTR_AES256,
             shex(
                 "0000000000000000000000000000000000000000000000000000000000000000"
                 "00000000000000000000000000000000"
             ),
             shex("91618fe99a8f9420497b246f735b27a0"),
+            marks=pytest.mark.skipif(
+                nettle.version < (4, 0), reason="DRBG was introduced in nettle 4.0"
+            ),
         ),
     ],
 )

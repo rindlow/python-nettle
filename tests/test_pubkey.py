@@ -265,6 +265,9 @@ def test_pk_params() -> None:
     assert pk.size == 125
 
 
+@pytest.mark.skipif(
+    nettle.version < (3, 10), reason="OAEP was introduced in nettle 3.10"
+)
 def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
 
     kp = keypair

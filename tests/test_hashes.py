@@ -63,6 +63,9 @@ def test_digest(
     assert h1.digest() != h2.digest()
 
 
+@pytest.mark.skipif(
+    nettle.version < (3, 10), reason="Shake was introduced in nettle 3.10"
+)
 @pytest.mark.parametrize(
     ("hashfunc", "msg", "expected"),
     [
