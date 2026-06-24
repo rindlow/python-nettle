@@ -9,9 +9,14 @@ from .libnettle import libnettle
 class CipherMode:
     """Cipher modes specifies the procedure to use when encrypting a large message."""
 
-    _prefix: str
     cipher: BlockCipher
     iv: bytes
+    _prefix: str
+    _decrypt_cipher_func: str
+
+    def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
+        self.cipher = cipher
+        self.iv = iv
 
     def encrypt(self, cleartext: bytes) -> bytes:
         """Encrypt cleartext."""
@@ -29,9 +34,12 @@ class CipherMode:
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         """Decrypt ciphertext."""
-        self.cipher._check_initialized_for_decryption()  # noqa: SLF001
+        if self._decrypt_cipher_func == "_encrypt":
+            self.cipher._check_initialized_for_encryption()  # noqa: SLF001
+        else:
+            self.cipher._check_initialized_for_decryption()  # noqa: SLF001
         ctx = self.cipher._ctx  # noqa: SLF001
-        func = libnettle.nettle[f"{self.cipher._prefix}_decrypt"]  # noqa: SLF001
+        func = libnettle.nettle[f"{self.cipher._prefix}{self._decrypt_cipher_func}"]  # noqa: SLF001
         bsize = self.cipher.block_size
         iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
         size = len(ciphertext)
@@ -59,7 +67,57 @@ class CBC(CipherMode):
     """
 
     _prefix = "nettle_cbc"
+    _decrypt_cipher_func = "_decrypt"
 
-    def __init__(self, cipher: BlockCipher, iv: bytes) -> None:
+
+class CTR(CipherMode):
+    """
+    Counter Mode.
+
+    Counter mode (CTR) uses the block cipher as a keyed pseudo-random
+    generator. The output of the generator is XORed with the data to
+    be encrypted. It can be understood as a way to transform a block
+    cipher to a stream cipher.
+    """
+
+    _prefix = "nettle_ctr"
+
+    def __init__(self, cipher: BlockCipher, ctr: bytes) -> None:
         self.cipher = cipher
-        self.iv = iv
+        self.iv = ctr
+
+    def encrypt(self, cleartext: bytes) -> bytes:
+        """Encrypt cleartext."""
+        return self.crypt(cleartext)
+
+    def decrypt(self, ciphertext: bytes) -> bytes:
+        """Decrypt cleartext."""
+        return self.crypt(ciphertext)
+
+    def crypt(self, cleartext: bytes) -> bytes:
+        """Crypt cleartext."""
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
+        ctx = self.cipher._ctx  # noqa: SLF001
+        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
+        bsize = self.cipher.block_size
+        iv = (ctypes.c_ubyte * bsize)(*(int(c) for c in self.iv))
+        size = len(cleartext)
+        dst = ctypes.create_string_buffer(size)
+        libnettle.nettle[f"{self._prefix}_crypt"](
+            ctypes.byref(ctx), func, bsize, iv, size, dst, cleartext
+        )
+        return bytes(dst)
+
+
+class CFB(CipherMode):
+    """Cipher Feedback mode borrow some characteristics from stream ciphers."""
+
+    _prefix = "nettle_cfb"
+    _decrypt_cipher_func = "_encrypt"
+
+
+class CFB8(CipherMode):
+    """Cipher Feedback 8-bit mode borrow some characteristics from stream ciphers."""
+
+    _prefix = "nettle_cfb8"
+    _decrypt_cipher_func = "_encrypt"

@@ -33,8 +33,9 @@
 
 import contextlib
 import ctypes
-import pathlib
 import sys
+
+from ._sharedlibs import find_libs
 
 
 class LibnettleError(Exception):
@@ -51,21 +52,8 @@ class Libnettle:
 
     def __init__(self) -> None:
         glob = "libnettle*.dylib" if sys.platform == "darwin" else "libnettle.so*"
-        libs = set()
-
-        for instdir in [
-            "/usr/lib",
-            "/usr/lib64",
-            "/usr/local/lib",
-            "/usr/local/lib64",
-            "/opt/local/lib",
-            "/opt/local/lib64",
-            "/opt/homebrew/lib",
-        ]:
-            libdir = pathlib.Path(instdir)
-            libs.update({lib.resolve() for lib in libdir.glob(glob)})
         versions = []
-        for dld in libs:
+        for dld in find_libs(glob):
             with contextlib.suppress(OSError):
                 nettle = ctypes.cdll.LoadLibrary(dld)
                 major = nettle.nettle_version_major()

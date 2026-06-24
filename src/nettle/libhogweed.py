@@ -32,8 +32,9 @@
 """Interface to the hogweed C library."""
 
 import ctypes
-import pathlib
 import sys
+
+from ._sharedlibs import find_libs
 
 
 class LibhogweedError(Exception):
@@ -48,19 +49,8 @@ class Libhogweed:
 
     def __init__(self) -> None:
         glob = "libhogweed*.dylib" if sys.platform == "darwin" else "libhogweed.so*"
-        libs: set[pathlib.Path] = set()
+        libs = find_libs(glob)
 
-        for instdir in [
-            "/usr/lib",
-            "/usr/lib64",
-            "/usr/local/lib",
-            "/usr/local/lib64",
-            "/opt/local/lib",
-            "/opt/local/lib64",
-            "/opt/homebrew/lib",
-        ]:
-            libdir = pathlib.Path(instdir)
-            libs.update({lib.resolve() for lib in libdir.glob(glob)})
         if len(libs) == 0:
             raise LibhogweedError
         dld = sorted(libs)[-1]

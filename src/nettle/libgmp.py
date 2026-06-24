@@ -33,8 +33,9 @@
 
 import contextlib
 import ctypes
-import pathlib
 import sys
+
+from ._sharedlibs import find_libs
 
 
 class LibgmpError(Exception):
@@ -49,22 +50,9 @@ class Libgmp:
     verbose: bool = True
 
     def __init__(self) -> None:
-        glob = "libgmp*.dylib" if sys.platform == "darwin" else "libgmp.so*"
-        libs = set()
-
-        for instdir in [
-            "/usr/lib",
-            "/usr/lib64",
-            "/usr/local/lib",
-            "/usr/local/lib64",
-            "/opt/local/lib",
-            "/opt/local/lib64",
-            "/opt/homebrew/lib",
-        ]:
-            libdir = pathlib.Path(instdir)
-            libs.update({lib.resolve() for lib in libdir.glob(glob)})
         versions = []
-        for dld in libs:
+        glob = "libgmp*.dylib" if sys.platform == "darwin" else "libgmp.so*"
+        for dld in find_libs(glob):
             with contextlib.suppress(OSError):
                 gmp = ctypes.cdll.LoadLibrary(dld)
                 version = ctypes.c_char_p.in_dll(gmp, "__gmp_version").value
