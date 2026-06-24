@@ -100,11 +100,6 @@ class DigestableHash(Hash):
 class ShakeableHash(Hash):
     """A hash that can generate shake."""
 
-    def __init__(self, data: bytes = b"") -> None:
-        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
-            raise NotImplementedError("Shake first appeared in nettle 3.10")
-        super().__init__(data)
-
     def shake(self, length: int) -> bytes:
         """Generate a shake of length bytes. Also reset the context."""
         if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
@@ -184,6 +179,11 @@ class SHA3_128(ShakeableHash):  # noqa: N801
     _ctx_size = 376 if libnettle.major < V4 else 216
     _prefix = "nettle_sha3_128"
     _init_func = "nettle_sha3_128_init" if libnettle.major < V4 else "nettle_sha3_init"
+
+    def __init__(self, data: bytes = b"") -> None:
+        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
+            raise NotImplementedError("SHA3-128 first appeared in nettle 3.10")
+        super().__init__(data)
 
 
 class SHA3_224(DigestableHash):  # noqa: N801
