@@ -200,6 +200,8 @@ class RSAKeyPair(KeyPair):
         return bytes(data)[: datalen.value]
 
     def _oaep_decrypt(self, hashalg: str, msg: bytes, label: bytes) -> bytes:
+        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
+            raise NotImplementedError("OAEP first appeared in nettle 3.10")
         datalen = ctypes.c_size_t(256)
         data = ctypes.create_string_buffer(datalen.value)
         if (
@@ -447,6 +449,8 @@ class RSAPubKey(PubKey):
         ).to_der()
 
     def _oaep_encrypt(self, hashalg: str, msg: bytes, label: bytes) -> bytes:
+        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
+            raise NotImplementedError("OAEP first appeared in nettle 3.10")
         datalen = ctypes.c_size_t(self.size)
         data = ctypes.create_string_buffer(datalen.value)
         if (
