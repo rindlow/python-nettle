@@ -288,11 +288,14 @@ def test_bcrypt_verify(key: str, hashed: str, expected: bool) -> None:
             shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
             shex("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"),
         ),
-        (
+        pytest.param(
             nettle.ciphers.SM4,
             shex("0123456789ABCDEF FEDCBA9876543210"),
             shex("0123456789ABCDEF FEDCBA9876543210"),
             shex("681EDF34D206965E 86B3E94F536E4246"),
+            marks=pytest.mark.skipif(
+                nettle.version < (3, 9), reason="SM4 was introduced in nettle 3.9"
+            ),
         ),
     ],
 )
