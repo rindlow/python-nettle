@@ -20,7 +20,7 @@ from .utils import shex
             ),
             shex("91618fe99a8f9420497b246f735b27a0"),
             marks=pytest.mark.skipif(
-                nettle.version < (4, 0), reason="DRBG was introduced in nettle 4.0"
+                nettle.version < (3, 10), reason="DRBG was introduced in nettle 3.10"
             ),
         ),
     ],
