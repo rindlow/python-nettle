@@ -593,6 +593,13 @@ class SM4(BlockCipher, DoubleKeyCipher, SingleFuncCipher):
     _ctx_size = 128
     _prefix = "nettle_sm4"
 
+    def __init__(
+        self, encrypt_key: bytes | None = None, decrypt_key: bytes | None = None
+    ) -> None:
+        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
+            raise NotImplementedError("SM4 first appeared in nettle 3.9")
+        super().__init__(encrypt_key, decrypt_key)
+
 
 class Twofish(BlockCipher, SingleKeyCipher):
     """Another AES finalist, this one designed by Bruce Schneier and others."""
