@@ -61,7 +61,7 @@ class Libnettle:
                 versions.append((major, minor, nettle))
         if len(versions) == 0:
             raise LibnettleError
-        versions.sort()
+        versions.sort(key=lambda t: (t[0], t[1]))
         self.major, self.minor, self.nettle = versions[-1]
         if self.verbose:
             print(f"nettle {self.major}.{self.minor} loaded")  # noqa: T201

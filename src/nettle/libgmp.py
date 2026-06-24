@@ -60,7 +60,7 @@ class Libgmp:
                     versions.append((version.decode(), dld))
         if len(versions) == 0:
             raise LibgmpError
-        versions.sort()
+        versions.sort(key=lambda t: t[0])
         self.version, dld = versions[-1]
         self.gmp = ctypes.cdll.LoadLibrary(dld)
         if self.verbose:
