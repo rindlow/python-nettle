@@ -100,6 +100,11 @@ class DigestableHash(Hash):
 class ShakeableHash(Hash):
     """A hash that can generate shake."""
 
+    def __init__(self, data: bytes = b"") -> None:
+        if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
+            raise NotImplementedError("Shake first appeared in nettle 3.10")
+        super().__init__(data)
+
     def shake(self, length: int) -> bytes:
         """Generate a shake of length bytes. Also reset the context."""
         if libnettle.major < 3 or (libnettle.major == 3 and libnettle.minor < 10):
