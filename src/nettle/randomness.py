@@ -89,4 +89,6 @@ class DRBG_CTR_AES256(Random):  # noqa: N801
     _seed_size = AES256.block_size + AES256.key_size
 
     def _initialize(self, seed: bytes) -> None:
+        if libnettle.major < 4:
+            raise NotImplementedError("DRBG first appeared in nettle 4.0")
         libnettle.nettle.nettle_drbg_ctr_aes256_init(ctypes.byref(self._ctx), seed)
