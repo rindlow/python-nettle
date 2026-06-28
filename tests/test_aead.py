@@ -27,7 +27,17 @@ from .utils import shex
             ),
             shex("cafebabefacedbaddecaf888"),
             shex("5bc94fbc3221a5db94fae95ae7121a47"),
-        )
+        ),
+        (
+            nettle.ciphers.AES128,
+            nettle.aead.EAX,
+            shex("91945D3F4DCBEE0BF45EF52255F095A4"),
+            shex("FA3BFD4806EB53FA"),
+            shex("F7FB"),
+            shex("19DD"),
+            shex("BECAF043B0A23D843194BA972C66DEBD"),
+            shex("5C4C9331049D0BDAB0277408F67967E5"),
+        ),
     ],
 )
 def test_aead(
@@ -48,6 +58,7 @@ def test_aead(
     aead = mode(c, iv)
     aead.update(authtext)
     assert aead.encrypt(cleartext) == ciphertext
+    breakpoint()
     assert aead.digest() == digest
 
     c = cipher()
@@ -65,4 +76,4 @@ def test_aead(
 
     c = cipher()
     with pytest.raises(nettle.NotInitializedError):
-        aead = mode(c, iv)
+        mode(c, iv)

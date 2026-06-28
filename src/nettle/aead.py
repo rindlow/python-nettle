@@ -12,7 +12,6 @@ class AEAD:
     digest_size = 16
     block_size = 16
     cipher: BlockCipher
-    iv: bytes
     _ctx: ctypes.Array[ctypes.c_char]
     _key: ctypes.Array[ctypes.c_char]
     _prefix: str
@@ -89,6 +88,69 @@ class AEAD:
         return bytes(dst)
 
 
+class EAX(AEAD):
+    """The EAX mode is an AEAD mode which combines CTR mode encryption."""
+
+    digest_size = 16
+    block_size = 16
+    _ctx_size = 64
+    _prefix = "nettle_eax"
+
+    def __init__(self, cipher: BlockCipher, nonce: bytes) -> None:
+        cipher._check_initialized_for_encryption()  # noqa: SLF001
+
+        self.cipher = cipher
+        self._key_size = cipher.key_size
+        self._ctx = ctypes.create_string_buffer(self._ctx_size)
+
+        func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
+
+        self._key = ctypes.create_string_buffer(self._key_size)
+        libnettle.nettle[f"{self._prefix}_set_key"](
+            ctypes.byref(self._key),
+            ctypes.byref(self.cipher._ctx),
+            func,
+        )
+
+        self.set_nonce(nonce)
+
+        libnettle.nettle[f"{self._prefix}_encrypt"].argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+        ]
+        libnettle.nettle[f"{self._prefix}_digest"].argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+        ]
+
+    def set_nonce(self, nonce: bytes) -> None:
+        """Initialize using the given nonce."""
+        libnettle.nettle[f"{self._prefix}_set_nonce"].argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_char_p,
+        ]
+        libnettle.nettle[f"{self._prefix}_set_nonce"](
+            ctypes.byref(self._ctx),
+            ctypes.byref(self._key),
+            ctypes.byref(self.cipher._ctx),
+            libnettle.nettle[f"{self.cipher._prefix}_encrypt"],  # noqa: SLF001
+            len(nonce),
+            nonce,
+        )
+
+
 class GCM(AEAD):
     """Galois Counter Mode."""
 
@@ -100,7 +162,6 @@ class GCM(AEAD):
         cipher._check_initialized_for_encryption()  # noqa: SLF001
 
         self.cipher = cipher
-        self.iv = iv
 
         ctx = cipher._ctx  # noqa: SLF001
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
@@ -111,6 +172,12 @@ class GCM(AEAD):
         )
 
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
+        libnettle.nettle[f"{self._prefix}_set_iv"](
+            ctypes.byref(self._ctx), ctypes.byref(self._key), len(iv), iv
+        )
+
+    def set_iv(self, iv: bytes) -> None:
+        """Initialize using the given IV."""
         libnettle.nettle[f"{self._prefix}_set_iv"](
             ctypes.byref(self._ctx), ctypes.byref(self._key), len(iv), iv
         )
