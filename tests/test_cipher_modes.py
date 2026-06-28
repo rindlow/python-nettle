@@ -235,3 +235,71 @@ def test_ctr(
     cm = ciphermode(c, iv)
     with pytest.raises(nettle.NotInitializedError):
         cm.crypt(cleartext)
+
+
+@pytest.mark.parametrize(
+    ("cipher", "key", "tweak", "cleartext", "ciphertext"),
+    [
+        (
+            nettle.ciphers.AES128,
+            shex("a1b90cba3f06ac353b2c343876081762090923026e91771815f29dab01932f2f"),
+            shex("4faef7117cda59c66e4b92013e768ad5"),
+            shex("ebabce95b14d3c8d6fb350390790311c"),
+            shex("778ae8b43cb98d5a825081d5be471c63"),
+        ),
+        (
+            nettle.ciphers.AES128,
+            shex("394c97881abd989d29c703e48a72b397a7acf51b59649eeea9b33274d8541df4"),
+            shex("4b15c684a152d485fe9937d39b168c29"),
+            shex("2f3b9dcfbae729583b1d1ffdd16bb6fe2757329435662a78f0"),
+            shex("f3473802e38a3ffef4d4fb8e6aa266ebde553a64528a06463e"),
+        ),
+        (
+            nettle.ciphers.AES256,
+            shex(
+                "266c336b3b01489f3267f52835fd92f6"
+                "74374b88b4e1ebd2d36a5f457581d9d0"
+                "42c3eef7b0b7e5137b086496b4d9e6ac"
+                "658d7196a23f23f036172fdb8faee527"
+            ),
+            shex("06b209a7a22f486ecbfadb0f3137ba42"),
+            shex(
+                "ca7d65ef8d3dfad345b61ccddca1ad81"
+                "de830b9e86c7b426d76cb7db766852d9"
+                "81c6b21409399d78f42cc0b33a7bbb06"
+            ),
+            shex(
+                "c73256870cc2f4dd57acc74b5456dbd7"
+                "76912a128bc1f77d72cdebbf270044b7"
+                "a43ceed29025e1e8be211fa3c3ed002d"
+            ),
+        ),
+    ],
+)
+def test_xts(
+    cipher: type[nettle.ciphers.BlockCipher],
+    key: bytes,
+    tweak: bytes,
+    cleartext: bytes,
+    ciphertext: bytes,
+) -> None:
+
+    assert len(cleartext) == len(ciphertext)
+    assert len(key) == 2 * cipher.key_size
+    assert len(tweak) == 16
+
+    primary_key = key[: cipher.key_size]
+    tweak_key = key[cipher.key_size :]
+
+    c = cipher()
+    c.set_encrypt_key(primary_key)
+    cm = nettle.cipher_modes.XTS(c, tweak_key)
+    assert cm.encrypt_message(cleartext, tweak) == ciphertext
+
+    c.set_decrypt_key(primary_key)
+    assert cm.decrypt_message(ciphertext, tweak) == cleartext
+
+    with pytest.raises(NotImplementedError):
+        cm.encrypt(cleartext)
+    with pytest.raises(NotImplementedError):
+        cm.decrypt(cleartext)

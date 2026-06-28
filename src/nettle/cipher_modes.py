@@ -3,6 +3,7 @@
 import ctypes
 
 from .ciphers import BlockCipher
+from .exceptions import DataLenError
 from .libnettle import libnettle
 
 
@@ -121,3 +122,61 @@ class CFB8(CipherMode):
 
     _prefix = "nettle_cfb8"
     _decrypt_cipher_func = "_encrypt"
+
+
+class XTS(CipherMode):
+    """XEX-based tweaked-codebook mode with ciphertext stealing (XTS)."""
+
+    _tweak_cipher: BlockCipher
+
+    def __init__(self, cipher: BlockCipher, tweak_key: bytes) -> None:
+        self.cipher = cipher
+        self._tweak_cipher = type(cipher)()
+        self._tweak_cipher.set_encrypt_key(tweak_key)
+
+    def encrypt(self, cleartext: bytes) -> bytes:
+        """Not implemented, use encrypt_message instead."""
+        raise NotImplementedError
+
+    def decrypt(self, ciphertext: bytes) -> bytes:
+        """Not implemented, use decrypt_message instead."""
+        raise NotImplementedError
+
+    def encrypt_message(self, cleartext: bytes, tweak: bytes) -> bytes:
+        """Encrypt cleartext."""
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
+        self._tweak_cipher._check_initialized_for_encryption()  # noqa: SLF001
+        size = len(cleartext)
+        if size < self.cipher.block_size:
+            raise DataLenError
+        dst = ctypes.create_string_buffer(size)
+        libnettle.nettle.nettle_xts_encrypt_message(
+            ctypes.byref(self.cipher._ctx),  # noqa: SLF001
+            ctypes.byref(self._tweak_cipher._ctx),  # noqa: SLF001
+            libnettle.nettle[f"{self.cipher._prefix}_encrypt"],  # noqa: SLF001
+            tweak,
+            size,
+            dst,
+            cleartext,
+        )
+        return bytes(dst)
+
+    def decrypt_message(self, ciphertext: bytes, tweak: bytes) -> bytes:
+        """Encrypt cleartext."""
+        self.cipher._check_initialized_for_encryption()  # noqa: SLF001
+        self._tweak_cipher._check_initialized_for_encryption()  # noqa: SLF001
+        size = len(ciphertext)
+        if size < self.cipher.block_size:
+            raise DataLenError
+        dst = ctypes.create_string_buffer(size)
+        libnettle.nettle.nettle_xts_decrypt_message(
+            ctypes.byref(self.cipher._ctx),  # noqa: SLF001
+            ctypes.byref(self._tweak_cipher._ctx),  # noqa: SLF001
+            libnettle.nettle[f"{self.cipher._prefix}_decrypt"],  # noqa: SLF001
+            libnettle.nettle[f"{self.cipher._prefix}_encrypt"],  # noqa: SLF001
+            tweak,
+            size,
+            dst,
+            ciphertext,
+        )
+        return bytes(dst)

@@ -318,14 +318,6 @@ class SLHDSAKeyPair(KeyPair):
     def sign(self, msg: bytes) -> bytes:
         """Sign msg."""
         signature = ctypes.create_string_buffer(self.signature_size)
-        libnettle.nettle[f"{self._prefix}_sign"].argtypes = [
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-            ctypes.c_size_t,
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-        ]
-
         libnettle.nettle[f"{self._prefix}_sign"](
             self._pub,
             self._key,
