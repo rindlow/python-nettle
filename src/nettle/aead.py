@@ -38,6 +38,7 @@ class AEAD:
                 dgst,
             )
         else:
+            breakpoint()
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx),
                 ctypes.byref(self._key),
@@ -98,7 +99,6 @@ class EAX(AEAD):
 
     def __init__(self, cipher: BlockCipher, nonce: bytes) -> None:
         cipher._check_initialized_for_encryption()  # noqa: SLF001
-
         self.cipher = cipher
         self._key_size = cipher.key_size
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
@@ -121,6 +121,14 @@ class EAX(AEAD):
             ctypes.c_void_p,
             ctypes.c_size_t,
             ctypes.c_char_p,
+            ctypes.c_char_p,
+        ]
+        libnettle.nettle[f"{self._prefix}_update"].argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
             ctypes.c_char_p,
         ]
         libnettle.nettle[f"{self._prefix}_digest"].argtypes = [
@@ -148,6 +156,17 @@ class EAX(AEAD):
             libnettle.nettle[f"{self.cipher._prefix}_encrypt"],  # noqa: SLF001
             len(nonce),
             nonce,
+        )
+
+    def update(self, msg: bytes) -> None:
+        """Process associated data for authentication."""
+        libnettle.nettle[f"{self._prefix}_update"](
+            ctypes.byref(self._ctx),
+            ctypes.byref(self._key),
+            ctypes.byref(self.cipher._ctx),
+            libnettle.nettle[f"{self.cipher._prefix}_encrypt"],  # noqa: SLF001
+            len(msg),
+            msg,
         )
 
 

@@ -58,7 +58,6 @@ def test_aead(
     aead = mode(c, iv)
     aead.update(authtext)
     assert aead.encrypt(cleartext) == ciphertext
-    breakpoint()
     assert aead.digest() == digest
 
     c = cipher()
