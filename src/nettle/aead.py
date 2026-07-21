@@ -38,7 +38,6 @@ class AEAD:
                 dgst,
             )
         else:
-            breakpoint()
             libnettle.nettle[f"{self._prefix}_digest"](
                 ctypes.byref(self._ctx),
                 ctypes.byref(self._key),
@@ -100,7 +99,7 @@ class EAX(AEAD):
     def __init__(self, cipher: BlockCipher, nonce: bytes) -> None:
         cipher._check_initialized_for_encryption()  # noqa: SLF001
         self.cipher = cipher
-        self._key_size = cipher.key_size
+        self._key_size = 32
         self._ctx = ctypes.create_string_buffer(self._ctx_size)
 
         func = libnettle.nettle[f"{self.cipher._prefix}_encrypt"]  # noqa: SLF001
