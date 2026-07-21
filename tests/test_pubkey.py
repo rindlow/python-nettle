@@ -293,35 +293,35 @@ def test_oaep_encrypt_decrypt(keypair: nettle.pubkey.rsa.RSAKeyPair) -> None:
     nettle.version < (4, 0), reason="SLH-DSA was introduced in nettle 4.0"
 )
 @pytest.mark.parametrize(
-    ("slhalg", "public", "private", "msg", "expected"),
+    ("slhalg", "public", "private", "msgfile", "expectedfile"),
     [
         (
             "slh_dsa_sha2_128f",  # tcId 7
             shex("0C04FABC4FCA7F356AC36C28B99D7A1FCFEF78F38B167CA9D0AB8772910C3945"),
             shex("704555B4E5DD1B979A4C3B7A0A0E4EE241D59AE0779CAF0DF58300F21066DDA7"),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128f-tc7.msg")),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128f-tc7.sig")),
+            "slh-dsa-sha2-128f-tc7.msg",
+            "slh-dsa-sha2-128f-tc7.sig",
         ),
         (
             "slh_dsa_shake_128f",  # tcId 64
             shex("C9A7900E931AFBA2B52A5BC55A2DC4D12DDC9BF8E0B2ED0BDE83E674F1ECE7AA"),
             shex("0E87FF20256E0E499A53B52DF91467C01F0431C07250AFE93DE814117B5D66D3"),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128f-tc64.msg")),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128f-tc64.sig")),
+            "slh-dsa-shake-128f-tc64.msg",
+            "slh-dsa-shake-128f-tc64.sig",
         ),
         (
             "slh_dsa_sha2_128s",  # tcId 162
             shex("0FD12C3F990748CF9B1426413B64128EDF9242E50B9E29378BD24CAD4D547540"),
             shex("438E444071BD643C2407BD9FEB0071EC21DAA14113518133D6161EF420EE629D"),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128s-tc162.msg")),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-sha2-128s-tc162.sig")),
+            "slh-dsa-sha2-128s-tc162.msg",
+            "slh-dsa-sha2-128s-tc162.sig",
         ),
         (
             "slh_dsa_shake_128s",  # tcId 215
             shex("DD286FF370CB50BC1B23894AA3F7025A534A788E697B94942AB845EFB753A30B"),
             shex("4738AC60C561FFBE15AB96EFFA1A09291A79332E1CA3C38B2FEF40ACA7CFE285"),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128s-tc215.msg")),
-            read_hex_file(TESTFILEPATH.joinpath("slh-dsa-shake-128s-tc215.sig")),
+            "slh-dsa-shake-128s-tc215.msg",
+            "slh-dsa-shake-128s-tc215.sig",
         ),
     ],
 )
@@ -330,9 +330,12 @@ def test_slh_dsa(
     slhalg: str,
     public: bytes,
     private: bytes,
-    msg: bytes,
-    expected: bytes,
+    msgfile: str,
+    expectedfile: str,
 ) -> None:
+    msg = read_hex_file(TESTFILEPATH.joinpath(msgfile))
+    expected = read_hex_file(TESTFILEPATH.joinpath(expectedfile))
+
     kp = nettle.pubkey.SLHDSAKeyPair.from_params(
         key=private, pub=public, alg=slhalg, random=yarrow
     )
