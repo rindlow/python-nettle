@@ -32,6 +32,27 @@ def yarrow() -> nettle.randomness.Yarrow256:
             shex("834EADFCCAC7E1B30664B1ABA44815AB"),
             shex("1946DABF6A03A2A2 C3D0B05080AED6FC"),
         ),
+        (
+            nettle.ciphers.Camellia128,
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("67 67 31 38 54 96 69 73 08 57 06 56 48 ea be 43"),
+        ),
+        (
+            nettle.ciphers.Camellia192,
+            shex("0123456789abcdeffedcba98765432100011223344556677"),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("b4 99 34 01 b3 e9 96 f8 4e e5 ce e7 d7 9b 09 b9"),
+        ),
+        (
+            nettle.ciphers.Camellia256,
+            shex(
+                "01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"
+                "00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"
+            ),
+            shex("01 23 45 67 89 ab cd ef fe dc ba 98 76 54 32 10"),
+            shex("9a cc 23 7d ff 16 d7 6c 20 ef 7c 91 9e 3a 75 09"),
+        ),
     ],
 )
 def test_cipher(
@@ -120,6 +141,12 @@ def test_invert(
             shex("0001020304050607 08090A0B0C0D0E0F 1011121314151617 18191A1B1C1D1E1F"),
             shex("0011223344556677 8899AABBCCDDEEFF"),
             shex("64E8C3F9CE0F5BA2 63E9777905818A2A 93C8191E7D6E8AE7"),
+        ),
+        (
+            nettle.ciphers.Camellia128,
+            shex("01 23 45 67 89 ab cd effe dc ba 98 76 54 32 10"),
+            shex("01 23 45 67 89 ab cd effe dc ba 98 76 54 32 10"),
+            shex("67 67 31 38 54 96 69 7308 57 06 56 48 ea be 43"),
         ),
     ],
 )
